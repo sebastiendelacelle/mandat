@@ -407,7 +407,7 @@ window.E = (function () {
       msg = 'Vous conduisez une liste sans étiquette à ' + commune().name + '. Dans une commune de cette taille, pas besoin d’investiture : il faut surtout des colistiers et la confiance des habitants.';
     } else if (p.party === 'NEW' || mode === 'dissident') {
       p.cand.label = 'DIV'; p.cand.invested = p.party === 'NEW';
-      if (mode === 'dissident' && p.party !== 'NEW') { p.std = clamp(p.std - 40, 0, 100); log('Candidature dissidente : votre parti vous suspend.', 'bad'); article('dauph', p.name + ' part en dissidence contre son propre parti', -0.2, 'pj'); }
+      if (mode === 'dissident' && p.party !== 'NEW') { p.std = clamp(p.std - (s.mp && typeof MP !== 'undefined' && MP.on() && MP.rivals().length ? 12 : 40), 0, 100); log('Candidature dissidente : votre parti vous suspend.', 'bad'); article('dauph', p.name + ' part en dissidence contre son propre parti', -0.2, 'pj'); }
     } else {
       const inv = investiture(el); if (!inv.ok) { p.cand = null; return inv; }
       p.cand.invested = true; p.cand.label = p.party; msg = inv.msg;
@@ -423,6 +423,8 @@ window.E = (function () {
   }
   function investiture(el) {
     const s = S(), p = s.p;
+    if ((p.invLost || {})[el.id]) return { ok: false, refused: true, msg: 'La commission d’investiture a choisi ' + p.invLost[el.id] + '.' };
+    if (s.mp && typeof MP !== 'undefined' && MP.on() && MP.rivals().length) { log('Investiture obtenue : le parti mise sur vous.', 'good'); return { ok: true, msg: 'Le parti vous investit : c’est vous qui porterez ses couleurs ici.' }; }
     if ((p.preInv || {})[el.id]) { log('Investiture confirmée par la commission.', 'good'); return { ok: true, msg: 'La commission d’investiture confirme votre candidature, comme convenu avec la fédération.' }; } const key = electionUnit(el.type); const terr = el.type === 'mun' ? p.communeId : el.type === 'pres' ? 'nat' : 'c' + p.circo;
     if (el.type === 'leg' && s.national.unionGauche && ['LFI', 'PCF', 'ECO', 'PS'].includes(p.party)) {
       const res = unionParty(['LFI', 'PCF', 'ECO', 'PS'], 'c' + p.circo); if (res !== p.party) { const clout = (p.noto.circo || 0) / 60 + (p.mandats.some(m => ['maire', 'cd', 'depute'].includes(m.type)) ? 0.35 : 0) + (p.prole || 0) * 0.08; if (!(rnd() < clout * 0.6)) return { ok: false, refused: true, msg: 'Accord national : la circonscription est réservée au partenaire ' + D.PARTIES[res].short + ' dans l’union de la gauche.' }; log('Votre poids local convainc l’union de la gauche de vous laisser la circonscription.', 'good'); }

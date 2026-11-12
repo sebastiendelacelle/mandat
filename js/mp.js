@@ -25,10 +25,10 @@ const MP = (() => {
   async function addIndex(gid, name) { const L = await myGames(); if (!L.some(g => g.gid === gid)) L.unshift({ gid, name, at: Date.now() }); await idxRef().set({ games: L.slice(0, 20) }); }
 
   /* ---- création / adhésion ---- */
-  async function create(name) {
+  async function create(name, arena) {
     const gid = code(); const seed = 1 + Math.floor(Math.random() * 2e9);
-    await db.doc('mpgames/' + gid).set({ v: 1, name: String(name).slice(0, 60), seed, host: me, members: [me], created: Date.now() });
-    await addIndex(gid, name); return { gid, seed, name };
+    await db.doc('mpgames/' + gid).set({ v: 2, name: String(name).slice(0, 60), seed, host: me, members: [me], created: Date.now(), arena: arena || null });
+    await addIndex(gid, name); return { gid, seed, name, arena: arena || null };
   }
   async function find(gid) { try { return dget(await db.doc('mpgames/' + gid).get()); } catch (e) { return null; } }
   async function join(gid) {
@@ -49,7 +49,7 @@ const MP = (() => {
       game: s.mp.gid, name: p.name, g: p.g, party: p.party, movement: p.movement || null, communeId: p.communeId, circo: p.circo, rank: p.rank, date: s.date, half: s.half || 0,
       noto: { commune: Math.round(p.noto.commune), circo: Math.round(p.noto.circo), dept: Math.round(p.noto.dept), nat: Math.round(p.noto.nat) }, pop: Math.round(E.popularity()), cred: Math.round(p.cred), ax: p.ax,
       mandats: p.mandats.map(m => ({ type: m.type, label: m.label })), cand: p.cand ? { el: p.cand.el, key: p.cand.key, mode: p.cand.mode, invested: !!p.cand.invested, label: p.cand.label } : null, prof,
-      wait: s.mp.wait || null, endorse: s.mp.endorse || null, withdraw: s.mp.withdraw || null, est: s.est ? { el: s.est.el, pct: Math.round(s.est.pct * 10) / 10, rank: s.est.rank } : null,
+      inv: s.mp.inv || null, invRes: s.mp.invRes || null, wait: s.mp.wait || null, endorse: s.mp.endorse || null, withdraw: s.mp.withdraw || null, est: s.est ? { el: s.est.el, pct: Math.round(s.est.pct * 10) / 10, rank: s.est.rank } : null,
       headlines: s.news.filter(n => n.about === 'pj').slice(0, 3).map(n => ({ t: n.title, d: n.date, m: n.media })), at: Date.now()
     };
   }
@@ -122,6 +122,7 @@ const MP = (() => {
     if (!on()) return null; const s = S(), p = s.p; const gid = s.mp.gid;
     if (!game) { const g = await find(gid); if (g) game = Object.assign({ gid }, g); }
     await refreshPubs();
+    const ig = await invGate(); if (ig) return ig;
     const due = E.peekDue(); if (!due.length) { if (s.mp.wait) { s.mp.wait = null; publish(); } return null; }
     for (const { el, round } of due) {
       if (E.LIST_T.includes(el.type)) continue;
@@ -149,6 +150,43 @@ const MP = (() => {
     }
     if (s.mp.wait) { s.mp.wait = null; publish(); }
     return null;
+  }
+
+  /* ---- arène : tous les joueurs partent de la même commune et s'affrontent à chaque élection ---- */
+  const FORCED = ['mun', 'dep', 'leg'];
+  function arena() { const a = game && game.arena ? game.arena : (S() && S().mp && S().mp.arena) || null; return a; }
+  function rivals() { return Object.entries(pubs).filter(([u]) => u !== me).map(([u, h]) => Object.assign({ uid: u }, h)); }
+  // Investiture disputée entre joueurs d'un même parti : la commission tranche au même moment pour tous
+  async function invGate() {
+    const s = S(), p = s.p; const gid = s.mp.gid; s.mp.inv = s.mp.inv || {}; s.mp.invRes = s.mp.invRes || {};
+    const nd = E.addDays(s.date, Math.max(1, E.turnDays()));
+    for (const el of s.elections.filter(e => FORCED.includes(e.type) && e.status === 'futur')) {
+      if (s.mp.invRes[el.id]) continue; if (nd < E.addDays(el.d1, -215)) continue;
+      if (p.party === 'NEW' || (el.type === 'mun' && E.myPetite())) { s.mp.invRes[el.id] = { none: true }; continue; }
+      const mates = rivals().filter(h => h.party === p.party); if (!mates.length) { s.mp.invRes[el.id] = { none: true }; continue; }
+      if (s.mp.inv[el.id] == null) { s.mp.inv[el.id] = Math.round(E.invBase(el).me * 10) / 10; await publish(); }
+      const late = mates.filter(h => !(h.inv && h.inv[el.id] != null));
+      if (late.length) { s.mp.wait = 'inv:' + el.id; await publish(); return { wait: true, inv: true, el, round: 0, late: late.map(h => h.name + ' (au ' + E.fmtDate(h.date, true) + ')') }; }
+      const ref = db.doc('mpinv/' + gid + '~' + el.id + '~' + p.party); let v = null;
+      for (let i = 0; i < 6 && !v; i++) { v = dget(await ref.get()); if (v) break; const l = await ref.acquire({ holder: me, ttlMs: 15000 }); if (l.acquired) { v = dget(await ref.get()); if (!v) { const sc = [{ uid: me, name: p.name, sc: s.mp.inv[el.id] }].concat(mates.map(h => ({ uid: h.uid, name: h.name, sc: h.inv[el.id] }))).sort((a, b) => (b.sc - a.sc) || (a.uid < b.uid ? -1 : 1)); v = { winner: sc[0].uid, winnerName: sc[0].name, scores: sc, party: p.party, el: el.id }; await ref.set(v); } break; } await sleep(1500); }
+      if (!v) return { wait: true, inv: true, el, round: 0, busy: true, late: [] };
+      s.mp.invRes[el.id] = v; const others = v.scores.filter(x => x.uid !== me).map(x => x.name).join(', ');
+      const fed = s.pnj[p.fedId];
+      if (v.winner === me) { p.preInv = p.preInv || {}; p.preInv[el.id] = true; E.addStd(3); E.log('Investiture interne : la commission vous choisit face à ' + others + '.', 'good'); LF.sms(fed ? fed.id : 'La fédération', 'La commission d’investiture a tranché pour les ' + el.label.toLowerCase() + ' : c’est toi, face à ' + others + '. Prépare-toi, ils ne vont pas te faire de cadeau.', null); E.article('dauph', D.PARTIES[p.party].short + ' : ' + p.name + ' investi·e pour les ' + el.label.toLowerCase() + ', au détriment de ' + others, 0.2, 'pj'); }
+      else { p.invLost = p.invLost || {}; p.invLost[el.id] = v.winnerName; E.addStd(-3); E.log('Investiture interne : la commission choisit ' + v.winnerName + '.', 'bad'); LF.sms(fed ? fed.id : 'La fédération', 'La commission a choisi ' + v.winnerName + ' pour les ' + el.label.toLowerCase() + '. Tu seras quand même candidat·e : sans l’étiquette, en dissidence, ou sous une autre bannière si tu changes de parti d’ici là.', null); }
+      if (s.mp.wait && s.mp.wait.startsWith('inv:')) s.mp.wait = null; await publish();
+    }
+    return null;
+  }
+  // Candidature d'office : dans une partie à plusieurs, chaque joueur se présente à chaque élection locale et législative
+  function force() {
+    if (!on() || !rivals().length) return []; const s = S(), p = s.p; const out = [];
+    s.elections.filter(e => FORCED.includes(e.type) && e.status === 'futur' && E.diffDays(s.date, e.d1) <= 210 && E.diffDays(s.date, e.d1) > 1).forEach(e => {
+      if (p.cand || (p.inelig && p.inelig > s.date)) return; if (p.rallied && p.rallied[e.id]) delete p.rallied[e.id];
+      let r = E.declare(e.id, 'tete'); if (!p.cand) r = E.declare(e.id, 'dissident');
+      if (p.cand) { const vs = rivals().map(h => h.name); out.push({ el: e, msg: r.msg, vs }); E.log('Candidature d’office : ' + e.label + '.', 'info'); }
+    });
+    if (out.length) publish(); return out;
   }
 
   /* ---- messages entre joueurs ---- */
@@ -181,6 +219,6 @@ const MP = (() => {
     if (!on()) return false; const s = S();
     try { await db.collection('mpmsg').add({ game: s.mp.gid, from: me, fromName: s.p.name, to: toUid, kind, text: String(text).slice(0, 600), data: data || null, date: s.date, at: Date.now() }); return true; } catch (e) { return false; }
   }
-  return { endorseBonus, withdrawn, setEndorse, setWithdraw, waitingForMe, createDuel, getDuel, finishDuel, init, available, canWrite, setOnChange, myGames, create, find, join, publish, enter, leave, players, inject, freshCand, shared, gate, send, uid: () => me, mirrorId, game: () => game, on };
+  return { arena, rivals, force, FORCED, endorseBonus, withdrawn, setEndorse, setWithdraw, waitingForMe, createDuel, getDuel, finishDuel, init, available, canWrite, setOnChange, myGames, create, find, join, publish, enter, leave, players, inject, freshCand, shared, gate, send, uid: () => me, mirrorId, game: () => game, on };
 })();
 if (typeof window !== 'undefined') window.MP = MP;

@@ -108,7 +108,7 @@ const LN = (() => {
 
   /* ---------- investiture : proposition du parti ---------- */
   function invScan() {
-    const s = S(), p = P(); if (p.party === 'NEW' || p.cand) return; p.preInv = p.preInv || {}; const L = st(); L.inv = L.inv || {};
+    const s = S(), p = P(); if (p.party === 'NEW' || p.cand || (s.mp && typeof MP !== 'undefined' && MP.rivals().length)) return; p.preInv = p.preInv || {}; const L = st(); L.inv = L.inv || {};
     const e = s.elections.filter(x => ['mun', 'dep', 'leg'].includes(x.type) && x.status === 'futur').sort((a, b) => a.d1 < b.d1 ? -1 : 1)[0]; if (!e) return;
     const d = E.diffDays(s.date, e.d1); if (d > 300 || d < 30 || L.inv[e.id] || (p.rallied || {})[e.id]) return;
     const o = E.invOdds(e); if (!o || o.pre || o.union) return; const f = fed(); if (!f) return;
@@ -139,7 +139,7 @@ const LN = (() => {
       const sec = E.findPnj(x => x.party === party && x.role === 'section' && x.territory === p.communeId) || E.mkPnj({ party, role: 'section', territory: p.communeId, mandat: 'Secrétaire de section (' + E.commune().name + ')', noto: 15, std: 45 });
       fedP.known = sec.known = true; fedP.rel = 15; p.fedId = fedP.id; p.secId = sec.id;
     }
-    m0.switched = s.date; m0.dis = 0; m0.def = 0; m0.inco = 0; p.rallied = {}; p.preInv = {};
+    m0.switched = s.date; m0.dis = 0; m0.def = 0; m0.inco = 0; p.rallied = {}; p.preInv = {}; p.invLost = {};
     const to = party === 'NEW' ? p.movement : D.PARTIES[party].short;
     E.article('dauph', p.name + ' quitte ' + fromS + (party === 'NEW' ? ' et se lance en indépendant·e' : ' et rejoint ' + to), coherent ? 0 : -0.3, 'pj');
     E.log('Vous quittez ' + fromS + (party === 'NEW' ? '.' : ' pour ' + to + '.'), 'info');

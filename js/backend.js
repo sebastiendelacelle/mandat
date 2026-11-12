@@ -33,7 +33,9 @@
       get: async () => dec(await ref.get()), set: v => ref.set(enc(v)), delete: () => ref.delete(),
       async update(v) { const cur = dec(await ref.get()).data() || {}; return ref.set(enc(Object.assign({}, cur, v))); },
       onSnapshot: (a, b) => ref.onSnapshot(sn => a(dec(sn)), b), get id() { return ref.id; },
-      async acquire() { return { acquired: true }; }, async release() { return true; }
+      // verrou court (transaction) : un seul joueur calcule un résultat partagé
+      async acquire(o) { const lk = fs.collection('locks').doc(ref.path.replace(/\//g, '|')); try { return await fs.runTransaction(async tx => { const d = await tx.get(lk); const now = Date.now(); const v = d.exists ? d.data() : null; if (v && v.until > now && v.holder !== o.holder) return { acquired: false }; tx.set(lk, { holder: o.holder, until: now + ((o && o.ttlMs) || 15000) }); return { acquired: true }; }); } catch (e) { return { acquired: false }; } },
+      async release() { return true; }
     };
   }
   const dbApi = {
