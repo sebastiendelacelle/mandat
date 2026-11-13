@@ -53,7 +53,7 @@
   /* ---------- modales & toasts ---------- */
   function modal(html, onMount, cls) {
     const ov = document.createElement('div'); ov.className = 'ov'; ov.innerHTML = '<div class="modal ' + (cls || '') + '" role="dialog" aria-modal="true">' + html + '</div>';
-    document.body.appendChild(ov); document.querySelectorAll('.toast').forEach(t => t.classList.add('top')); const m = ov.firstChild; const close = () => ov.remove();
+    document.body.appendChild(ov); document.querySelectorAll('.toast').forEach(t => t.classList.add('hi')); const m = ov.firstChild; const close = () => ov.remove();
     if (onMount) onMount(m, close); if (window.matchMedia('(hover: hover)').matches) { const f = m.querySelector('textarea, input'); if (f) f.focus({ preventScroll: true }); }
     return { m, close };
   }
@@ -80,7 +80,7 @@
     t.innerHTML = '<div class="row" style="justify-content:space-between;align-items:flex-start"><b>' + esc(title) + '</b><button class="linkbtn" aria-label="Fermer">OK</button></div><div class="small" style="margin:4px 0 6px">' + esc(msg) + '</div>' + chipsHTML(ds);
     document.body.appendChild(t); t.querySelector('button').onclick = () => t.remove(); setTimeout(() => t.remove(), 7000); // chaque bandeau a sa propre minuterie
   }
-  function toast(msg) { document.querySelectorAll('.toast').forEach(t => t.remove()); const t = document.createElement('div'); t.className = 'toast' + (document.querySelector('.ov') ? ' top' : ''); t.textContent = msg; t.onclick = () => t.remove(); document.body.appendChild(t); setTimeout(() => t.remove(), Math.min(6500, 3000 + String(msg).length * 18)); }
+  function toast(msg) { document.querySelectorAll('.toast').forEach(t => t.remove()); const t = document.createElement('div'); t.className = 'toast' + (document.querySelector('.ov') ? ' hi' : ''); t.textContent = msg; t.onclick = () => t.remove(); document.body.appendChild(t); setTimeout(() => t.remove(), Math.min(6500, 3000 + String(msg).length * 18)); }
 
   /* ---------- composants ---------- */
   const pc = code => D.PARTIES[code] ? D.PARTIES[code].color : '#8d939c';
@@ -2048,6 +2048,7 @@
     c.msgs.slice().reverse().forEach(m => {
       h += '<div class="daytag">' + E.fmtDate(m.date, false) + '</div><div class="bubble ' + (m.out ? 'me' : 'them') + '">' + esc(m.text) + '</div>';
       (m.thread || []).forEach(t => { h += '<div class="bubble ' + (t.me ? 'me' : 'them') + '">' + esc(t.t) + '</div>'; });
+      if (m.out2) h += '<div class="sysline"><b>Conséquence</b> · ' + esc(m.out2.t) + (m.out2.ds && m.out2.ds.length ? chipsHTML(m.out2.ds) : '') + '</div>';
       if (m.replies && m.answered == null) { const exec = P().mandats.some(z => ['maire', 'adjoint'].includes(z.type)); h += '<div class="reps">' + m.replies.map((r, i) => (r.opp || /^Interpeller publiquement le maire/.test(r.l)) && exec ? '' : '<button class="btn sm' + (r.ill ? ' warn' : '') + '" data-rep="' + m.id + ':' + i + '">' + esc(r.l) + illTag(r.ill) + '</button>').join('') + '</div>'; }
     });
     const hu = c.msgs.find(m => m.human); return h + '</div>' + (hu ? '<div class="row" style="gap:6px;flex-wrap:nowrap;margin-top:8px"><input class="field" id="hrep" maxlength="600" placeholder="Répondre à ' + esc(c.name) + '…" style="flex:1"><button class="btn primary" data-hsend="' + esc(hu.human) + '">Envoyer</button></div>' : '') + '<div class="foot"><button class="btn' + (hu ? '' : ' primary') + '" data-ok>Fermer</button></div>';
@@ -2058,7 +2059,7 @@
     const wire = () => {
       m.querySelector('[data-ok]').onclick = () => { close(); render(); };
       const hs = m.querySelector('[data-hsend]'); if (hs) hs.onclick = async () => { const inp = m.querySelector('#hrep'); const t = inp.value.trim(); if (!t) return; hs.disabled = true; if (await MP.send(hs.dataset.hsend, 'msg', t)) { pushOut(hs.dataset.hsend, t); const c2 = convs().find(x => x.name === name); m.innerHTML = threadHTML(c2); wire(); const th = m.querySelector('.th'); th.scrollTop = th.scrollHeight; } else { toast('Envoi impossible.'); hs.disabled = false; } };
-      m.querySelectorAll('[data-rep]').forEach(b => b.onclick = () => { const [id, i] = b.dataset.rep.split(':'); const before = X.snap(); const res = LF.reply(id, +i); const act = S()._act; S()._act = null; if (act) { close(); toast(res); runSmsAct(act); return; } const c2 = convs().find(x => x.name === name); m.innerHTML = threadHTML(c2); wire(); const th = m.querySelector('.th'); th.scrollTop = th.scrollHeight; E.estimate(); const ds = X.deltas(before, X.snap()); toast(res + (ds.length ? ' ' + ds.map(d => d.l + ' ' + d.t).join(', ') : '')); });
+      m.querySelectorAll('[data-rep]').forEach(b => b.onclick = () => { const [id, i] = b.dataset.rep.split(':'); E.estimate(); const before = X.snap(); const res = LF.reply(id, +i); const act = S()._act; S()._act = null; if (act) { close(); toast(res); runSmsAct(act); return; } E.estimate(); const ds = X.deltas(before, X.snap()); const mm = S().sms.find(z => z.id === id); if (mm) mm.out2 = { t: res, ds: ds.map(d => ({ l: d.l, t: d.t, d: d.d })) }; const c2 = convs().find(x => x.name === name); m.innerHTML = threadHTML(c2); wire(); const th = m.querySelector('.th'); th.scrollTop = th.scrollHeight; });
     };
     wire(); const th = m.querySelector('.th'); th.scrollTop = th.scrollHeight;
   }
