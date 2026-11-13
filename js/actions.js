@@ -224,11 +224,13 @@ window.X = (function () {
     const fx = fin && (CAT_FIN[c.level] || {})[fin]; const f = fin && (L.FIN[c.level] || []).find(z => z.id === fin); const per = c.l.slice(); if (fx) fx[1].forEach(g => { if (!per.includes(g) && !c.g.includes(g)) per.push(g); });
     return addMeasure({ text: c.t + (f && fin !== 'aucun' ? ', financé par : ' + f.l.toLowerCase() : ''), resume: c.t, level: c.level, theme: c.th, axes: Object.assign({}, c.ax), cout, fin: fin || null, finL: f && fin !== 'aucun' ? f.l : '', competence: 'oui', cred: c.cred + E.rint(-4, 4) + (fx ? fx[0] : 0), gagnants: c.g.slice(), perdants: per, critique: fin === 'aucun' ? 'Financement absent : « qui paiera ? »' : '', src: cid });
   }
+  const PROG_MAX = 5;
   function addMeasure(m) {
     const p = P(); const o = Object.assign({ id: E.uid('mes'), date: S().date, status: 'proposee', phare: false, visib: 20, defended: 0 }, m);
     if (!o.level) o.level = 'local'; if (!S().bulkProg) (S().turnDid = S().turnDid || []).push({ l: 'Mesure proposée', m: o.resume || '' });
     const dup = p.prog.find(x => x.status !== 'retiree' && x.level === o.level && ((o.lever && x.lever === o.lever) || (o.src && x.src === o.src) || x.resume === o.resume));
     if (dup) { const keep = { id: dup.id, date: dup.date, phare: dup.phare, visib: dup.visib, defended: dup.defended, status: dup.status }; Object.keys(dup).forEach(k => delete dup[k]); Object.assign(dup, o, keep, { updated: true }); return dup; } // pas de doublon : on met à jour la mesure existante
+    { const act = p.prog.filter(x => x.status !== 'retiree'); if (act.length >= PROG_MAX) { const w = act.filter(x => !x.phare).sort((a, b) => (a.visib || 0) - (b.visib || 0))[0] || act[0]; w.status = 'retiree'; w.retDate = S().date; E.log('Programme limité à ' + PROG_MAX + ' mesures : « ' + (w.resume || w.text) + ' » est mise de côté.', 'info'); } }
     const vo = o.axes ? E.vecFrom(o.axes) : null; const ctr = vo ? p.prog.filter(x => x.status !== 'retiree' && x.axes && x.theme === o.theme && x.level === o.level).find(x => { const w = E.vecFrom(x.axes); let d = 0; for (let i = 0; i < 6; i++) d += vo[i] * w[i]; return d < -1200; }) : null; // même thème, sens opposés
     if (ctr) { o.contra = ctr.id; ctr.contra = o.id; E.log('Attention : « ' + o.resume + ' » contredit « ' + ctr.resume + ' », déjà dans votre programme. Vos adversaires vont s’en servir.', 'bad'); p.cred = clamp(p.cred - 2, 0, 100); }
     p.prog.unshift(o); E.statement(o.text, o.theme, o.axes, 0.5, 'programme');
@@ -343,10 +345,11 @@ window.X = (function () {
   function mairieEmprunt() { const m = P().mairie; const amt = Math.round(m.invest * 0.5); m.dette += amt; m.invest += amt; return 'Emprunt de ' + eur(amt) + ' : dette ' + eur(m.dette) + '.'; }
 
   /* ---------- mesure des effets ---------- */
-  function snap() { const p = P(); try { if (!E.silence || !E.silence()) E.estimate(); } catch (e) { } return { nc: p.noto.commune, nci: p.noto.circo, nd: p.noto.dept, nn: p.noto.nat, pop: E.popularity(), cred: p.cred, std: p.std, mil: p.militants, cash: p.cash + (p.cand && p.cand.compte ? p.cand.compte.recettes - p.cand.compte.depenses : 0), fol: p.followers, img: Object.assign({}, p.image), est: S().est ? S().est.pct : null }; }
+  function reseau() { const p = P(); return Math.round(Math.max(0, Math.min(100, (p.militants || 0) * 1.2 + Math.sqrt(p.followers || 0) * 0.7 + (p.fedSup || 0) * 0.12 + (p.natSup || 0) * 0.08 + (p.staff || []).length * 2))); }
+  function snap() { const p = P(); try { if (!E.silence || !E.silence()) E.estimate(); } catch (e) { } return { res: reseau(), nc: p.noto.commune, nci: p.noto.circo, nd: p.noto.dept, nn: p.noto.nat, pop: E.popularity(), cred: p.cred, std: p.std, mil: p.militants, cash: p.cash + (p.cand && p.cand.compte ? p.cand.compte.recettes - p.cand.compte.depenses : 0), fol: p.followers, img: Object.assign({}, p.image), est: S().est ? S().est.pct : null }; }
   function deltas(a, b) {
     const out = []; const add = (l, d, dec, unit) => { if (Math.abs(d) >= (dec ? 0.05 : 0.5)) out.push({ l, d, t: (d > 0 ? '+' : '−') + (dec ? Math.abs(d).toFixed(1).replace('.', ',') : Math.round(Math.abs(d)).toLocaleString('fr-FR')) + (unit || '') }); };
-    const sc = (E.indicators() || {}).scope || 'commune'; const nk = { commune: 'nc', circo: 'nci', dept: 'nd', nat: 'nn' }[sc] || 'nc'; add('Notoriété', b[nk] - a[nk], 1); add('Image', b.pop - a.pop, 1); add('Crédibilité', b.cred - a.cred, 1); add('Poids au parti', b.std - a.std, 1); add('Militants', b.mil - a.mil); add('Argent', b.cash - a.cash, false, ' €');
+    const sc = (E.indicators() || {}).scope || 'commune'; const nk = { commune: 'nc', circo: 'nci', dept: 'nd', nat: 'nn' }[sc] || 'nc'; add('Notoriété', b[nk] - a[nk], 1); add('Image', b.pop - a.pop, 1); add('Crédibilité', b.cred - a.cred, 1); add('Poids au parti', b.std - a.std, 1); add('Réseau', b.res - a.res, 1); add('Argent', b.cash - a.cash, false, ' €');
     D.SEGS.map(g => ({ g, d: (b.img[g.id] || 0) - (a.img[g.id] || 0) })).filter(x => Math.abs(x.d) >= 0.8).sort((x, y) => Math.abs(y.d) - Math.abs(x.d)).slice(0, 2).forEach(({ g, d }) => out.push({ l: 'Image ' + g.name.toLowerCase(), d, t: (d > 0 ? '+' : '−') + Math.abs(d).toFixed(1).replace('.', ',') }));
     if (a.est != null && b.est != null) add('Score estimé', b.est - a.est, 1, ' pt');
     return out;
@@ -379,5 +382,5 @@ window.X = (function () {
     const p = s.p; if (p.cand && !(s.elections || []).some(e => e.id === p.cand.el)) { p.cand = null; p.camp = { terrain: 0, medias: 0, num: 0, meet: 0 }; }
   }
 
-  return { CAT_FIN, doOff, setMission, raise, recadrer, addBuilt, progSummary, applyContribution, newMeasureFromCatalogue, addMeasure, setPhare, defendMeasure, applyConference, applyInOffice, curLevel, snap, deltas, ACTIONS, avail, doAction, startAI, costOf, applyPost, applyMeasure, applySpeech, applyDebate, applyDialogue, applyQag, applyTribune, staffCandidates, hire, fire, resolveSection, resolveOffer, resolveT2, resolveConsigne, PROJETS, mairieProjet, mairieTaxe, mairieEmprunt, serialize, load, scopeOf, curType, inCampaign };
+  return { PROG_MAX, reseau, CAT_FIN, doOff, setMission, raise, recadrer, addBuilt, progSummary, applyContribution, newMeasureFromCatalogue, addMeasure, setPhare, defendMeasure, applyConference, applyInOffice, curLevel, snap, deltas, ACTIONS, avail, doAction, startAI, costOf, applyPost, applyMeasure, applySpeech, applyDebate, applyDialogue, applyQag, applyTribune, staffCandidates, hire, fire, resolveSection, resolveOffer, resolveT2, resolveConsigne, PROJETS, mairieProjet, mairieTaxe, mairieEmprunt, serialize, load, scopeOf, curType, inCampaign };
 })();

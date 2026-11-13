@@ -344,8 +344,15 @@ const FL = (() => {
     tryAdd(R() < (p.cand || elu() ? 0.1 : 0.07) * k, servItem);
     tryAdd(R() < 0.07 * k && known() > 18, portraitItem);
     tryAdd(R() < 0.12 * k && (p.staff || []).length, staffItem);
-    planTick();
+    planTick(); stratTick(k);
   }
+  /* ---------- exécution de la stratégie de campagne ---------- */
+  function stratTick(k) { const p = P(); const st = p.cand && p.cand.strat; if (!st) return; const ph = E.phase().id; if (!['pre', 'campagne', 'entre2'].includes(ph)) return; const f = k * (ph === 'pre' ? 0.6 : 1); let t = '';
+    if (st.s === 'terrain') { const key = p.cand.key; const zs = E.zonesFor ? E.zonesFor(key) : null; let n = 0; if (zs) { const ord = zs.slice().sort((a, b) => a.cover - b.cover); for (let i = 0; i < Math.min(2, ord.length); i++) { E.canvass(ord[i].id, 'staff'); n++; } } E.addNoto('commune', 0.6 * f); t = 'les militants ont quadrillé ' + n + ' secteur' + (n > 1 ? 's' : '') + ' peu couvert' + (n > 1 ? 's' : ''); }
+    else if (st.s === 'medias') { E.addNoto(nscope(), 1 * f); const ax = (D.THEMES[st.th] || {}).ax || {}; const v = P().ax || []; D.SEGS.forEach(g => { let a = 0; for (const kk in ax) a += ax[kk] * (g.ideal[E.AXI[kk]] || 0) * Math.sign(v[E.AXI[kk]] || 1); E.addImage(g.id, Math.max(-0.4, Math.min(0.8, a / 120)) * f); }); p.followers += Math.round(40 * f); t = 'passages presse et vidéos sur ' + ((D.THEMES[st.th] || {}).l || st.th).toLowerCase(); }
+    else if (st.s === 'notables') { if (p.party !== 'NEW') E.addStd(0.6 * f); E.addImage('RET', 0.6 * f); E.addImage('CAD', 0.4 * f); p.fedSup = clamp((p.fedSup || 0) + 0.5 * f, 0, 100); t = 'rencontres avec des élus, présidents d’association et chefs d’entreprise'; }
+    if (st.al === 'alliance' && R() < 0.15 * k) { const r = rival(); if (r && (r.rel || 0) > -20) { r.rel = clamp((r.rel || 0) + 3, -100, 100); t += ' ; votre équipe sonde ' + r.name + ' pour un accord'; } }
+    st.last = t; F().echo.unshift({ date: S().date, t: 'Campagne : ' + t + '.' }); }
   return { tick, decide, pending, later, owe, promise, closeProm, biasRival, planOf, F, optOk, ARCS, journo, echo };
 })();
 if (typeof window !== 'undefined') window.FL = FL;
