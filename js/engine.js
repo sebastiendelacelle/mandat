@@ -271,6 +271,7 @@ window.E = (function () {
   function turnDays() {
     const s = S(); const d0 = toD(s.date); const toMonth = diffDays(s.date, fromD(new Date(Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + 1, 1, 12))));
     const d = daysLeft(); if (d >= 999) return toMonth;
+    const ph = phase(); if (ph.id === 'attente' && ph.won && ph.el && ph.el.status === 't1') { const to2 = diffDays(s.date, ph.el.d2); if (to2 >= 0) return to2 + 1; } // élu·e au 1er tour : on saute au lendemain du second tour
     const to2 = diffDays(s.date, fromD(new Date(Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + 2, 1, 12))));
     let std = d > 300 && !s.p.cand ? to2 : d > 150 ? toMonth : d > 56 ? 14 : d > 21 ? 7 : d > 7 ? 3 : d > 3 ? 2 : d > 2 ? 1 : d > 1 ? 0.5 : 1;
     if (std > 1 && std > d - 1) std = Math.max(1, Math.floor(d - 1)); if (d > 150 && toMonth > d - 150 && d - 150 >= 7) std = Math.round(d - 150);
