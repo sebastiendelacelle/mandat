@@ -50,6 +50,7 @@ const FL = (() => {
     revanche(d) { echo((d.who || 'Le notable éconduit') + ' raconte partout que vous n’avez pas de parole.', { img: { RET: -1, CAD: -0.6 }, cred: -1 }); },
     fuite(d) { echo((d.who || 'Votre ancien·ne collaborateur·rice') + ' règle ses comptes dans la presse : réunions tendues, promesses intenables.', { cred: -3, all: -0.8, art: ['dauph', 'Un ex-proche de ' + P().name + ' raconte les coulisses', -0.5] }); },
     dol(d) { const ok = R() < (d.p || 0.6); const il = d.g === 'F' ? 'Elle' : 'Il'; if (ok) echo(d.who + ' a obtenu ' + d.what + ' grâce à vous. ' + il + ' le raconte à tout le quartier.', { img: { [d.seg]: d.big ? 1.8 : 1 }, noto: 0.6 }); else echo('Rien n’a bougé pour ' + d.who + ' (' + d.what + '). ' + il + ' commence à dire que vous promettez beaucoup.', { img: { [d.seg]: -0.6 } }); if (d.prom) closeProm(d.prom, ok); },
+    rapport(d) { echo('Votre rapport de commission d’enquête est publié : il fait la une de la presse nationale pendant deux jours.', { noto: 1, cred: 2, std: 1 }); E.addNoto('nat', 3); },
     crise(d) { push(mkItem('crisesuite', { k: 'crisesuite', from: 'Les sinistrés', t: 'Après ' + d.what + ' : les indemnisations traînent', body: 'Plusieurs familles touchées par ' + d.what + ' attendent toujours les assurances et l’aide de l’État. Elles vous interpellent.', opts: [{ l: 'Relancer la préfecture et les assureurs', h: 2, fx: { all: 1, noto: 0.5 }, res: 'Les dossiers sont accélérés. Les familles vous remercient publiquement.' }, { l: 'Organiser une collecte solidaire', h: 1, fx: { img: { RET: 1, POP: 1 } }, res: 'La collecte rapporte de quoi tenir. Joli geste, relayé par le journal.' }], dflt: { fx: { all: -0.8 }, res: 'Personne n’a répondu aux sinistrés. Ils le font savoir.' } })); }
   };
 
@@ -64,14 +65,14 @@ const FL = (() => {
   function mkItem(k, o) { return Object.assign({ id: E.uid('fl'), k, date: S().date, due: add(S().date, o.urgent ? 10 : 31), from: '', t: '', body: '', opts: [], dflt: null }, o); }
   function push(it) { const f = F(); if (it.urgent && f.inbox.some(x => x.urgent && x.done == null && x.date === S().date)) it.urgent = 0; f.inbox.unshift(it); if (it.urgent) S().queue.push({ kind: 'fl', id: it.id }); return it; }
   const pending = () => F().inbox.filter(x => x.done == null);
-  function optOk(o) { const p = P(); if (o.h && p.hours < o.h) return 'Il vous faut ' + o.h + ' h libres.'; if (o.cash && o.cash < 0 && p.cash < -o.cash) return 'Pas assez d’argent.'; return true; }
+  function optOk(o) { const p = P(); if (o.h && p.hours < o.h) return 'Il vous faut ' + o.h + ' h libres.'; if (o.cash && o.cash < 0 && p.cash < -o.cash) return 'Pas assez d’argent.'; if (o.inv && (!p.mairie || p.mairie.invest < o.inv)) return 'Plus assez d’investissement disponible cette année.'; return true; }
   function decide(id, i) {
     const f = F(); const it = f.inbox.find(x => x.id === id); if (!it || it.done != null) return { ok: false, msg: 'Déjà traité.' };
     const o = it.opts[i]; const ok = optOk(o); if (ok !== true) return { ok: false, msg: ok };
     if (o.h) P().hours -= o.h; it.done = i; it.when = S().date;
     let res = o.res || ''; let f2 = o.fx;
     if (o.r) { const b = o.r.find(z => z.p == null || R() < z.p) || o.r[o.r.length - 1]; res = b.res; f2 = Object.assign({}, o.fx || {}, b.fx || {}); }
-    fx(f2, { item: it.t });
+    fx(f2, { item: it.t }); if (o.inv && P().mairie) P().mairie.invest -= o.inv; if (o.el && typeof EL !== 'undefined') { const r2 = EL.res(o.el, it); if (r2) res = (res ? res + ' ' : '') + r2; }
     if (o.prom) o.prom2 = promise(o.prom[0], o.prom[1]);
     if (o.later) later(o.later[0], o.later[1], Object.assign({}, o.later[2] || {}, o.prom2 ? { prom: o.prom2 } : {}));
     if (o.debt) owe(o.debt[0], o.debt[1], o.debt[2]);
@@ -82,7 +83,7 @@ const FL = (() => {
     if (o.staff) staffRes(o.staff, it);
     it.res = res; return { ok: true, msg: res, act: o.act || null };
   }
-  function expire(it) { it.done = -1; it.when = S().date; const d = it.dflt || {}; fx(d.fx); if (it.arc) arcStep(it.arc, d.flag || 'silence'); if (it.debt && !d.keep) { const x = F().debts.find(y => y.id === it.debt); if (x) { x.paid = 0; x.closed = S().date; } later(rint(2, 6), 'revanche', { who: it.from }); } it.res = d.res || 'Sans réponse de votre part.'; if (d.res) F().echo.unshift({ date: S().date, t: it.t + ' : ' + d.res }); }
+  function expire(it) { it.done = -1; it.when = S().date; const d = it.dflt || {}; fx(d.fx); if (d.el && typeof EL !== 'undefined') EL.res(d.el, it); if (it.arc) arcStep(it.arc, d.flag || 'silence'); if (it.debt && !d.keep) { const x = F().debts.find(y => y.id === it.debt); if (x) { x.paid = 0; x.closed = S().date; } later(rint(2, 6), 'revanche', { who: it.from }); } it.res = d.res || 'Sans réponse de votre part.'; if (d.res) F().echo.unshift({ date: S().date, t: it.t + ' : ' + d.res }); }
 
   /* ---------- positions : mémoire et volte-face ---------- */
   function posMemo(topic, v, it) { const f = F(); const old = f.pos[topic]; if (old && old.v * v < 0) { const j = journo(); echo((j ? j.name : 'Le Dauphinois') + ' relève votre volte-face : vous disiez l’inverse le ' + E.fmtDate(old.date) + '.', { cred: -3, jrel: -1 }); } if (v) f.pos[topic] = { v, date: S().date, t: it.t }; }
@@ -344,6 +345,7 @@ const FL = (() => {
     tryAdd(R() < (p.cand || elu() ? 0.1 : 0.07) * k, servItem);
     tryAdd(R() < 0.07 * k && known() > 18, portraitItem);
     tryAdd(R() < 0.12 * k && (p.staff || []).length, staffItem);
+    if (typeof EL !== 'undefined') { try { EL.tick(k, tryAdd); } catch (e) { console.error(e); } }
     planTick(); stratTick(k);
   }
   /* ---------- exécution de la stratégie de campagne ---------- */
@@ -353,6 +355,6 @@ const FL = (() => {
     else if (st.s === 'notables') { if (p.party !== 'NEW') E.addStd(0.6 * f); E.addImage('RET', 0.6 * f); E.addImage('CAD', 0.4 * f); p.fedSup = clamp((p.fedSup || 0) + 0.5 * f, 0, 100); t = 'rencontres avec des élus, présidents d’association et chefs d’entreprise'; }
     if (st.al === 'alliance' && R() < 0.15 * k) { const r = rival(); if (r && (r.rel || 0) > -20) { r.rel = clamp((r.rel || 0) + 3, -100, 100); t += ' ; votre équipe sonde ' + r.name + ' pour un accord'; } }
     st.last = t; F().echo.unshift({ date: S().date, t: 'Campagne : ' + t + '.' }); }
-  return { tick, decide, pending, later, owe, promise, closeProm, biasRival, planOf, F, optOk, ARCS, journo, echo };
+  return { tick, decide, pending, later, owe, promise, closeProm, biasRival, planOf, F, optOk, ARCS, journo, echo, mkItem, push, fx, rival, has, local, mayor, vil, known, nscope, nm };
 })();
 if (typeof window !== 'undefined') window.FL = FL;

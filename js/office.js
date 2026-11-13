@@ -138,7 +138,7 @@ const OF = (() => {
     const k = { fond: [0.6, 'CAD'], emotion: [0.5, 'POP'], punch: [0.35, 'JUD'] }[tone] || [0.5, 'CAD']; const ok = R() < k[0] + o.poids / 300 + ((p.traits.sangfroid ?? 50) - 50) / 300;
     if (ok) { E.addNoto('nat', tone === 'punch' ? 3 : 1.5); IM(k[1], 1.5); o.poids += 2; if (tone === 'punch') E.post(p.name, '@' + E.slug(p.name), 'Mon intervention dans l’hémicycle sur ' + E.thArt(t.th) + ' 👇', true, rint(300, 4000)); return { ok: true, msg: tone === 'punch' ? 'Votre sortie dans l’hémicycle tourne en boucle sur les réseaux.' : 'Intervention solide, saluée sur plusieurs bancs.' }; }
     if (tone === 'punch') { IMA(-1); return { ok: true, msg: 'Votre sortie fait polémique : rappel au règlement, et des extraits moqueurs.' }; } return { ok: true, msg: 'Intervention correcte, devant un hémicycle clairsemé.' }; }
-  function vote(choice, auto) { const o = of(); const t = o.texte; if (!t || t.vote) return; t.vote = choice; E.resolveVote({ ctx: 'Assemblée nationale', text: t.l, v: t.v, th: t.th, line: t.line }, choice); if (!auto) o.poids += 0.5; return choice === t.line || !t.line ? 'Vote enregistré.' : 'Vous votez contre la consigne du groupe. Ça se paiera.'; }
+  function vote(choice, auto) { const o = of(); const t = o.texte; if (!t || t.vote) return; t.vote = choice; if (t.line && choice !== t.line && !auto) P().dissent = (P().dissent || 0) + 1; E.resolveVote({ ctx: 'Assemblée nationale', text: t.l, v: t.v, th: t.th, line: t.line }, choice); if (!auto) o.poids += 0.5; return choice === t.line || !t.line ? 'Vote enregistré.' : 'Vous votez contre la consigne du groupe. Ça se paiera.'; }
   function setSplit(v) { of().split = clamp(Math.round(v / 5) * 5, 10, 90); }
 
   /* ---------- tick ---------- */
@@ -216,7 +216,7 @@ const OF = (() => {
     pjs().forEach(x => {
       if (['fini', 'abandon'].includes(x.st) || x.wait) return; x.t -= days; if (x.t > 0) return;
       if (x.st === 'etude') { const sur = R() < 0.35 ? 1 + rint(8, 22) / 100 : 1; x.inv = Math.round(x.inv * sur); x.sur = sur > 1; x.wait = true; push({ kind: 'pj_etude', data: { id: x.id } }); }
-      else if (x.st === 'subv') { const src = SOURCES(); const q = clamp(0.5 + (P().noto.circo || 0) / 250 + (adjOf('finances') ? adjOf('finances').comp / 400 : 0) + (cab('dgs') ? 0.1 : 0), 0.35, 0.92); let tot = 0;
+      else if (x.st === 'subv') { const src = SOURCES(); const q = clamp((x.qb || 0) + 0.5 + (P().noto.circo || 0) / 250 + (adjOf('finances') ? adjOf('finances').comp / 400 : 0) + (cab('dgs') ? 0.1 : 0), 0.35, 0.92); let tot = 0;
         x.subs = src.map(z => { const ok = R() < q - (z.k === 'eu' ? 0.15 : 0); const pct = ok ? Math.min(0.8 - tot, z.lo + R() * (z.hi - z.lo)) : 0; tot += pct; return { l: z.l, ok, pct: Math.round(pct * 100) }; });
         x.tot = Math.round(tot * 100); x.reste = Math.round(x.inv * (1 - tot)); x.wait = true; push({ kind: 'pj_subv', data: { id: x.id } }); }
       else if (x.st === 'ao') { x.wait = true; push({ kind: 'pj_ao', data: { id: x.id } }); }

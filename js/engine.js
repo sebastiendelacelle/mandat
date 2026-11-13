@@ -157,7 +157,7 @@ window.E = (function () {
       const inscr = inscrits * u.mix[si];
       const to = clamp(s.turnout * (TMUL[type] || 1) * tk * (1 + (S().national.mobil || 0)), 0.12, 0.95);
       const vt = inscr * to; votants += vt;
-      const ut = cands.map((c, j) => lse(c.bucket.map(p => u.k[p] + aff[si][p])) + natTerm(c, type) + personal(c, si, w, type) + barrage(c, si) + sortant(c) + noise[j]);
+      const ut = cands.map((c, j) => lse(c.bucket.map(p => u.k[p] + aff[si][p])) + natTerm(c, type) + personal(c, si, w, type) + barrage(c, si) + sortant(c) + (type === 'sen' && c.pj ? ((S().p.gde || 0) + (S().p.mandats.some(m => ['maire', 'cd', 'cr'].includes(m.type)) ? 20 : 0)) / 45 : 0) + noise[j]);
       const L = lse(ut); segSh[si] = ut.map(x => Math.exp(x - L)); segVt[si] = vt; ut.forEach((x, j) => votes[j] += vt * Math.exp(x - L));
     });
     const blancs = votants * 0.025; const expr = votants - blancs;
