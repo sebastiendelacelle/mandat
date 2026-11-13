@@ -152,21 +152,22 @@ window.E = (function () {
     const tk = (turnK || 1) * (round === 2 ? (type === 'pres' ? 1.0 : type === 'mun' ? 0.94 : 0.97) : 1);
     if (typeof DP !== 'undefined') cands.forEach(c => { if (!c.pj && !c.prog && S().pnj[c.id] && S().pnj[c.id].prog) c.prog = DP.rivalProgEffect(S().pnj[c.id], type); });
     const noise = cands.map(() => gauss() * (noiseSd ?? 0.1));
-    const votes = cands.map(() => 0); let votants = 0;
+    const votes = cands.map(() => 0); let votants = 0; const segSh = [], segVt = [];
     D.SEGS.forEach((s, si) => {
       const inscr = inscrits * u.mix[si];
       const to = clamp(s.turnout * (TMUL[type] || 1) * tk * (1 + (S().national.mobil || 0)), 0.12, 0.95);
       const vt = inscr * to; votants += vt;
       const ut = cands.map((c, j) => lse(c.bucket.map(p => u.k[p] + aff[si][p])) + natTerm(c, type) + personal(c, si, w, type) + barrage(c, si) + sortant(c) + noise[j]);
-      const L = lse(ut); ut.forEach((x, j) => votes[j] += vt * Math.exp(x - L));
+      const L = lse(ut); segSh[si] = ut.map(x => Math.exp(x - L)); segVt[si] = vt; ut.forEach((x, j) => votes[j] += vt * Math.exp(x - L));
     });
     const blancs = votants * 0.025; const expr = votants - blancs;
     const tot = votes.reduce((a, b) => a + b, 0);
     const pjI = cands.findIndex(c => c.pj); if (pjI >= 0 && round !== 2) { const cap = scoreCap(cands[pjI], type, u); const sh = votes[pjI] / tot * 100;
-      if (cap != null && sh > cap && cands.length > 1) { const keep = cap / 100 * tot; const ex = votes[pjI] - keep; const oth = tot - votes[pjI]; cands.forEach((c, j) => { if (j !== pjI) votes[j] += ex * votes[j] / oth; }); votes[pjI] = keep; } }
+      if (cap != null && sh > cap && cands.length > 1) { const keep = cap / 100 * tot; const ex = votes[pjI] - keep; const oth = tot - votes[pjI]; cands.forEach((c, j) => { if (j !== pjI) votes[j] += ex * votes[j] / oth; }); const f = keep / votes[pjI]; votes[pjI] = keep; segSh.forEach(sh => { const o = 1 - sh[pjI]; const n = sh[pjI] * f; sh.forEach((v, j) => { if (j !== pjI && o > 0) sh[j] = v * (1 - n) / o; }); sh[pjI] = n; }); } }
     const rows = cands.map((c, j) => ({ id: c.id, name: c.name, party: c.party, label: c.label || D.PARTIES[c.party]?.short || c.party, color: c.color || D.PARTIES[c.party]?.color || '#999', pj: !!c.pj, votes: Math.round(votes[j] / tot * expr), pct: votes[j] / tot * 100 }));
     rows.sort((a, b) => b.votes - a.votes);
-    return { inscrits, votants: Math.round(votants), exprimes: Math.round(expr), participation: votants / inscrits * 100, rows };
+    const seg = D.SEGS.map((sg, si) => ({ id: D.SEG_IDS[si], w: segVt[si] / votants, sh: Object.fromEntries(cands.map((c, j) => [c.id, segSh[si][j] * 100])) }));
+    return { inscrits, votants: Math.round(votants), exprimes: Math.round(expr), participation: votants / inscrits * 100, rows, seg };
   }
 
   /* ---------- PNJ ---------- */
@@ -1066,6 +1067,7 @@ window.E = (function () {
     let seatsEst = null; if (LIST_T.includes(el.type) && me) { const st2 = dhondt(r.rows, LIST_SEATS[el.type], el.type === 'sen' ? 0 : 5, el.type === 'reg' ? Math.round(26 / 4) : 0, r.rows[0].id); seatsEst = st2[me.id] || 0; me.pj = true; }
     const est = { list: LIST_T.includes(el.type), seats: seatsEst, pos: p.cand && p.cand.listPos, el: el.id, label: el.label, unit: unit(key).name, pct: me ? me.pct : 0, rank: me ? r.rows.indexOf(me) + 1 : 0, n: r.rows.length, rows: r.rows.slice(0, 6), hypo, date: s.date };
     const meC = me && me.pj && !est.list ? cands.find(c => c.pj) : null; if (meC) est.terms = pjTerms(meC, key, el.type);
+    if (me && r.seg) { const top = r.rows.filter(x => x !== me).slice(0, 3); est.segs = r.seg.map(g => { const mine = g.sh[me.id] || 0; const best = top.map(x => ({ name: x.name, party: x.party, pct: g.sh[x.id] || 0 })).sort((a, b) => b.pct - a.pct)[0]; return { id: g.id, w: Math.round(g.w * 1000) / 10, pct: Math.round(mine * 10) / 10, best }; }); }
     s.est = est; s.rivals = r.rows.filter(x => !x.pj && s.pnj[x.id] && !s.pnj[x.id].human).slice(0, 3).map(x => x.id);
     s.rivals.forEach(id => s.pnj[id].known = true); if (typeof DP !== 'undefined') DP.ensureProgs();
     return est;
