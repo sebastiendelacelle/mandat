@@ -12,7 +12,7 @@ const LN = (() => {
     'la priorité nationale', 'le retour d’une partie des immigrés installés', 'la suppression du droit du sol', 'la régularisation des travailleurs sans papiers', 'un référendum sur l’immigration',
     'la défense européenne commune', 'la primauté du droit français sur le droit européen', 'les livraisons d’armes à l’Ukraine', 'la sortie du commandement intégré de l’OTAN', 'l’entrée de l’Ukraine dans l’Union européenne',
     'la construction de nouveaux réacteurs nucléaires', 'le gel des éoliennes', 'le report de la fin des moteurs thermiques', 'l’interdiction des vols intérieurs courts', 'la suppression des ZFE',
-    'la proportionnelle', 'le référendum d’initiative citoyenne', 'la VIe République', 'le non-cumul des mandats', 'l’alliance de la droite avec le RN'];
+    'la proportionnelle', 'le référendum d’initiative citoyenne', 'la VIe République', 'le retour du cumul député-maire', 'l’alliance de la droite avec le RN', 'la taxe Zucman', 'l’accord avec le Mercosur', 'la retraite par capitalisation', 'le retour sous 3 % de déficit'];
   const NATM = ['info24', 'quotlib', 'radio'];
 
   function st() { const s = S(); s.ln = s.ln || { feed: [], camp: {} }; return s.ln; }

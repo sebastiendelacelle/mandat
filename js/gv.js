@@ -56,7 +56,7 @@ const GV = (() => {
     if (com.pop < 3500) { p.noto.commune = Math.max(p.noto.commune, Math.round(34 - Math.log10(com.pop) * 4)); }
     if (start === 'adjoint') {
       if (p.party === 'NEW') { p.mandats.push({ type: 'conseiller_municipal', label: 'Conseiller·ère municipal·e d’opposition (' + com.name + ')', since: s.date, ind: 0, majority: false }); }
-      else { p.mandats.push({ type: 'adjoint', label: 'Adjoint·e au maire ' + E.de(com.name), since: s.date, ind: 700, majority: true }); p.prole = Math.max(p.prole || 0, 1); }
+      else { p.mandats.push({ type: 'adjoint', label: 'Adjoint·e au maire ' + E.de(com.name), since: s.date, ind: D.adjIndemnity(com.pop), majority: true }); p.prole = Math.max(p.prole || 0, 1); }
       p.noto.commune = Math.max(p.noto.commune, 34); p.noto.circo = Math.max(p.noto.circo, 12); p.cred = clamp(p.cred + 6, 0, 100); E.addStd(6); D.SEG_IDS.forEach(g => E.addImage(g, 3));
       addBilan('Six ans d’adjoint·e : bilan contrasté', 2, 'mandat');
     } else if (start === 'notable') {

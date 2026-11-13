@@ -203,7 +203,7 @@
     }
     h += '</div>'; $app.innerHTML = h; window.scrollTo(0, 0);
     const nx = document.getElementById('w-next');
-    if (w.step === 0) nx.onclick = () => { w.name = document.getElementById('w-name').value.trim(); w.age = E.clamp(+document.getElementById('w-age').value || 30, 18, 80); w.g = document.getElementById('w-g').value; w.metier = document.getElementById('w-met').value; if (!w.name) { toast('Donnez un nom à votre personnage.'); return; } w.step++; render(); };
+    if (w.step === 0) nx.onclick = () => { w.name = document.getElementById('w-name').value.trim(); w.age = E.clamp(+document.getElementById('w-age').value || 30, 18, 80); w.g = document.getElementById('w-g').value; w.metier = document.getElementById('w-met').value; if (!w.name) { toast('Donnez un nom à votre personnage.'); return; } { const mt = D.METIERS.find(m => m.id === w.metier); if (mt && mt.age && (w.age < mt.age[0] || w.age > mt.age[1])) { toast(mt.label + ' : entre ' + mt.age[0] + ' et ' + mt.age[1] + ' ans.'); return; } } w.step++; render(); };
     $app.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { w.ans[w.step - 1] = +b.dataset.v; w.step++; render(); });
     const bk = document.getElementById('w-back'); if (bk) bk.onclick = () => { w.step--; render(); };
     $app.querySelectorAll('[data-a]').forEach(b => b.onclick = () => { w.perso[w.step - NQ - 1] = +b.dataset.a; w.step++; render(); });
@@ -315,6 +315,8 @@
     if (p.cumul && E.cumulConflict()) h += '<div class="row"><button class="btn primary" data-cumul>Régler le cumul de mandats (avant le ' + E.fmtDate(p.cumul.due) + ')</button></div>';
     if (o.a.length) h += '<div class="qas">' + o.a.map(quick).join('') + '</div>';
     if (o.debate && p.cand && p.cand.mode !== 'colistier') { const max = E.phase().id === 'entre2' ? 2 : 1; h += '<div class="row" style="margin-top:8px"><button class="btn" id="debat"' + (p.cand.debates < max && p.hours >= 4 ? '' : ' disabled') + '>Débat télévisé · 4 h</button></div>'; }
+    const lp = (s.lastPlan || []).filter(it => { const a = X.ACTIONS.find(x => x.id === it.id); return a && X.avail(a) === true; });
+    if (lp.length) { const hh = lp.reduce((t, it) => t + (X.ACTIONS.find(x => x.id === it.id).h || 0), 0); h += '<div class="row" style="margin-top:8px"><button class="btn" data-replan' + (hh <= p.hours ? '' : ' disabled') + '>↻ Refaire mon agenda précédent · ' + lp.length + ' action' + (lp.length > 1 ? 's' : '') + ', ' + hh + ' h</button></div>'; }
     h += '<div class="left">Il vous reste <b>' + p.hours + ' h</b> ce tour. <button class="linkbtn" data-go="agir">Toutes les actions</button> · <button class="linkbtn" data-plan>Composer mon agenda</button></div></div>';
     h += msCard();
     if (S().mp) MP.waitingForMe().forEach(w => { h += '<button class="smsbar" data-go="plus:joueurs" style="border-left-color:#5a78c2"><span><b>' + esc(w.name) + ' vous attend</b><span class="cp">Avancez jusqu’au scrutin : il ne peut pas voter sans vous</span></span></button>'; });
@@ -511,6 +513,7 @@
   function paramLabel(it) { if (it.o.zone) { const z = (curZones() || []).find(x => x.id === it.o.zone); return z ? ' · ' + z.name : ''; } if (it.o.seg) return ' · ' + D.SEGS.find(g => g.id === it.o.seg).name.toLowerCase(); if (it.o.theme) return ' · ' + D.THEMES[it.o.theme].l.toLowerCase(); return ''; }
   async function runPlan() {
     const plan = planState().slice(); const before = X.snap(); const res = [];
+    if (plan.length) S().lastPlan = plan.map(it => ({ id: it.id, o: Object.assign({}, it.o) })); // pour « Refaire mon agenda »
     plan.sort((x, y) => (y.id === 'conges') - (x.id === 'conges'));
     for (const it of plan) { const a = X.ACTIONS.find(x => x.id === it.id); const r = X.doAction(it.id, Object.assign({}, it.o)); res.push({ l: a.l + paramLabel(it), ok: r.ok, msg: r.msg }); }
     planState().length = 0; E.estimate(); Store.save(); render();
@@ -801,6 +804,7 @@
   function bind() {
     $app.querySelectorAll('[data-act]').forEach(b => b.onclick = () => { if (b.classList.contains('off')) return; runScoped(b.dataset.act); });
     $app.querySelectorAll('[data-plan]').forEach(b => b.onclick = planFlow);
+    $app.querySelectorAll('[data-replan]').forEach(b => b.onclick = async () => { const pl = planState(); pl.length = 0; (S().lastPlan || []).forEach(it => { const a = X.ACTIONS.find(x => x.id === it.id); if (a && X.avail(a) === true) pl.push({ id: it.id, o: Object.assign({}, it.o) }); }); if (pl.length) await runPlan(); });
     $app.querySelectorAll('[data-gnext]').forEach(b => b.onclick = () => { GV.guideNext(); render(); });
     $app.querySelectorAll('[data-gskip]').forEach(b => b.onclick = () => { GV.guideNext(true); render(); });
     $app.querySelectorAll('[data-keep]').forEach(b => b.onclick = () => { const before = X.snap(); const r = GV.keepPromise(b.dataset.keep); if (!r.ok) { toast(r.msg); return; } E.estimate(); render(); result('Promesse tenue', r.msg, before); });
@@ -1404,12 +1408,21 @@
     const idx = s.news.findIndex(n => n.id === lastNewsId); const fresh = (idx < 0 ? s.news.slice(0, 6) : s.news.slice(0, idx)).filter(n => n.about === 'pj').slice(0, 4);
     const hist = es ? (s.hist || []).filter(x => x.el === es.el).map(x => x.est) : [];
     let h = '<div class="eyebrow">Du ' + E.fmtDate(from) + ' au ' + E.fmtDate(s.date) + '</div>';
-    if (es) h += '<div class="card" style="margin-top:10px"><div class="muted small">' + esc(es.label) + ' · ' + (es.hypo ? 'si vous étiez candidat·e' : 'si l’élection avait lieu demain') + '</div><div class="row" style="align-items:center;gap:14px"><span class="big num">' + (es.rank ? E.pct(es.pct) : '—') + '</span><span class="small">' + (es.rank ? es.rank + '<sup>e</sup> sur ' + es.n : 'éliminé·e') + '</span><div style="flex:1;min-width:120px">' + spark(hist, 220, 50) + '</div></div></div>';
+    if (es) h += '<div class="card" style="margin-top:10px"><div class="muted small">' + esc(es.label) + ' · ' + (es.hypo ? 'si vous étiez candidat·e' : 'si l’élection avait lieu demain') + '</div><div class="row" style="align-items:center;gap:14px"><span class="big num">' + (es.rank ? E.pct(es.pct) : '—') + '</span><span class="small">' + (es.rank ? es.rank + '<sup>' + (es.rank === 1 ? (P().g === 'F' ? 're' : 'er') : 'e') + '</sup> sur ' + es.n : 'éliminé·e') + '</span><div style="flex:1;min-width:120px">' + spark(hist, 220, 50) + '</div></div></div>';
     h += '<div class="eyebrow" style="margin-top:12px">Ce qui a bougé</div>' + chipsHTML(ds);
     if ((s.turnStaff || []).length) h += '<div class="eyebrow" style="margin-top:12px">Votre équipe</div>' + s.turnStaff.map(t => '<div class="small" style="margin-top:3px">' + esc(t) + '</div>').join('');
     if ((s.turnRival || []).length) h += '<div class="eyebrow" style="margin-top:12px">Vos adversaires</div>' + s.turnRival.map(t => '<div class="small" style="margin-top:3px">' + esc(t) + '</div>').join('');
     if (fresh.length) h += '<div class="eyebrow" style="margin-top:12px">On parle de vous</div>' + fresh.map(n => '<div class="small" style="margin-top:3px"><b>' + esc(n.media) + '</b> · ' + esc(n.title) + '</div>').join('');
-    await info('Bilan du tour', h, 'Continuer');
+    // Bilan repliable : un bandeau discret, le détail sur demande
+    document.querySelectorAll('.bilanbar').forEach(x => x.remove());
+    const top = ds.filter(d => !/Argent|Abonnés|Militants/.test(d.l)).sort((a, b) => (b.l === 'Score estimé') - (a.l === 'Score estimé') || Math.abs(b.d) - Math.abs(a.d)).slice(0, 3);
+    const bar = document.createElement('div'); bar.className = 'bilanbar';
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(78px + env(safe-area-inset-bottom));z-index:40;width:min(560px,94vw);background:var(--raise);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:8px 10px;box-shadow:0 8px 24px rgba(0,0,0,.4);display:flex;gap:8px;align-items:center';
+    bar.innerHTML = '<div class="small" style="flex:1"><b>Bilan du tour</b>' + (es && es.rank ? ' · ' + esc(es.label) + ' : <span class="num">' + E.pct(es.pct) + '</span> (' + es.rank + (es.rank === 1 ? '<sup>' + (p.g === 'F' ? 're' : 'er') + '</sup>' : '<sup>e</sup>') + ')' : '') + (top.length ? '<br><span class="muted">' + top.map(d => esc(d.l + ' ' + d.t)).join(' · ') + '</span>' : '') + '</div><button class="btn" data-bdet>Détail</button><button class="btn ghost" data-bx aria-label="Fermer">×</button>';
+    document.body.appendChild(bar);
+    bar.querySelector('[data-bx]').onclick = () => bar.remove();
+    bar.querySelector('[data-bdet]').onclick = async () => { bar.remove(); await info('Bilan du tour', h, 'Continuer'); };
+    clearTimeout(UI.bilT); UI.bilT = setTimeout(() => bar.remove(), 12000);
   }
   async function runQueue() {
     const s = S(); UI.bTold = 0; try { await runQueue0(); } finally { if (UI.bTold) toast(UI.bTold > 1 ? 'Vos adversaires attaquent : votre équipe vous attend dans la Boucle.' : 'Une attaque adverse : votre équipe vous attend dans la Boucle.'); }
@@ -1466,7 +1479,7 @@
   async function rivalQ(q) {
     const s = S(); const x = s.pnj[q.pnj]; if (!x) return; const who = esc(x.name) + ' ' + pill(x.party); const before = X.snap(); let msg = '';
     if (q.type === 'attaque') {
-      const v = await choice('Attaque ' + E.de(x.name), '<p>' + who + ' sur X :</p><div class="bubble them">' + esc(q.text) + '</div>', [{ l: 'Répondre avec vos mots', sub: 'Votre réponse est publiée et évaluée', v: 'write' }, { l: 'Réplique cinglante', sub: 'Ça passe ou ça casse, selon votre sang-froid', v: 'cinglant' }, { l: 'Répondre sur le fond, calmement', v: 'fond' }, { l: 'Ignorer', v: 'ignore' }]);
+      const v = await choice('Attaque ' + E.de(x.name), '<p>' + who + ' sur X' + (q.viral ? ' — <b>le message fait le buzz</b>' : '') + ' :</p><div class="bubble them">' + esc(q.text) + '</div>', [{ l: 'Répondre avec vos mots', sub: 'Votre réponse est publiée et évaluée', v: 'write' }, { l: 'Réplique cinglante', sub: 'Ça passe ou ça casse, selon votre sang-froid', v: 'cinglant' }, { l: 'Répondre sur le fond, calmement', sub: q.viral ? 'Peu audible face à un buzz' : 'Rassure, mais s’use si on le répète', v: 'fond' }, { l: 'Ignorer', v: 'ignore' }]);
       if (v === 'write') { const r = await ask('Votre réponse à ' + x.name, 'Publiée sur X.', 'Votre réponse…', { max: 280, btn: 'Publier' }); if (r) { const ld = loading('Évaluation…'); const ev = await A.post(r.text); ld.close(); msg = X.applyPost(r.text, ev); x.rel -= 5; if ((ev.portee || 0) > 55) x.mom -= 0.02; } else msg = E.rivalResolve(q, 'ignore'); }
       else msg = E.rivalResolve(q, v);
     } else if (q.type === 'defi') {

@@ -12,7 +12,7 @@ window.L = (function () {
     { th: 'pouvoir_achat', l: 'SMIC mensuel net', v: '≈ 1 440 €', s: 'Ordre de grandeur 2026' },
     { th: 'pouvoir_achat', l: 'TVA sur carburants et électricité', v: '20 %', s: 'Taux normal' },
     { th: 'industrie', l: 'Réacteurs nucléaires en service', v: '57', s: 'Parc EDF, Flamanville 3 inclus' },
-    { th: 'economie', l: 'Âge légal de départ en retraite', v: 'Réforme de 2023 : cible 64 ans', s: 'Mise en œuvre progressive, contestée' }
+    { th: 'economie', l: 'Âge légal de départ en retraite', v: '62 ans et 9 mois (gelé)', s: 'Réforme de 2023 suspendue jusqu’au 1er janvier 2028 (loi de financement de la Sécurité sociale pour 2026)' }
   ];
   // Indicateurs locaux estimés à partir de la taille et du type de commune
   const TYPE_K = { metro: { hlm: 23, med: 10, pm: 4.2, cyc: 0.8, crim: 1.25 }, ville: { hlm: 21, med: 8.5, pm: 3.6, cyc: 0.45, crim: 1.1 }, periurbain: { hlm: 13, med: 8, pm: 2.4, cyc: 0.35, crim: 0.8 }, bourg: { hlm: 12, med: 8.5, pm: 2.2, cyc: 0.2, crim: 0.75 }, rural: { hlm: 6, med: 6.5, pm: 0.8, cyc: 0.1, crim: 0.5 }, montagne: { hlm: 9, med: 8, pm: 1.2, cyc: 0.15, crim: 0.55 } };

@@ -99,6 +99,9 @@ window.D = (function () {
     ['Merlas', 466, 9, 'rural', 45.444, 5.673, 'Pays voironnais'], ['Saint-Bueil', 707, 9, 'rural', 45.474, 5.695, 'Pays voironnais'], ['Massieu', 757, 9, 'rural', 45.433, 5.601, 'Pays voironnais'], ['Saint-Aupre', 1200, 9, 'rural', 45.393, 5.660, 'Pays voironnais'],
     ['Crachier', 590, 10, 'rural', 45.546, 5.226, 'Porte de l’Isère'], ['Chèzeneuve', 650, 10, 'rural', 45.565, 5.217, 'Porte de l’Isère'], ['Châteauvilain', 744, 10, 'rural', 45.517, 5.331, 'Porte de l’Isère'], ['Les Éparres', 976, 10, 'rural', 45.536, 5.297, 'Porte de l’Isère']
   ].map((r, i) => ({ id: 'v' + i, name: r[0], pop: r[1], circo: r[2], type: r[3], geo: [r[4], r[5]], terr: r[6], village: true }));
+  // Cantons réels (découpage de 2015) de chaque commune jouable
+  const CANTONS = {"Grenoble": "Grenoble-1", "Saint-Martin-d'Hères": "Saint-Martin-d'Hères", "Échirolles": "Échirolles", "Vienne": "Vienne-1", "Bourgoin-Jallieu": "Bourgoin-Jallieu", "Fontaine": "Fontaine-Seyssinet", "Voiron": "Voiron", "Villefontaine": "L'Isle-d'Abeau", "Meylan": "Meylan", "L'Isle-d'Abeau": "L'Isle-d'Abeau", "Saint-Égrève": "Grenoble-2", "Seyssinet-Pariset": "Fontaine-Seyssinet", "Sassenage": "Fontaine-Vercors", "Voreppe": "Voiron", "Crolles": "Le Moyen Grésivaudan", "La Tour-du-Pin": "La Tour-du-Pin", "Roussillon": "Roussillon", "Moirans": "Tullins", "Saint-Marcellin": "Le Sud Grésivaudan", "Tullins": "Tullins", "Vizille": "Oisans-Romanche", "Rives": "Tullins", "Pont-de-Chéruy": "Charvieu-Chavagneux", "La Côte-Saint-André": "Bièvre", "La Mure": "Matheysine-Trièves", "Beaurepaire": "Roussillon", "Saint-Jean-de-Bournay": "L'Isle-d'Abeau", "Villard-de-Lans": "Fontaine-Vercors", "Allevard": "Le Haut-Grésivaudan", "Crémieu": "Charvieu-Chavagneux", "Le Bourg-d'Oisans": "Oisans-Romanche", "Mens": "Matheysine-Trièves", "Besse": "Oisans-Romanche", "Mizoën": "Oisans-Romanche", "Allemond": "Oisans-Romanche", "Huez": "Oisans-Romanche", "Lalley": "Matheysine-Trièves", "Chichilianne": "Matheysine-Trièves", "Gresse-en-Vercors": "Matheysine-Trièves", "Clelles": "Matheysine-Trièves", "Monestier-de-Clermont": "Matheysine-Trièves", "Corps": "Matheysine-Trièves", "Laffrey": "Matheysine-Trièves", "Nantes-en-Ratier": "Matheysine-Trièves", "Pierre-Châtel": "Matheysine-Trièves", "Corrençon-en-Vercors": "Fontaine-Vercors", "Engins": "Fontaine-Vercors", "Rencurel": "Le Sud Grésivaudan", "Cognin-les-Gorges": "Le Sud Grésivaudan", "Chevrières": "Le Sud Grésivaudan", "Izeron": "Le Sud Grésivaudan", "Pont-en-Royans": "Le Sud Grésivaudan", "Saint-Antoine-l'Abbaye": "Le Sud Grésivaudan", "Proveysieux": "Grenoble-2", "Saint-Christophe-sur-Guiers": "Chartreuse-Guiers", "Quaix-en-Chartreuse": "Grenoble-2", "La Pierre": "Le Haut-Grésivaudan", "La Combe-de-Lancey": "Le Moyen Grésivaudan", "Laval-en-Belledonne": "Le Moyen Grésivaudan", "Revel": "Le Moyen Grésivaudan", "Montchaboud": "Oisans-Romanche", "Miribel-Lanchâtre": "Matheysine-Trièves", "Notre-Dame-de-Commiers": "Le Pont-de-Claix", "Bresson": "Échirolles", "Penol": "Bièvre", "Burcin": "Le Grand-Lemps", "Eydoche": "Le Grand-Lemps", "Bizonnes": "Le Grand-Lemps", "Pajay": "Bièvre", "Roybon": "Bièvre", "Faramans": "Bièvre", "Blandin": "Le Grand-Lemps", "Chassignieu": "Le Grand-Lemps", "Chélieu": "Le Grand-Lemps", "Doissin": "Le Grand-Lemps", "Le Passage": "La Tour-du-Pin", "Brangues": "Morestel", "Annoisin-Chatelans": "Charvieu-Chavagneux", "Parmilieu": "Morestel", "Optevoz": "Morestel", "Hières-sur-Amby": "Charvieu-Chavagneux", "Meyssiez": "Bièvre", "Primarette": "Roussillon", "Moissieu-sur-Dolon": "Roussillon", "Pact": "Roussillon", "Cour-et-Buis": "Roussillon", "Montseveroux": "Roussillon", "Merlas": "Chartreuse-Guiers", "Saint-Bueil": "Chartreuse-Guiers", "Massieu": "Le Grand-Lemps", "Saint-Aupre": "Voiron", "Crachier": "L'Isle-d'Abeau", "Chèzeneuve": "L'Isle-d'Abeau", "Châteauvilain": "Bourgoin-Jallieu", "Les Éparres": "Bourgoin-Jallieu"};
+  COMMUNES.concat(VILLAGES).forEach(c => { c.canton = CANTONS[c.name] || c.terr || c.name; });
   const COM_BY_ID = {}; COMMUNES.concat(VILLAGES).forEach(c => COM_BY_ID[c.id] = c);
   const com = id => COM_BY_ID[id];
 
@@ -107,16 +110,16 @@ window.D = (function () {
     base: { LFI: 10, PCF: 2.5, ECO: 6, PS: 10, REN: 13, MODEM: 4, HOR: 4, LR: 8, UDR: 4, RN: 30, REC: 2, DIV: 6.5 } };
 
   const METIERS = [
-    { id: 'etudiant', label: 'Étudiant·e', hpw: 18, cash: 1500, income: 80, seg: { JUD: 8 }, net: 2 },
+    { id: 'etudiant', label: 'Étudiant·e', hpw: 16, cash: 1500, income: 80, seg: { JUD: 8 }, net: 2 , age: [18, 28]},
     { id: 'salarie', label: 'Salarié·e du privé', hpw: 11, cash: 6000, income: 250, seg: { PERI: 6, POP: 3 }, net: 4 },
     { id: 'ouvrier', label: 'Ouvrier·ère', hpw: 10, cash: 3000, income: 150, seg: { POP: 10 }, net: 4 },
-    { id: 'enseignant', label: 'Enseignant·e', hpw: 13, cash: 7000, income: 250, seg: { JUD: 4, CAD: 4 }, net: 6 },
-    { id: 'cadre', label: 'Cadre du privé', hpw: 9, cash: 22000, income: 600, seg: { CAD: 8 }, net: 8 },
-    { id: 'independant', label: 'Artisan·e / commerçant·e', hpw: 10, cash: 15000, income: 450, seg: { PERI: 5, RUR: 4 }, net: 10 },
-    { id: 'agriculteur', label: 'Agriculteur·rice', hpw: 8, cash: 9000, income: 200, seg: { RUR: 12 }, net: 7 },
-    { id: 'fonctionnaire', label: 'Fonctionnaire territorial·e', hpw: 12, cash: 8000, income: 280, seg: { CAD: 3, RET: 3 }, net: 9 },
-    { id: 'avocat', label: 'Avocat·e', hpw: 9, cash: 30000, income: 800, seg: { CAD: 6 }, net: 10 },
-    { id: 'retraite', label: 'Retraité·e', hpw: 28, cash: 25000, income: 350, seg: { RET: 10 }, net: 6 }
+    { id: 'enseignant', label: 'Enseignant·e', hpw: 13, cash: 7000, income: 250, seg: { JUD: 4, CAD: 4 }, net: 6 , cred: 3, noto: 3},
+    { id: 'cadre', label: 'Cadre du privé', hpw: 9, cash: 22000, income: 600, seg: { CAD: 8 }, net: 8 , cred: 5, noto: 3},
+    { id: 'independant', label: 'Artisan·e / commerçant·e', hpw: 10, cash: 15000, income: 450, seg: { PERI: 5, RUR: 4 }, net: 10 , noto: 6},
+    { id: 'agriculteur', label: 'Agriculteur·rice', hpw: 8, cash: 9000, income: 200, seg: { RUR: 12 }, net: 7 , noto: 5},
+    { id: 'fonctionnaire', label: 'Fonctionnaire territorial·e', hpw: 12, cash: 8000, income: 280, seg: { CAD: 3, RET: 3 }, net: 9 , cred: 4},
+    { id: 'avocat', label: 'Avocat·e', hpw: 9, cash: 30000, income: 800, seg: { CAD: 6 }, net: 10 , cred: 8, noto: 6, age: [26, 75]},
+    { id: 'retraite', label: 'Retraité·e', hpw: 18, cash: 18000, income: 350, seg: { RET: 10 }, net: 6 , age: [60, 80]}
   ];
 
   // Questionnaire politique : 15 affirmations, échelle -2..+2 (Pas du tout ... Tout à fait d'accord)
@@ -133,9 +136,9 @@ window.D = (function () {
     { t: 'eco', q: 'Renationaliser les autoroutes à la fin (ou avant la fin) des concessions.', p: '44430101041', w: { eco: -30, souv: 10 }, ctx: 'Les autoroutes ont été privatisées en 2006 ; les premières concessions expirent à partir de 2031.' },
     { t: 'social', q: 'Revenir à un âge légal de départ à la retraite à 62 ans.', p: '44430100140', w: { eco: -35, inst: 10 }, ctx: 'La réforme de 2023 le porte progressivement à 64 ans ; sa mise en œuvre est suspendue jusqu’en janvier 2028.' },
     { t: 'social', q: 'Durcir les règles de l’assurance chômage pour inciter davantage à reprendre un emploi.', p: '00004344424', w: { eco: 35 } },
-    { t: 'social', q: 'Conditionner le RSA à 15 à 20 heures d’activité par semaine.', p: '00014344424', w: { eco: 25, aut: 10 } },
+    { t: 'social', q: 'Supprimer l’obligation de 15 heures d’activité par semaine pour les allocataires du RSA.', p: '44320000010', w: { eco: -25, aut: -10 }, ctx: 'Depuis janvier 2025, les allocataires du RSA inscrits à France Travail doivent effectuer 15 heures d’activité par semaine.' },
     { t: 'social', q: 'Indexer automatiquement les salaires sur l’inflation.', p: '44330000010', w: { eco: -35 } },
-    { t: 'social', q: 'Exonérer de droits de succession les héritages jusqu’à 300 000 € par enfant.', p: '00000113443', w: { eco: 30, soc: 5 }, ctx: 'Aujourd’hui, l’abattement est de 100 000 € par parent et par enfant.' },
+    { t: 'eco', q: 'Exonérer de droits de succession les héritages jusqu’à 300 000 € par enfant.', p: '00000113443', w: { eco: 30, soc: 5 }, ctx: 'Aujourd’hui, l’abattement est de 100 000 € par parent et par enfant.' },
     { t: 'societe', q: 'Légaliser l’aide active à mourir, sous conditions strictes.', p: '43443231010', w: { soc: -35 } },
     { t: 'societe', q: 'Autoriser la gestation pour autrui (GPA), encadrée par la loi.', p: '21311010000', w: { soc: -40 } },
     { t: 'societe', q: 'Légaliser le cannabis récréatif, vendu sous le contrôle de l’État.', p: '42431110000', w: { soc: -30, aut: -20 } },
@@ -164,8 +167,12 @@ window.D = (function () {
     { t: 'institutions', q: 'Élire les députés à la proportionnelle.', p: '44442400344', w: { inst: 20 } },
     { t: 'institutions', q: 'Créer un référendum d’initiative citoyenne (RIC).', p: '43310100244', w: { inst: 40 } },
     { t: 'institutions', q: 'Passer à une VIe République, avec un président aux pouvoirs réduits.', p: '43310000000', w: { inst: 40, aut: -10 } },
-    { t: 'institutions', q: 'Interdire de cumuler un mandat de député avec celui de maire.', p: '43432200001', w: { inst: -10 } },
-    { t: 'institutions', q: 'La droite peut s’allier avec le Rassemblement national.', p: '00000001444', w: { inst: 35, souv: 20 } }
+    { t: 'institutions', q: 'Rétablir la possibilité d’être à la fois député·e et maire.', p: '01003444433', w: { inst: 10 }, ctx: 'Interdit depuis 2017. Plusieurs propositions de loi déposées en 2024 et 2025 veulent le rétablir, au moins dans les petites communes.' },
+    { t: 'institutions', q: 'La droite peut s’allier avec le Rassemblement national.', p: '00000001444', w: { inst: 35, souv: 20 } },
+    { t: 'eco', q: 'Instaurer un impôt minimum de 2 % sur les patrimoines de plus de 100 millions d’euros (« taxe Zucman »).', p: '44440100001', w: { eco: -35 }, ctx: 'Proposée par l’économiste Gabriel Zucman, elle a divisé le Parlement en 2025.' },
+    { t: 'europe', q: 'Ratifier l’accord de libre-échange entre l’Union européenne et le Mercosur.', p: '00001122000', w: { souv: -20, ecol: 15 }, ctx: 'L’accord avec l’Argentine, le Brésil, le Paraguay et l’Uruguay est contesté par les agriculteurs français.' },
+    { t: 'social', q: 'Introduire une part obligatoire de retraite par capitalisation.', p: '00003244414', w: { eco: 30 } },
+    { t: 'eco', q: 'Ramener le déficit public sous 3 % du PIB dès 2029, quitte à réduire fortement les dépenses.', p: '00113444323', w: { eco: 30 }, ctx: 'Le déficit public était de 5,1 % du PIB en 2025.' }
   ];
   const LIKERT = [
     { v: -2, l: 'Pas du tout d’accord' }, { v: -1, l: 'Plutôt pas d’accord' }, { v: 0, l: 'Sans avis' },
@@ -341,10 +348,13 @@ window.D = (function () {
     for (const [lim, n] of t) if (pop < lim) return n;
     return 69;
   }
+  function adjIndemnity(pop) { // net mensuel approximatif d'un·e adjoint·e (taux maximaux légaux de l'indice brut terminal, ~4 030 € brut)
+    const t = pop < 500 ? 9.9 : pop < 1000 ? 10.7 : pop < 3500 ? 19.8 : pop < 10000 ? 22 : pop < 20000 ? 27.5 : pop < 50000 ? 33 : pop < 100000 ? 44 : 66;
+    return Math.round(4030 * t / 100 * 0.84 / 10) * 10; }
   function mayorIndemnity(pop) { // net mensuel approximatif
     if (pop < 1000) return 900; if (pop < 3500) return 1500; if (pop < 10000) return 2000; if (pop < 20000) return 2400;
     if (pop < 50000) return 3100; if (pop < 100000) return 3900; return 4500;
   }
 
-  return { quizMatch, quizGaps, QUIZ_P, QUIZ_T, QUIZ_POOL, PERSO_POOL, CATALOGUE, AXES, PARTIES, PARTY_IDS, BLOCS, SEGS, SEG_IDS, TYPE_MIX, TYPE_LABEL, CIRCOS, COMMUNES, VILLAGES, com, NATIONAL, METIERS, QUIZ, LIKERT, TRAITS, PERSO, THEMES, KEYWORDS, FIRST_M, FIRST_F, LAST, MEDIAS, INSTITUTS, STAFF_ROLES, councilSize, mayorIndemnity };
+  return { quizMatch, quizGaps, QUIZ_P, QUIZ_T, QUIZ_POOL, PERSO_POOL, CATALOGUE, AXES, PARTIES, PARTY_IDS, BLOCS, SEGS, SEG_IDS, TYPE_MIX, TYPE_LABEL, CIRCOS, COMMUNES, VILLAGES, com, NATIONAL, METIERS, QUIZ, LIKERT, TRAITS, PERSO, THEMES, KEYWORDS, FIRST_M, FIRST_F, LAST, MEDIAS, INSTITUTS, STAFF_ROLES, councilSize, mayorIndemnity, adjIndemnity };
 })();

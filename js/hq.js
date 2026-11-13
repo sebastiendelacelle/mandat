@@ -478,7 +478,7 @@ const HQ = (() => {
   function fusedResult(r0) {
     const h = hq(); const fu = h.fused; if (!fu || fu.el !== r0.el || r0.round !== 2) return false; h.fused = null; const sn = r0.snapshot[0]; const p = P(); const x = S().pnj[fu.x]; const com = E.commune();
     p.mandats = p.mandats.filter(m => !['maire', 'adjoint', 'conseiller_municipal'].includes(m.type));
-    if (sn && sn.winner === fu.x) { p.mandats.push({ type: 'adjoint', label: 'Adjoint·e au maire ' + E.de(com.name), since: S().date, ind: 700, majority: true }); post('dc', '🎉 La liste fusionnée l’emporte ! Tu deviens adjoint·e au maire. Pas le premier rôle, mais une place au pouvoir.'); }
+    if (sn && sn.winner === fu.x) { p.mandats.push({ type: 'adjoint', label: 'Adjoint·e au maire ' + E.de(com.name), since: S().date, ind: D.adjIndemnity(com.pop), majority: true }); post('dc', '🎉 La liste fusionnée l’emporte ! Tu deviens adjoint·e au maire. Pas le premier rôle, mais une place au pouvoir.'); }
     else if (sn && sn.seats && (sn.seats[fu.x] || 0) > 0) { p.mandats.push({ type: 'conseiller_municipal', label: 'Conseiller·ère municipal·e d’opposition (' + com.name + ')', since: S().date, ind: 0, majority: false }); post('dc', '😪 Défaite au second tour, mais la liste fusionnée obtient ' + sn.seats[fu.x] + ' sièges : tu siégeras dans l’opposition. Le combat continue au conseil municipal.'); }
     else post('dc', 'Défaite au second tour. On a essayé ensemble.');
     dissolve(); return true;

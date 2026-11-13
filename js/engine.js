@@ -85,7 +85,7 @@ window.E = (function () {
       const com = D.com(key.slice(4)); const c = D.CIRCOS[com.circo - 1];
       const pop = clamp(Math.round(com.pop * 2.4 + 15000), 22000, 70000);
       const mo = {}; mo[com.type] = 0.55; for (const t in c.mixOf) mo[t] = (mo[t] || 0) + c.mixOf[t] * 0.45;
-      u = { key, name: 'Canton de ' + (com.terr || com.name), pop, mix: mixFrom(mo), base: communeBase(com, false) };
+      u = { key, name: 'Canton ' + deN(com.canton || com.terr || com.name), pop, mix: mixFrom(mo), base: communeBase(com, false) };
     }
     return (cache[key] = calibrate(u));
   }
@@ -247,6 +247,7 @@ window.E = (function () {
     const to2 = diffDays(s.date, fromD(new Date(Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + 2, 1, 12))));
     let std = d > 300 && !s.p.cand ? to2 : d > 150 ? toMonth : d > 56 ? 14 : d > 21 ? 7 : d > 7 ? 3 : d > 3 ? 2 : d > 2 ? 1 : d > 1 ? 0.5 : 1;
     if (std > 1 && std > d - 1) std = Math.max(1, Math.floor(d - 1)); if (d > 150 && toMonth > d - 150 && d - 150 >= 7) std = Math.round(d - 150);
+    if (!s.p.cand && d <= 150 && d > 1) std = d > 45 ? Math.min(toMonth, Math.floor(d - 1)) : Math.max(1, Math.floor(d - 1)); // pas candidat·e : pas de tours au jour le jour
     return std;
   }
   function silence() { const d = daysLeft(); return d <= 1 && d > 0; }
@@ -275,7 +276,7 @@ window.E = (function () {
       }
     };
     const s = G.S; const met = D.METIERS.find(m => m.id === setup.metier);
-    s.p.cash = met.cash; D.SEG_IDS.forEach(id => s.p.image[id] = (met.seg[id] || 0));
+    s.p.cash = met.cash; D.SEG_IDS.forEach(id => s.p.image[id] = (met.seg[id] || 0)); s.p.cred = clamp(s.p.cred + (met.cred || 0), 0, 100); s.p.noto.commune += met.noto || 0; // métiers établis : crédibilité et réseau local
     PIDS.forEach(p => s.national.climate[p] = 0);
     initElections(); initWorld(); initParty(); rankUpdate();
     s.p.hoursMax = s.p.hours = hoursFor(turnDays());
@@ -758,7 +759,7 @@ window.E = (function () {
       if (p.cand.mode === 'colistier') {
         const seats = r.seats || {}; const ls = seats[p.cand.listOf] || 0; const won = r.winner === p.cand.listOf;
         if (p.cand.listPos <= ls) {
-          if (won && p.cand.listPos <= Math.max(2, Math.floor(n * 0.3))) { addM({ type: 'adjoint', label: 'Adjoint·e au maire ' + deN(com.name), since: s.date, ind: Math.round(D.mayorIndemnity(com.pop) * 0.35), majority: true }); log('Élu·e adjoint·e au maire.', 'good'); }
+          if (won && p.cand.listPos <= Math.max(2, Math.floor(n * 0.3))) { addM({ type: 'adjoint', label: 'Adjoint·e au maire ' + deN(com.name), since: s.date, ind: D.adjIndemnity(com.pop), majority: true }); log('Élu·e adjoint·e au maire.', 'good'); }
           else { addM({ type: 'conseiller_municipal', label: 'Conseiller·ère municipal·e ' + (won ? 'de la majorité' : 'd’opposition'), since: s.date, ind: 0, majority: won }); log('Élu·e conseiller·ère municipal·e.', 'good'); }
           addNoto('commune', 10);
         } else log('Votre position sur la liste (' + p.cand.listPos + ') ne suffit pas pour siéger.', 'bad');
@@ -937,7 +938,7 @@ window.E = (function () {
       const nm = x.name; const tag = pet ? '' : ' (' + D.PARTIES[x.party].short + ')';
       if (act === 'meeting') { x.mom += 0.03; x.noto = clamp(x.noto + 2, 0, 100); s.turnRival.push(nm + tag + ' multiplie réunions publiques et porte-à-porte.'); if (rnd() < 0.5) article('dauph', nm + ' fait salle comble', 0.1, 'pnj'); }
       else if (act === 'programme') { x.mom += 0.02; const el2 = s.est ? s.elections.find(e => e.id === s.est.el) : null; const lv = el2 && ['mun', 'dep', 'reg', 'sen'].includes(el2.type) ? 'local' : 'national'; const np = typeof DP !== 'undefined' ? DP.genProp(x, lv) : null; if (np) { (x.prog = x.prog || []).push(np); s.turnRival.push(nm + tag + ' propose « ' + np.label + ' ».'); article('dauph', nm + ' propose : ' + np.label.charAt(0).toLowerCase() + np.label.slice(1), 0, 'pnj'); } else { const pr = PROMESSES[bloc] || PROMESSES.DIV; s.turnRival.push(nm + tag + ' promet ' + pr + '.'); article('dauph', nm + ' promet ' + pr, 0, 'pnj'); } }
-      else if (act === 'attaque') { asks++; const txt = gtxt(pick(ATT[bloc] || ATT.DIV), p.g).replace('{P}', p.name); s.turnRival.push(nm + tag + ' vous attaque.'); post(nm, '@' + slug(nm), txt, false, rint(40, 600)); s.queue.push({ kind: 'rival', type: 'attaque', pnj: id, text: txt }); }
+      else if (act === 'attaque') { asks++; const txt = gtxt(pick(ATT[bloc] || ATT.DIV), p.g).replace('{P}', p.name); const viral = rnd() < 0.4; s.turnRival.push(nm + tag + ' vous attaque.'); post(nm, '@' + slug(nm), txt, false, viral ? rint(800, 4000) : rint(40, 600)); s.queue.push({ kind: 'rival', type: 'attaque', pnj: id, text: txt, viral }); }
       else if (act === 'defi') { asks++; s.turnRival.push(nm + tag + ' vous défie en débat.'); s.queue.push({ kind: 'rival', type: 'defi', pnj: id, media: pick(['radio', 'alpes3']) }); }
       else if (act === 'alliance') { asks++; const cl = (s.est && s.est.rank > 0 && s.est.rows.findIndex(r => r.id === id) > s.est.rank - 1) ? ['desistement'] : pick([['nonagression'], ['soutien'], ['desistement']]); s.turnRival.push(nm + tag + ' vous propose un accord.'); s.queue.push({ kind: 'rival', type: 'alliance', pnj: id, clauses: cl }); }
       else if (act === 'rumeur') { asks++; const ru = gtxt(pick(RUMEURS), p.g); s.turnRival.push('L’entourage de ' + nm + ' fait courir une rumeur sur vous.'); s.queue.push({ kind: 'rival', type: 'rumeur', pnj: id, text: ru }); }
@@ -949,8 +950,11 @@ window.E = (function () {
     const s = S(), p = s.p; const x = s.pnj[q.pnj]; const nm = x.name; let msg = '';
     if (q.type === 'attaque') {
       if (choice === 'ignore') { addImageAll(-1.2); x.mom += 0.02; msg = 'Vous ignorez l’attaque. Une partie de l’opinion y voit un aveu.'; }
-      else if (choice === 'cinglant') { if (rnd() < 0.45 + (p.traits.sangfroid - 50) / 200 + p.mediaTraining * 0.08) { addImageAll(1.8); x.mom -= 0.03; x.rel -= 8; addNoto('circo', 2); msg = 'Votre réplique fait mouche et tourne en boucle.'; post(p.name, '@' + slug(p.name), 'Quand on n’a pas de bilan, on attaque. Moi, je travaille.', true, rint(200, 1500)); } else { addImageAll(-1.5); x.rel -= 10; msg = 'Votre réplique tombe à plat, on vous trouve agressif·ve.'; } }
-      else if (choice === 'fond') { p.cred = clamp(p.cred + 1.5, 0, 100); x.rel -= 3; msg = 'Votre réponse argumentée rassure les électeurs les plus attentifs.'; addImage('CAD', 1); addImage('RET', 1); }
+      else if (choice === 'cinglant') { if (rnd() < 0.45 + (q.viral ? 0.12 : -0.05) + (p.traits.sangfroid - 50) / 200 + p.mediaTraining * 0.08) { addImageAll(1.8); x.mom -= 0.03; x.rel -= 8; addNoto('circo', 2); msg = 'Votre réplique fait mouche et tourne en boucle.'; post(p.name, '@' + slug(p.name), 'Quand on n’a pas de bilan, on attaque. Moi, je travaille.', true, rint(200, 1500)); } else { addImageAll(-1.5); x.rel -= 10; msg = 'Votre réplique tombe à plat, on vous trouve agressif·ve.'; } }
+      else if (choice === 'fond') { // efficace contre une critique de fond, inaudible face à un buzz, et s'use si on ne fait que ça
+        const used = (p.fondN || 0); const k = Math.pow(0.65, used); p.fondN = used + 1; p.fondAt = s.date;
+        if (q.viral) { addImageAll(-0.6); x.mom += 0.015; msg = 'Votre réponse posée passe inaperçue : l’attaque a déjà fait le buzz, votre mise au point ne circule pas.'; }
+        else { p.cred = clamp(p.cred + 1.5 * k, 0, 100); x.rel -= 3; addImage('CAD', 1 * k); addImage('RET', 1 * k); msg = k > 0.6 ? 'Votre réponse argumentée rassure les électeurs les plus attentifs.' : 'Encore une mise au point calme : elle rassure, mais on ne l’écoute presque plus.'; } }
     }
     if (q.type === 'defi' && choice === 'refuse') { addImageAll(-1.5); x.mom += 0.03; article(q.media || 'radio', nm + ' : « Mon adversaire fuit le débat »', -0.3, 'pj'); msg = 'Vous déclinez. ' + nm + ' en fait un argument.'; }
     if (q.type === 'alliance') { if (choice === 'accept') { p.accords.push({ id: uid('acc'), with: x.id, clauses: q.clauses, date: s.date, status: 'actif' }); x.rel += 10; msg = 'Accord conclu avec ' + nm + ' : ' + q.clauses.map(c => CLAUSES[c]).join(', ') + '.'; log(msg, 'good'); if (q.clauses.includes('soutien')) addNoto('circo', x.noto / 10); } else { x.rel -= 6; msg = 'Vous refusez la main tendue de ' + nm + '.'; } }
@@ -1155,7 +1159,7 @@ window.E = (function () {
 
   /* ---------- tour suivant ---------- */
   function endTurn() {
-    { const p0 = S().p; if (p0.cumul && addDays(S().date, Math.max(1, Math.ceil(turnDays()))) > p0.cumul.due) { let g = 0; while (cumulConflict() && g++ < 4) resolveCumul(cumulDefault(), true); p0.cumul = null; } }
+    { const p0 = S().p; if (p0.cumul && addDays(S().date, Math.max(1, Math.ceil(turnDays()))) > p0.cumul.due) { let g = 0; while (cumulConflict() && g++ < 4) resolveCumul(cumulDefault(), true); p0.cumul = null; } if (!p0.cumul) cumulCheck(); }
     const s = S(), p = s.p; s.estPrevBase = s.estBase || null; s.turnCnt = {}; const days = turnDays(); let newDate; if (days === 0.5) { if (s.half) { newDate = addDays(s.date, 1); } else newDate = s.date; } else newDate = addDays(s.date, days); const f = days / 30;
     // finances
     const met = D.METIERS.find(m => m.id === p.metier);
@@ -1166,7 +1170,7 @@ window.E = (function () {
     const floor = p.mandats.some(m => m.type === 'maire') ? 45 : p.mandats.length ? 25 : 0;
     ['commune', 'circo', 'dept', 'nat'].forEach(k => { p.noto[k] = Math.max(Math.min(p.noto[k], k === 'commune' ? floor : floor / 2), p.noto[k] * Math.pow(0.975, f)); });
     D.SEG_IDS.forEach(id => p.image[id] *= Math.pow(0.965, f));
-    p.mom *= Math.pow(0.8, f);
+    p.mom *= Math.pow(0.8, f); if (p.fondN) p.fondN = Math.max(0, p.fondN - 0.5 * f);
     (p.prog || []).forEach(m => m.visib = (m.visib || 0) * Math.pow(0.9, f));
     p.militants = Math.max(0, Math.round(p.militants * Math.pow(0.97, f) + (popularity() > 10 ? f : 0)));
     // climat national
