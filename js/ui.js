@@ -57,9 +57,10 @@
     if (onMount) onMount(m, close); if (window.matchMedia('(hover: hover)').matches) { const f = m.querySelector('textarea, input'); if (f) f.focus({ preventScroll: true }); }
     return { m, close };
   }
+  function illTag(t) { return t ? '<span class="ill">⚖ ' + esc(t) + '</span>' : ''; }
   function choice(title, body, options) { // options: [{l, sub, v, cls}]
     return new Promise(res => {
-      modal('<h2>' + esc(title) + '</h2><div>' + body + '</div><div class="stack" style="margin-top:12px">' + options.map((o, i) => '<button class="opt ' + (o.cls || '') + '" data-i="' + i + '">' + esc(o.l) + (o.sub ? '<small>' + esc(o.sub) + '</small>' : '') + '</button>').join('') + '</div>', (m, close) => {
+      modal('<h2>' + esc(title) + '</h2><div>' + body + '</div><div class="stack" style="margin-top:12px">' + options.map((o, i) => '<button class="opt ' + (o.cls || '') + (o.ill ? ' warn' : '') + '" data-i="' + i + '">' + esc(o.l) + (o.sub ? '<small>' + esc(o.sub) + '</small>' : '') + illTag(o.ill) + '</button>').join('') + '</div>', (m, close) => {
         m.querySelectorAll('[data-i]').forEach(b => b.onclick = () => { close(); res(options[+b.dataset.i].v); });
       });
     });
@@ -119,7 +120,7 @@
     }
     MP.leave(); E.newGame({ name: w.name, g: w.g, age: w.age, metier: w.metier, communeId: w.communeId, ax: w.ax, traits: w.traits, party: w.party, movement: w.party === 'NEW' ? w.movement : null, quiz: null, diff: 'normal' });
     GV.applyStart(w.start); E.estimate(); UI.screen = 'game'; UI.tab = 'bureau'; render(); await Store.save();
-    info('C’est parti', '<p>Votre <b>objectif du moment</b> s’affiche en haut du bureau, avec les actions conseillées. Quand vos heures sont dépensées, appuyez sur <b>Tour suivant</b>.</p>', 'Compris');
+    info('C’est parti', '<p>Pour vos premières semaines, la carte <b>Votre premier mois</b>, en haut de l’accueil, vous guide pas à pas : une étape à la fois, avec le bouton pour la faire.</p><p>Ensuite, votre <b>objectif du moment</b> vous indique toujours quoi faire. Quand vos heures sont dépensées, appuyez sur <b>Tour suivant</b>.</p>', 'Compris');
   }
   function newWiz(mp) { UI.wiz = { step: 0, name: '', g: 'F', age: 32, metier: 'salarie', ans: [], perso: [], party: null, movement: '', communeId: mp && mp.arena ? mp.arena.communeId : null, qs: pickQuiz(), ps: pickPerso(), mp: mp || null }; UI.screen = 'wiz'; render(); }
   async function openSlot(k) {
@@ -267,12 +268,13 @@
       GV.applyStart(w.start || 'militant'); E.estimate();
       if (w.mp) G.S.mp = { gid: w.mp.gid, name: w.mp.name, arena: w.mp.arena || null, seen: [] };
       UI.screen = 'game'; UI.tab = 'bureau'; render(); await Store.save(); if (G.S.mp) MP.enter();
-      info('C’est parti', '<p>Votre <b>objectif du moment</b> s’affiche en haut de l’accueil, avec les actions conseillées. Quand vos heures sont dépensées, appuyez sur <b>Tour suivant</b>.</p>', 'Compris');
+      info('C’est parti', '<p>Pour vos premières semaines, la carte <b>Votre premier mois</b>, en haut de l’accueil, vous guide pas à pas : une étape à la fois, avec le bouton pour la faire.</p><p>Ensuite, votre <b>objectif du moment</b> vous indique toujours quoi faire. Quand vos heures sont dépensées, appuyez sur <b>Tour suivant</b>.</p>', 'Compris');
     };
   }
 
   /* ---------- jeu ---------- */
-  const tCarnet = () => msFull() + '<h2 class="sec">Dossiers</h2>' + tDossiers() + '<h2 class="sec">Journal et sauvegarde</h2>' + tJournal();
+  const pmList = () => { const L = (P().postMortems || []).slice().reverse(); return L.length ? '<h2 class="sec">Analyses de vos élections</h2><div class="card">' + L.map((pm, i) => '<details' + (i ? '' : ' open') + ' style="' + (i ? 'border-top:1px solid var(--line);margin-top:8px;padding-top:8px' : '') + '"><summary><b>' + esc(pm.label) + '</b> · ' + (pm.won ? 'gagnée' : 'perdue') + '</summary>' + postMortemHTML(pm).replace(/<p class="muted small" style="margin-top:10px">Retrouvez[^<]*<\/p>/, '') + '</details>').join('') + '</div>' : ''; };
+  const tCarnet = () => msFull() + pmList() + '<h2 class="sec">Dossiers</h2>' + tDossiers() + '<h2 class="sec">Journal et sauvegarde</h2>' + tJournal();
   function renderGame() {
     const s = S(), p = P(); const ph = E.phase(); const days = E.turnDays(); const fc = face(); document.body.dataset.face = fc;
     const cmp = p.cand && p.cand.compte && ph.id !== 'hors' ? p.cand.compte : null;
@@ -373,15 +375,15 @@
     const s = S(), p = P(); const o = objective(); const pop = E.popularity();
     const une = s.news.slice(0, 4).find(n => n.about === 'pj') || s.news[0];
     const md = hasOF() ? OF.mode() : 'libre';
-    const cs0 = campSteps(); const head = guideCard() + (md === 'mandat' ? bureauElu() + '<div style="height:12px"></div>' : md === 'both' ? eluBar() : '') + (cs0 ? cs0 + '<div style="height:12px"></div>' : '') ; const dash = dashTiles(); let h = '<div class="obj"><div class="eyebrow">Votre objectif</div><h2>' + esc(o.t) + '</h2><p>' + esc(o.x) + '</p>';
+    const cs0 = campSteps(); const head = coachCard() + (md === 'mandat' ? bureauElu() + '<div style="height:12px"></div>' : md === 'both' ? eluBar() : '') + '' ; const dash = dashTiles(); let h = '<div class="obj"><div class="eyebrow">Votre objectif</div><h2>' + esc(o.t) + '</h2><p>' + esc(o.x) + '</p>';
     if (o.e) h += '<div class="row">' + declBtns(o.e) + '</div>';
     if (p.cumul && E.cumulConflict()) h += '<div class="row"><button class="btn primary" data-cumul>Régler le cumul de mandats (avant le ' + E.fmtDate(p.cumul.due) + ')</button></div>';
-    if (o.a.length) h += '<div class="qas">' + o.a.map(quick).join('') + '</div>';
+    if (o.a.length) h += '<div class="qas">' + o.a.slice(0, 3).map(quick).join('') + '</div>';
     if (o.debate && p.cand && p.cand.mode !== 'colistier') { const max = E.phase().id === 'entre2' ? 2 : 1; h += '<div class="row" style="margin-top:8px"><button class="btn" id="debat"' + (p.cand.debates < max && p.hours >= 4 ? '' : ' disabled') + '>Débat télévisé · 4 h</button></div>'; }
     const lp = (s.lastPlan || []).filter(it => { const a = X.ACTIONS.find(x => x.id === it.id); return a && X.avail(a) === true; });
     if (lp.length) { const hh = lp.reduce((t, it) => t + (X.ACTIONS.find(x => x.id === it.id).h || 0), 0); h += '<div class="row" style="margin-top:8px"><button class="btn" data-replan' + (hh <= p.hours ? '' : ' disabled') + '>↻ Refaire mon agenda précédent · ' + lp.length + ' action' + (lp.length > 1 ? 's' : '') + ', ' + hh + ' h</button></div>'; }
     h += '<div class="left">Il vous reste <b>' + p.hours + ' h</b> ce tour. <button class="linkbtn" data-go="agir">Toutes les actions</button> · <button class="linkbtn" data-plan>Composer mon agenda</button></div></div>'; const ob = h; h = '';
-    h += msCard();
+    const msc = msCard();
     if (S().mp) MP.waitingForMe().forEach(w => { h += '<button class="smsbar" data-go="plus:joueurs" style="border-left-color:#5a78c2"><span><b>' + esc(w.name) + ' vous attend</b><span class="cp">Avancez jusqu’au scrutin : il ne peut pas voter sans vous</span></span></button>'; });
     if (S().mp && S().mp.wait) h += '<button class="smsbar" data-go="plus:joueurs" style="border-left-color:var(--warn)"><span><b>Rendez-vous électoral</b><span class="cp">Vous attendez d’autres joueurs pour un scrutin</span></span></button>';
     h += boucleBar();
@@ -397,8 +399,10 @@
         '<div class="row" style="margin-top:10px"><button class="linkbtn" id="retire">Retirer ma candidature</button></div></div>'; }
     const cal = '<div class="card"><h3>' + VZ.icon('calendar', 20) + ' Calendrier électoral</h3>' + VZ.timeline(s.elections.filter(e => e.status !== 'fini').sort((a, b) => a.d1 < b.d1 ? -1 : 1).slice(0, 8).map(e => { const d = E.diffDays(s.date, e.d1); const can = !p.cand && e.status === 'futur' && d <= 210 && !(p.inelig && p.inelig > s.date) && (e.type !== 'pres' || p.presDesig === e.id || p.party === 'NEW') && !(e.type !== 'pres' && p.mandats.some(m => m.type === 'president')); const mo = Math.round(d / 30.4); const MS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.']; const fd = [String(+e.d1.slice(8, 10)) + (e.d1.slice(8, 10) === '01' ? 'er' : ''), MS[+e.d1.slice(5, 7) - 1], e.d1.slice(0, 4)];
       return { type: e.type, on: !!(p.cand && p.cand.el === e.id), soon: d <= 210, day: fd.slice(0, 2).join(' '), year: fd[2] || e.d1.slice(0, 4), label: esc(e.label), meta: (d <= 0 ? 'en cours' : d < 45 ? 'dans ' + d + ' jours' : 'dans ' + mo + ' mois') + ' · ' + (['mun', 'dep', 'reg', 'sen'].includes(e.type) ? 'scrutin local' : 'scrutin national') + (p.cand && p.cand.el === e.id ? ' · <b>vous êtes candidat·e</b>' : ''), extra: can ? '<div class="row" style="gap:4px;margin-top:6px">' + declBtns(e).replace(/class="btn primary"/g, 'class="btn sm primary"').replace(/class="btn"/g, 'class="btn sm"') + '</div>' : '' }; })) + '</div>';
-    if (wideNow()) return '<div class="bur"><div class="bmain">' + head + ob + ms + est + why + '<div style="margin-top:14px">' + uneH + '</div></div><aside class="bside">' + dash + prof + cand + nat + cal + '</aside></div>';
-    return head + dash + ob + ms + est + why + nat + '<div class="grid" style="margin-top:14px"><div class="c8">' + uneH + '</div><div class="c4">' + prof + '</div>' + (cand ? '<div class="c6">' + cand + '</div>' : '') + '<div class="c12">' + cal + '</div></div>';
+    const fil = filCard(); const cs = cs0 ? '<div style="height:12px"></div>' + cs0 : '';
+    const more = (inner, lbl) => '<details class="more" data-more' + (s.homeMore ? ' open' : '') + '><summary>' + lbl + '</summary><div class="stack" style="margin-top:12px">' + inner + '</div></details>';
+    if (wideNow()) return '<div class="bur"><div class="bmain">' + head + ob + est + cs + ms + fil + more(why + uneH + msc, 'Analyse, presse et objectifs de carrière') + '</div><aside class="bside">' + dash + prof + cand + nat + cal + '</aside></div>';
+    return head + ob + dash + est + cs + ms + fil + more(why + nat + uneH + prof + cand + msc + cal, 'Plus d’infos : analyse, presse, profil, calendrier');
   }
 
   /* ---------- Actions ---------- */
@@ -440,7 +444,7 @@
   const MQ = { maire: ['conseil', 'permanence', 'appliquer'], adjoint: ['conseil', 'permanence', 'appliquer'], conseiller_municipal: ['conseil', 'permanence', 'appliquer'], cd: ['permanence', 'circo', 'appliquer'], cr: ['permanence', 'circo'], depute: ['appliquer'], senateur: ['permanence', 'circo', 'amend'], meuro: ['permanence', 'circo'] };
   const MLOC = new Set(['maire', 'adjoint', 'conseiller_municipal', 'cd', 'cr', 'interco']);
   const actOk = id => { const a = X.ACTIONS.find(x => x.id === id); return !!a && X.avail(a) === true; };
-  function actCard(a) { const av = X.avail(a); const cost = X.costOf(a); return '<button class="act ' + (av === true ? '' : 'off') + '" data-act="' + a.id + '"><span class="t">' + esc(a.l) + '<span class="num">' + (a.h ? VZ.icon('clock', 13) + ' ' + a.h + ' h' : '') + (cost ? ' · ' + E.eur(cost) : '') + '</span></span><span class="d">' + esc(a.d) + '</span>' + (av === true ? '' : '<span class="why">' + esc(av) + '</span>') + '</button>'; }
+  function actCard(a) { const av = X.avail(a); const cost = X.costOf(a); return '<button class="act ' + (av === true ? '' : 'off') + '" data-act="' + a.id + '"><span class="t">' + esc(a.l) + '<span class="num">' + (a.h ? VZ.icon('clock', 13) + ' ' + a.h + ' h' : '') + (cost ? ' · ' + E.eur(cost) : '') + '</span></span><span class="d">' + esc(a.d) + '</span>' + illTag(a.ill) + (av === true ? '' : '<span class="why">' + esc(av) + '</span>') + '</button>'; }
   function famTile(t, d, ids, dark) { const n = ids.filter(actOk).length; if (!n) return ''; return '<button class="fam' + (dark ? ' dark' : '') + '" data-fam="' + esc(JSON.stringify([t, ids])) + '"><span class="fi">' + VZ.icon(t, 22) + '</span><b>' + esc(t) + '</b><span class="d">' + esc(d) + '</span><span class="n num">' + n + ' possible' + (n > 1 ? 's' : '') + '</span></button>'; }
   function sugBlock(ids) { const L = [...new Set(ids)].filter(actOk).slice(0, 3); return L.length ? '<div class="eyebrow" style="margin:4px 0 8px">Conseillé maintenant</div><div class="acts sug">' + L.map(id => actCard(X.ACTIONS.find(x => x.id === id))).join('') + '</div>' : ''; }
   async function runScoped(id) { const v = viewOf(); UI.actScope = v === 'vie' || v === 'programme' ? curScope() : null; try { await runAction(id); } finally { UI.actScope = null; } }
@@ -653,6 +657,42 @@
   }
 
   /* ---------- progression, récit, pouvoir ---------- */
+  /* ---------- premier mois guidé ---------- */
+  function coachSteps() {
+    const s = S(), p = P(); const c = s.cnt || {}; const vil = E.myPetite && E.myPetite(); const o = objective(); const e = (o && o.e) || (p.cand ? s.elections.find(z => z.id === p.cand.el) : E.nextElection());
+    const L = [{ id: 'terrain', t: 'Allez à la rencontre des habitants', x: vil ? 'Dans un village, tout se joue au contact : on vote pour quelqu’un qu’on connaît. Commencez par un porte-à-porte.' : 'La notoriété se gagne d’abord dans la rue : personne ne vote pour un nom inconnu. Commencez par un porte-à-porte ou un tractage.', done: () => c.porte || c.marche || c.asso || c.appart, act: 'porte', b: 'Faire du porte-à-porte' }];
+    if (p.party === 'NEW') L.push({ id: 'parti', t: 'Structurez votre mouvement', x: 'Sans parti, vos militants sont votre seule force : ce sont eux qui tractent et collent les affiches.', done: () => c.mouvement, act: 'mouvement', b: 'Structurer le mouvement' });
+    else if (!vil) L.push({ id: 'parti', t: 'Montrez-vous dans votre parti', x: 'C’est le parti qui accorde l’investiture. Sans elle, vous partez en dissident·e, sans logo ni argent.', done: () => c.section || c.mission || c.contribution || c.reseau, act: 'section', b: 'Aller en réunion de section' });
+    else L.push({ id: 'parti', t: 'Engagez-vous dans une association', x: 'Le bénévolat montre que vous êtes utile avant d’être candidat·e. Les présidents d’associations font l’opinion au village.', done: () => c.asso, act: 'asso', b: 'Faire du bénévolat' });
+    L.push({ id: 'idee', t: 'Proposez une première mesure', x: 'Un·e candidat·e sans idées n’a rien à défendre en débat. Choisissez un sujet qui compte pour vos électeurs, et qui relève bien de la collectivité visée.', done: () => (p.prog || []).length > 0, act: 'mesure', b: 'Proposer une mesure' });
+    L.push({ id: 'agenda', t: 'Remplissez votre agenda', x: 'Chaque tour vous donne des heures. Des heures non utilisées sont perdues : l’agenda les remplit d’un coup avec des actions qui se complètent.', done: () => (s.lastPlan || []).length > 0 || s.turn >= 3, plan: 1, b: 'Composer mon agenda' });
+    L.push({ id: 'tour', t: 'Passez au tour suivant', x: 'Le bouton « Tour suivant », en bas, fait avancer le temps d’un mois : vos actions produisent leurs effets, l’actualité tombe, vos adversaires jouent.', done: () => s.turn >= 2 });
+    L.push({ id: 'cand', t: e ? 'Repérez votre élection : ' + e.label : 'Repérez votre élection', x: e ? 'Scrutin le ' + E.fmtDate(e.d1) + '. Les candidatures s’ouvrent sept mois avant : l’objectif ci-dessous vous préviendra. D’ici là, chaque point de notoriété compte.' : 'Le calendrier électoral, en bas de l’accueil, montre les prochains scrutins. Les candidatures s’ouvrent sept mois avant.', done: () => !!p.cand || s.turn >= 4 || s.coachAck, ack: 1, b: 'C’est noté' });
+    return L;
+  }
+  function coachCard() {
+    const s = S(); if (s.coachOff || s.turn > 6) return '';
+    const L = coachSteps(); const done = L.filter(z => z.done()).length; if (done >= L.length) { if (!s.coachEnd) { s.coachEnd = s.turn; s.tuto = 99; } if (s.turn > s.coachEnd) return ''; }
+    const cur = L.find(z => !z.done());
+    let h = '<div class="coach"><div class="row" style="justify-content:space-between"><span class="eyebrow">Votre premier mois · ' + done + '/' + L.length + '</span><button class="linkbtn" data-coachoff>Masquer</button></div>';
+    if (!cur) h += '<h3>Bien joué, vous avez les bases.</h3><p class="small">Le reste viendra en jouant : l’objectif ci-dessous vous indique toujours la prochaine étape.</p>';
+    h += '<ol class="steps">' + L.map(z => { const ok = z.done(); const on = z === cur; return '<li class="' + (ok ? 'ok' : on ? 'on' : '') + '"><span class="ck">' + (ok ? '✓' : '') + '</span><div class="grow"><b>' + esc(z.t) + '</b>' + (on ? '<p class="small">' + esc(z.x) + '</p>' + (z.act ? '<button class="btn sm primary" data-act="' + z.act + '">' + esc(z.b) + '</button>' : z.plan ? '<button class="btn sm primary" data-plan>' + esc(z.b) + '</button>' : z.ack ? '<button class="btn sm primary" data-coachack>' + esc(z.b) + '</button>' : '') : '') + '</div></li>'; }).join('') + '</ol>';
+    const G = (GV.GUIDE || []).map(g => '<p class="small"><b>' + esc(g.t) + '.</b> ' + esc(typeof g.x === 'function' ? g.x() : g.x) + '</p>').join('');
+    if (G) h += '<details class="how"><summary class="small">Comment ça marche ?</summary>' + G + '</details>';
+    return h + '</div>';
+  }
+  /* ---------- fil des réalisations ---------- */
+  function filCard() {
+    const s = S(); const f = s.lastTurn; if (!f || f.to !== s.date) return '';
+    const did = (f.did || []); const ds = (f.ds || []).filter(d => !/Abonnés|Score estimé/.test(d.l)).slice(0, 6); const clean = (l, m) => String(m || '').replace(/\s+/g, ' ').replace(new RegExp('^' + l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*[:—-]\\s*', 'i'), '');
+    let h = '<div class="card fil"><h3>Le mois dernier</h3><div class="muted small">Du ' + E.fmtDate(f.from) + ' au ' + E.fmtDate(f.to) + '</div>';
+    if (did.length) h += '<ul class="did">' + did.slice(0, 6).map(d => '<li><b>' + esc(d.l) + '</b>' + (d.n > 1 ? ' ×' + d.n : '') + (d.m ? '<span class="muted small"> · ' + esc(clean(d.l, d.m).slice(0, 110)) + (clean(d.l, d.m).length > 110 ? '…' : '') + '</span>' : '') + '</li>').join('') + (did.length > 6 ? '<li class="muted small">et ' + (did.length - 6) + ' autre' + (did.length > 7 ? 's' : '') + '</li>' : '') + '</ul>';
+    else h += '<p class="small" style="color:var(--warn)">Vous n’avez rien fait ce mois-ci : vos heures ont été perdues, et la notoriété s’érode d’elle-même.</p>';
+    if (f.est) h += '<p class="small" style="margin:6px 0 0">' + esc(f.est.label) + ' : <b class="num">' + E.pct(f.est.pct) + '</b>' + (f.est.prev != null ? ' <span class="num ' + (f.est.pct >= f.est.prev ? 'up' : 'down') + '">(' + (f.est.pct >= f.est.prev ? '+' : '−') + E.pct(Math.abs(f.est.pct - f.est.prev)).replace(/\s?%$/, '') + ' pt)</span>' : '') + '</p>';
+    h += ds.length ? '<div class="eyebrow" style="margin-top:8px">Ce que ça a changé</div>' + chipsHTML(ds) : '<p class="muted small" style="margin:6px 0 0">Rien n’a vraiment bougé.</p>';
+    if (f.news && f.news.length) h += '<div class="eyebrow" style="margin-top:8px">On parle de vous</div>' + f.news.map(n => '<div class="small" style="margin-top:3px"><b>' + esc(n.m) + '</b> · ' + esc(n.t) + '</div>').join('');
+    return h + '</div>';
+  }
   function guideCard() {
     const g = GV.guide(); if (!g) return '';
     return '<div class="guide"><div class="row" style="justify-content:space-between"><span class="eyebrow">Guide · ' + (g.i + 1) + '/' + g.n + '</span><button class="linkbtn" data-gskip>Passer le guide</button></div><h3>' + esc(g.t) + '</h3><p>' + esc(g.x) + '</p><div class="row" style="gap:6px">' + (g.go ? '<button class="btn sm primary" data-go="' + g.go + '">Ouvrir ' + (g.go === 'agir' ? 'Agir' : g.go) + '</button>' : '') + (g.next ? '<button class="btn sm' + (g.go ? '' : ' primary') + '" data-gnext>' + esc(g.next) + '</button>' : '') + '</div></div>';
@@ -876,6 +916,9 @@
     $app.querySelectorAll('[data-replan]').forEach(b => b.onclick = async () => { const pl = planState(); pl.length = 0; (S().lastPlan || []).forEach(it => { const a = X.ACTIONS.find(x => x.id === it.id); if (a && X.avail(a) === true) pl.push({ id: it.id, o: Object.assign({}, it.o) }); }); if (pl.length) await runPlan(); });
     $app.querySelectorAll('[data-gnext]').forEach(b => b.onclick = () => { GV.guideNext(); render(); });
     $app.querySelectorAll('[data-gskip]').forEach(b => b.onclick = () => { GV.guideNext(true); render(); });
+    $app.querySelectorAll('[data-coachack]').forEach(b => b.onclick = () => { S().coachAck = true; render(); });
+    $app.querySelectorAll('[data-coachoff]').forEach(b => b.onclick = () => { S().coachOff = true; GV.guideNext(true); render(); });
+    $app.querySelectorAll('details[data-more]').forEach(d => d.ontoggle = () => { S().homeMore = d.open; });
     $app.querySelectorAll('[data-keep]').forEach(b => b.onclick = () => { const before = X.snap(); const r = GV.keepPromise(b.dataset.keep); if (!r.ok) { toast(r.msg); return; } E.estimate(); render(); result('Promesse tenue', r.msg, before); });
     $app.querySelectorAll('[data-pmsg]').forEach(b => b.onclick = () => playerAct('msg', b.dataset.pmsg));
     $app.querySelectorAll('[data-pduel]').forEach(b => b.onclick = () => challengePlayer(b.dataset.pduel));
@@ -1156,6 +1199,14 @@
       return { l: c.l, sub: '« ' + c.txt + ' »' + who + tag, v: i, cls: sup != null && sup <= 1 ? 'warn' : '' }; });
   }
   // Bilan de fin de mandat : ce qui était promis, ce qui a été fait, combien, pour qui
+  function postMortemHTML(pm) {
+    const gz = t => genderize(t, P().g); const li = (L, c) => '<ul class="pm ' + c + '">' + L.map(x => '<li>' + esc(gz(x.t)) + '</li>').join('') + '</ul>';
+    let h = '<p><b>' + esc(gz(pm.head)) + '</b></p>' + (pm.socle ? '<p class="small">' + esc(gz(pm.socle)) + '</p>' : '');
+    if (pm.plus.length) h += '<div class="eyebrow" style="margin-top:10px;color:var(--good)">Ce qui vous a aidé·e</div>' + li(pm.plus, 'up');
+    if (pm.minus.length) h += '<div class="eyebrow" style="margin-top:10px;color:var(--bad)">Ce qui vous a coûté</div>' + li(pm.minus, 'down');
+    if (pm.adv.length) h += '<div class="eyebrow" style="margin-top:10px">Conseils pour la suite</div><ol class="pm adv">' + pm.adv.map(a => '<li>' + esc(gz(a)) + '</li>').join('') + '</ol>';
+    return h + '<p class="muted small" style="margin-top:10px">Retrouvez cette analyse dans Plus › Carnet.</p>';
+  }
   function bilanMandatHTML(rv) {
     const nat = ['leg', 'sen', 'euro', 'pres'].includes(rv.el); const fmt = v => nat ? md(v) : E.eur(v); const segL = g => (D.SEGS.find(x => x.id === g) || { name: g }).name;
     const tot = rv.done.length + rv.todo.length; const rate = tot ? Math.round(rv.done.length / tot * 100) : null;
@@ -1429,9 +1480,27 @@
     const sum = await debateRun({ format: fmt, host: j ? j.name : 'L’animatrice', rounds: ph === 'entre2' ? 12 : 10, opponents: opp.map(o => ({ name: o.name, label: o.label || D.PARTIES[o.party]?.short || '', id: o.id })), natHook: el.type !== 'pres' ? ((S().recentEv || [])[0] || null) : null });
     const msg = X.applyDebate(sum); E.estimate(); await info('Après le débat', '<p>' + esc(msg) + '</p>' + chipsHTML(X.deltas(before, X.snap()))); render();
   }
+  const KOMPRO = [['notes de frais personnelles remboursées par sa collectivité', 'des relevés de notes de frais'], ['des échanges avec un promoteur juste avant un permis de construire', 'une série de courriels'], ['l’emploi de complaisance d’un proche', 'une fiche de paie et un contrat'], ['un prêt personnel non déclaré, consenti par un fournisseur de la mairie', 'un tableau bancaire'], ['des sondages internes payés par une association amie', 'des factures']];
+  async function kompromatFlow(x) {
+    const p = P(), s = S(); E.estimate(); const before = X.snap(); const k = KOMPRO[Math.floor(E.rnd() * KOMPRO.length)]; const fake = E.rnd() < 0.4;
+    const d = { id: E.uid('d'), on: x.id, label: k[0], g: fake ? 1 : 2, date: s.date, src: 'vol', fake };
+    const body = '<p>Le dossier contient ' + esc(k[1]) + ' qui suggèrent <b>' + esc(k[0]) + '</b> chez ' + esc(x.name) + '.</p>' +
+      '<p class="muted small">Provenance : une boîte mail piratée, d’après l’informateur. ' + (fake ? 'Certaines pièces ont l’air retouchées : impossible d’en être sûr·e sans enquête.' : 'Les pièces ont l’air authentiques.') + '</p>' +
+      '<p class="small"><b>Le droit.</b> Détenir ou diffuser des documents volés, c’est du recel, même si leur contenu est vrai. Un média peut publier une information d’intérêt public ; un·e candidat·e qui orchestre la fuite prend un risque pénal et politique.</p>';
+    const v = await choice('Le dossier sur ' + x.name, body, [
+      { l: 'Le transmettre à la presse', sub: 'Gros dégâts chez ' + x.name + ' si c’est vrai. Si c’est un faux, c’est vous qui tombez.', ill: 'Recel et diffusion : risque pénal, et la presse cherchera la source', v: 'fuite' },
+      { l: 'Le garder en réserve', sub: 'Rangé dans Plus › Carnet. Il pèse dans un débat ou une négociation face à ' + x.name + '.', ill: 'Recel : le simple fait de le détenir est un délit', v: 'garde' },
+      { l: 'Le détruire et signaler la tentative', sub: 'Crédibilité +2. ' + x.name + ' l’apprendra peut-être, et vous le devra.', v: 'detruit' }]);
+    if (v === 'detruit') { p.cred = clamp(p.cred + 2, 0, 100); x.rel = clamp((x.rel || 0) + 12, -100, 100); if (typeof GV !== 'undefined') GV.remember(x.id, 'Vous avez refusé de vous servir d’un dossier volé contre ' + (x.g === 'F' ? 'elle' : 'lui'), 12); E.log('Dossier volé sur ' + x.name + ' détruit et signalé.', 'event'); result('Dossier détruit', 'Crédibilité +2. Votre avocat a transmis un signalement au parquet. Relation avec ' + x.name + ' : +12.', before); return; }
+    p.dossiers.push(d); if (E.rnd() < 0.3) E.casserole('recel', 'l’utilisation de documents obtenus illégalement contre ' + x.name, 2, true, 0.05);
+    if (v === 'garde') { result('Dossier en réserve', 'Rangé dans Plus › Carnet. En débat face à ' + x.name + ', vos contre-attaques porteront davantage. Mais tant que vous le gardez, il peut se retourner contre vous.', before); return; }
+    const av = X.avail(X.ACTIONS.find(a => a.id === 'fuite')); if (av !== true || p.hours < 2) { result('Pas le temps', 'Il vous faut 2 h libres pour rencontrer un média. Le dossier est gardé en réserve (Plus › Carnet) : vous pourrez le faire fuiter au prochain tour.', before); return; }
+    await runAction('fuite');
+  }
   async function runSmsAct(act) {
     const i0 = act.indexOf(':'); const k = act.slice(0, i0), id = act.slice(i0 + 1); const x = S().pnj[id]; if (!x && k !== 'duel') { render(); return; }
     if (k === 'duel') { await acceptDuel(id); render(); return; }
+    if (k === 'kompro') { await kompromatFlow(x); render(); return; }
     if (k === 'interview') await interviewFlow(id);
     if (k === 'debate') { if (P().hours < 4) { toast('Il vous faut 4 h libres pour ce débat : il est reporté.'); render(); return; } await debateFlow([{ name: x.name, label: D.PARTIES[x.party].short, id }], 'Face-à-face sur Radio Isère : ' + P().name + ' contre ' + x.name, 10); }
     render();
@@ -1513,6 +1582,7 @@
   async function bilan(before, from, lastNewsId) {
     const s = S(), p = P(); const es = s.est; const ds = X.deltas(before, X.snap());
     const idx = s.news.findIndex(n => n.id === lastNewsId); const fresh = (idx < 0 ? s.news.slice(0, 6) : s.news.slice(0, idx)).filter(n => n.about === 'pj').slice(0, 4);
+    { const agg = {}; (s.prevDid || []).forEach(d => { const a = agg[d.l] || (agg[d.l] = { l: d.l, n: 0, m: d.m }); a.n++; a.m = d.m; }); s.lastTurn = { from, to: s.date, did: Object.values(agg), ds, est: es && es.rank ? { label: es.label, pct: es.pct, prev: before.est } : null, news: fresh.map(n => ({ m: n.media, t: n.title })) }; }
     const hist = es ? (s.hist || []).filter(x => x.el === es.el).map(x => x.est) : [];
     let h = '<div class="eyebrow">Du ' + E.fmtDate(from) + ' au ' + E.fmtDate(s.date) + '</div>';
     if (es) h += '<div class="card" style="margin-top:10px"><div class="muted small">' + esc(es.label) + ' · ' + (es.hypo ? 'si vous étiez candidat·e' : 'si l’élection avait lieu demain') + '</div><div class="row" style="align-items:center;gap:14px"><span class="big num">' + (es.rank ? E.pct(es.pct) : '—') + '</span><span class="small">' + (es.rank ? es.rank + '<sup>' + (es.rank === 1 ? (P().g === 'F' ? 're' : 'er') : 'e') + '</sup> sur ' + es.n : 'éliminé·e') + '</span><div style="flex:1;min-width:120px">' + spark(hist, 220, 50) + '</div></div></div>';
@@ -1539,13 +1609,14 @@
     while (s.queue.length) {
       const q = s.queue.shift();
       try {
+        if (q.kind === 'postMortem') { if (s.queue.some(z => z.kind === 'results')) { s.queue.push(q); continue; } await info((q.pm.won ? 'Pourquoi vous avez gagné' : 'Pourquoi vous avez perdu') + ' · ' + q.pm.label, postMortemHTML(q.pm), 'Continuer'); continue; }
         if (q.kind === 'bilanMandat') { await info('Bilan de mandat : ' + genderize(q.rv.label, P().g), bilanMandatHTML(q.rv), 'Continuer'); continue; }
         if (q.kind === 'event') { const e = q.custom || E.EVENTS.find(x => x.id === q.ev); const v = await choice(e.t, '<div class="evh"><span class="evi">' + VZ.icon(e.th || 'news', 22) + '</span><span>' + ({ loc: 'Actualité locale', nat: 'Actualité nationale', int: 'Actualité internationale' }[e.scope] || 'Actualité') + ' · ' + esc((D.THEMES[e.th] || { l: '' }).l) + '</span></div><p>' + esc(e.d) + '</p>' + evFiche(e) + '<p class="muted">Les journalistes vous demandent une réaction.</p>', evOpts(e).concat([{ l: 'Ne pas réagir', v: -1 }])); E.resolveEvent(q.ev, v, q.custom); }
         else if (q.kind === 'results') await showResults(q);
         else if (q.kind === 't2choice') { const v = await choice('Triangulaire', '<p>Vous êtes qualifié·e pour le second tour, mais à plus de deux. Vous maintenez-vous, ou vous désistez-vous ?</p>', [{ l: 'Me maintenir', v: true }, { l: 'Me désister', sub: 'Geste apprécié au parti, mais votre élection s’arrête là', v: false }]); toast(X.resolveT2(q, v)); }
         else if (q.kind === 't2consigne') { const el = s.elections.find(e => e.id === q.el); const r = el.races[q.key]; const opts = (r.t2 || []).map(id => r.cands.find(c => c.id === id)).filter(Boolean).map(c => ({ l: 'Appeler à voter ' + c.name, sub: D.PARTIES[c.party]?.name || '', v: c.id })); const v = await choice('Consigne de vote', '<p>Vous êtes éliminé·e, mais vos électeurs comptent. Que leur dites-vous ?</p>', opts.concat([{ l: 'Pas de consigne', v: null }])); X.resolveConsigne(q, v); }
         else if (q.kind === 'section') { const v = await choice('Élection du secrétaire de section', '<p>Le poste de secrétaire de la section locale est remis en jeu. Vous présentez-vous contre le sortant ?</p>', [{ l: 'Me présenter', v: true }, { l: 'Laisser passer mon tour', v: false }]); await info('Section', '<p>' + esc(X.resolveSection(v)) + '</p>'); }
-        else if (q.kind === 'offer') { const x = s.pnj[q.pnj]; if (q.type === 'soutien') { const v = await choice('Proposition de soutien', '<p>' + esc(x.name) + ' (' + esc(genderize(x.mandat || ROLE_L[x.role], x.g)) + ') propose de vous soutenir publiquement.</p>', [{ l: 'Accepter', v: true }, { l: 'Décliner', v: false }]); toast(X.resolveOffer(q, v)); } else { const v = await choice('Une enveloppe', '<p>' + esc(x.name) + ' (' + esc(genderize(x.mandat || 'notable', x.g)) + ') vous propose « un coup de main » de <b>' + E.eur(q.amount) + '</b> en liquide, sans reçu. Il attendra un retour.</p>', [{ l: 'Accepter l’enveloppe', sub: 'Financement illégal : risque pénal', v: true }, { l: 'Refuser', v: false }]); toast(X.resolveOffer(q, v)); } }
+        else if (q.kind === 'offer') { const x = s.pnj[q.pnj]; if (q.type === 'soutien') { const v = await choice('Proposition de soutien', '<p>' + esc(x.name) + ' (' + esc(genderize(x.mandat || ROLE_L[x.role], x.g)) + ') propose de vous soutenir publiquement.</p>', [{ l: 'Accepter', v: true }, { l: 'Décliner', v: false }]); toast(X.resolveOffer(q, v)); } else { const v = await choice('Une enveloppe', '<p>' + esc(x.name) + ' (' + esc(genderize(x.mandat || 'notable', x.g)) + ') vous propose « un coup de main » de <b>' + E.eur(q.amount) + '</b> en liquide, sans reçu. Il attendra un retour.</p>', [{ l: 'Accepter l’enveloppe', ill: 'Financement illégal, voire corruption s’il attend une contrepartie : prison, amende, jusqu’à 3 ans d’inéligibilité', v: true }, { l: 'Refuser', v: false }]); toast(X.resolveOffer(q, v)); } }
         else if (q.kind === 'vote') { const v = await choice(q.ctx, '<p><b>' + esc(q.text) + '</b></p>' + (q.line ? '<p class="muted">Consigne de votre groupe : ' + q.line + '.</p>' : ''), [{ l: 'Voter pour', v: 'pour' }, { l: 'Voter contre', v: 'contre' }, { l: 'S’abstenir', v: 'abstention' }]); E.resolveVote(q, v); }
         else if (q.kind === 'info') await info(q.title, '<p>' + esc(q.text) + '</p>');
         else if (q.kind === 'mpPrim') { const lab = q.type === 'mun' ? 'Premier·e adjoint·e si sa liste gagne' : q.type === 'dep' ? 'Son binôme : élu·e avec lui ou elle' : 'Son ou sa suppléant·e'; const v = await choice('Primaire perdue', '<p>Les adhérents ont départagé les candidat·e·s pour les ' + esc(q.label.toLowerCase()) + ' : <b>' + esc(q.res) + '</b>.</p><p>' + esc(q.winnerName) + ' portera les couleurs du parti. Que faites-vous ?</p>', [{ l: 'Me rallier : ' + lab, sub: 'Vous faites campagne ensemble', v: 'ally' }, { l: 'Partir en dissidence', sub: 'Vous l’affrontez quand même, sans l’étiquette', v: 'diss' }]); if (v === 'ally') { P().rallied = Object.assign({}, P().rallied, { [q.el]: 'H_' + q.winner }); E.addStd(3); toast('Vous vous ralliez à ' + q.winnerName + '.'); } }
@@ -1556,7 +1627,7 @@
         else if (q.kind === 'rival' && hasHQ() && ['attaque', 'rumeur', 'critique'].includes(q.type) && HQ.fromRival(q)) { UI.bTold = (UI.bTold || 0) + 1; }
         else if (q.kind === 'rival') await rivalQ(q);
         else if (q.kind === 'party') await partyQ(q);
-        else if (q.kind === 'situation') { const x = DP.SIT.find(z => z.id === q.id); const before = X.snap(); const gz = t => genderize(t, P().g); const v = await choice(gz(x.t), '<p>' + esc(gz(x.d)) + '</p>', x.o.map((o, i) => ({ l: gz(o[0]), v: i }))); const msg = DP.situationResolve(q.id, v); E.estimate(); await info(gz(x.t), '<p>' + esc(gz(msg)) + '</p>' + chipsHTML(X.deltas(before, X.snap()))); }
+        else if (q.kind === 'situation') { const x = DP.SIT.find(z => z.id === q.id); const before = X.snap(); const gz = t => genderize(t, P().g); const v = await choice(gz(x.t), '<p>' + esc(gz(x.d)) + '</p>', x.o.map((o, i) => ({ l: gz(o[0]), ill: o[2], v: i }))); const msg = DP.situationResolve(q.id, v); E.estimate(); await info(gz(x.t), '<p>' + esc(gz(msg)) + '</p>' + chipsHTML(X.deltas(before, X.snap()))); }
         else if (q.kind === 'leakwarn') { const c = P().casseroles.find(z => z.id === q.cas); const j = s.pnj[q.j]; if (!c || c.out) continue; const v = await choice('Un journaliste vous prévient', '<p>' + esc(j.name) + ' (' + esc(D.MEDIAS.find(m => m.id === j.territory).name) + ') vous appelle : un confrère s’apprête à sortir une information sur <b>' + esc(c.label) + '</b>.</p>', [{ l: 'Prendre les devants : tout révéler vous-même', sub: 'Le choc est amorti', v: 'devant' }, { l: 'Tenter d’étouffer l’affaire', sub: 'Ça peut marcher… ou empirer', v: 'etouffer' }, { l: 'Ne rien faire', v: 'rien' }]);
           if (v === 'devant') { c.g = Math.max(1, c.g - 1); P().cred = E.clamp(P().cred + 2, 0, 100); E.surface(c, 'Révélé par ' + P().name + ' lui-même, avant la presse.'); j.rel += 5; }
           else if (v === 'etouffer') { j.rel -= 8; if (E.rnd() < 0.5) { c.risk *= 0.5; toast('L’article est repoussé… pour l’instant.'); } else { c.g = Math.min(5, c.g + 1); E.surface(c, 'Et des pressions pour étouffer l’affaire.'); } }
@@ -1619,7 +1690,7 @@
       (d ? '<div class="kpis" style="margin-top:10px">' + kpi('Direction', '<span class="kt">' + esc(d.name) + '</span>', null, null, esc(HQ.STYLE[d.style || 'terrain'][0])) + kpi('Confiance', r0(h.trust) + ' %', h.trust, h.trust < 35 ? 'var(--bad)' : h.trust < 55 ? 'var(--warn)' : 'var(--good)') + kpi('Moral de l’équipe', r0(h.moral) + ' %', h.moral, h.moral < 40 ? 'var(--bad)' : 'var(--good)') + '</div><p class="muted small" style="margin:8px 0 0">Les décisions sans réponse sont tranchées par ' + esc(d.name.split(' ')[0]) + ' à la fin du tour. Suivre ses conseils renforce sa confiance.</p>' : '') + '</div>';
     const L = h.boucle.slice(0, 30).reverse(); if (!L.length) return x + '<div class="card" style="margin-top:12px"><p class="muted" style="margin:0">Rien pour l’instant.</p></div>';
     const pd = HQ.pending(); const dn = d ? d.name.split(' ')[0] : '';
-    const decHTML = m => '<div class="bubble them todo"><b class="wa-n">' + esc(m.name) + '</b>' + (m.lbl ? ' <span class="muted small">' + esc(m.lbl) + '</span>' : '') + '<div>' + esc(m.t) + '</div><div class="reps col">' + m.dec.opts.map((o, i) => '<button class="btn sm" data-bdec="' + m.id + ':' + i + '">' + esc(o.l) + (o.h ? ' · ' + o.h + ' h' : '') + (o.cost ? ' · ' + E.eur(o.cost) : '') + (m.dec.rec === i ? ' <span class="chip">👍 avis de ' + esc(dn) + '</span>' : '') + (o.sub ? '<small>' + esc(o.sub) + '</small>' : '') + '</button>').join('') + '</div></div>';
+    const decHTML = m => '<div class="bubble them todo"><b class="wa-n">' + esc(m.name) + '</b>' + (m.lbl ? ' <span class="muted small">' + esc(m.lbl) + '</span>' : '') + '<div>' + esc(m.t) + '</div><div class="reps col">' + m.dec.opts.map((o, i) => '<button class="btn sm" data-bdec="' + m.id + ':' + i + '">' + esc(o.l) + (o.h ? ' · ' + o.h + ' h' : '') + (o.cost ? ' · ' + E.eur(o.cost) : '') + (m.dec.rec === i ? ' <span class="chip">👍 avis de ' + esc(dn) + '</span>' : '') + (o.sub ? '<small>' + esc(o.sub) + '</small>' : '') + illTag(o.ill) + '</button>').join('') + '</div></div>';
     if (pd.length) x += '<div class="eyebrow" style="margin:14px 0 2px">À trancher ce tour · ' + pd.length + '</div><div class="thread-wa" style="margin-top:4px">' + pd.slice().reverse().map(decHTML).join('') + '</div>';
     x += '<div class="eyebrow" style="margin:14px 0 2px">Fil de la boucle</div><div class="thread-wa" style="margin-top:4px">'; let day = '';
     L.forEach(m => { const dd = E.fmtDate(m.date, false); if (dd !== day) { day = dd; x += '<div class="daytag">' + dd + '</div>'; }
@@ -1970,7 +2041,7 @@
     c.msgs.slice().reverse().forEach(m => {
       h += '<div class="daytag">' + E.fmtDate(m.date, false) + '</div><div class="bubble ' + (m.out ? 'me' : 'them') + '">' + esc(m.text) + '</div>';
       (m.thread || []).forEach(t => { h += '<div class="bubble ' + (t.me ? 'me' : 'them') + '">' + esc(t.t) + '</div>'; });
-      if (m.replies && m.answered == null) { const exec = P().mandats.some(z => ['maire', 'adjoint'].includes(z.type)); h += '<div class="reps">' + m.replies.map((r, i) => (r.opp || /^Interpeller publiquement le maire/.test(r.l)) && exec ? '' : '<button class="btn sm" data-rep="' + m.id + ':' + i + '">' + esc(r.l) + '</button>').join('') + '</div>'; }
+      if (m.replies && m.answered == null) { const exec = P().mandats.some(z => ['maire', 'adjoint'].includes(z.type)); h += '<div class="reps">' + m.replies.map((r, i) => (r.opp || /^Interpeller publiquement le maire/.test(r.l)) && exec ? '' : '<button class="btn sm' + (r.ill ? ' warn' : '') + '" data-rep="' + m.id + ':' + i + '">' + esc(r.l) + illTag(r.ill) + '</button>').join('') + '</div>'; }
     });
     const hu = c.msgs.find(m => m.human); return h + '</div>' + (hu ? '<div class="row" style="gap:6px;flex-wrap:nowrap;margin-top:8px"><input class="field" id="hrep" maxlength="600" placeholder="Répondre à ' + esc(c.name) + '…" style="flex:1"><button class="btn primary" data-hsend="' + esc(hu.human) + '">Envoyer</button></div>' : '') + '<div class="foot"><button class="btn' + (hu ? '' : ' primary') + '" data-ok>Fermer</button></div>';
   }

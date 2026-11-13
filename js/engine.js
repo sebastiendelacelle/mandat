@@ -789,7 +789,9 @@ window.E = (function () {
       else if (el.type === 'dep') { p.mandats = p.mandats.filter(m => m.type !== 'cd'); p.mandats.push({ type: 'cd', label: 'Conseiller·ère départemental·e (' + unit(electionUnit('dep')).name + ')', since: s.date, ind: 2100, majority: true }); log('Votre binôme l’emporte : vous êtes élu·e conseiller·ère départemental·e.', 'good'); }
       else if (el.type === 'leg') { addStd(5); addNoto('circo', 8); log('Votre allié·e est élu·e député·e : vous êtes son ou sa suppléant·e.', 'good'); } } }
     const inThis = p.cand && (p.cand.el === el.id);
+    let pmPre = null; if (inThis) { try { pmPre = postMortemPre(el); } catch (e) { console.error(e); } }
     if (inThis) pjOutcome(el);
+    if (pmPre) { try { const pm = postMortem(el, pmPre); if (pm) { p.postMortems = (p.postMortems || []).concat([pm]).slice(-8); s.queue.push({ kind: 'postMortem', pm }); } } catch (e) { console.error(e); } }
     else if (el.type === 'mun' && p.cand && p.cand.mode === 'colistier') pjOutcome(el);
     // fin des fonctions municipales si l'on ne se représente pas
     if (el.type === 'mun' && !inThis && el.races['mun:' + p.communeId] && p.mandats.some(m => ['maire', 'adjoint', 'conseiller_municipal', 'interco'].includes(m.type))) { p.mandats = p.mandats.filter(m => !['maire', 'adjoint', 'conseiller_municipal', 'interco'].includes(m.type)); p.mairie = null; log('Fin de votre mandat municipal : vous ne vous êtes pas représenté·e.', 'info'); }
@@ -804,6 +806,73 @@ window.E = (function () {
     if (el.type === 'mun' && p.cand && p.cand.mode === 'colistier') p.cand = null;
     s.elections = s.elections.filter(e => e.status !== 'fini' || e.id === el.id);
     el.races = summarize(el.races);
+  }
+  /* ---------- post-mortem : pourquoi j'ai gagné ou perdu, et conseils ---------- */
+  const PM_L = { ideo: 'Vos positions', noto: 'Votre notoriété', image: 'Votre image', cred: 'Votre crédibilité', camp: 'Votre campagne', mom: 'La dynamique de fin de campagne', prog: 'Votre programme', field: 'Le terrain, quartier par quartier', nat: 'Le climat national', bilan: 'Le bilan du sortant' };
+  const PM_P = { ideo: 'collent aux attentes des électeurs du territoire', noto: 'vous a rendu·e familier·ère aux électeurs', image: 'vous a valu de la sympathie', cred: 'a rassuré les électeurs', camp: 'a porté : terrain, médias, meetings', mom: 'jouait en votre faveur', prog: 'a parlé à plusieurs électorats', field: 'a été bien couvert', nat: 'portait votre camp', bilan: 'a été reconnu' };
+  const PM_N = { ideo: 'sont éloignées de ce qu’attendent les électeurs du territoire', noto: 'était trop faible : beaucoup d’électeurs ne vous connaissaient pas', image: 'était abîmée auprès d’une partie des électeurs', cred: 'était fragile : promesses non chiffrées, incohérences ou affaires', camp: 'a manqué de souffle', mom: 'jouait contre vous', prog: 'n’a convaincu personne en particulier', field: 'a été délaissé dans plusieurs quartiers', nat: 'pénalisait votre camp', bilan: 'a été jugé sévèrement' };
+  const PM_A = {
+    noto: 'Faites-vous connaître bien avant le scrutin : porte-à-porte, marchés, associations, presse locale. Une campagne de trois mois ne rattrape pas un nom inconnu.',
+    ideo: 'Rapprochez votre programme des électorats qui dominent ici : la carte « Pourquoi ça bouge » montre qui vote et ce qu’il attend.',
+    image: 'Soignez votre image : tenez vos promesses, évitez les polémiques et les coups tordus, qui finissent toujours par sortir.',
+    cred: 'Gagnez en crédibilité : chiffrez et financez vos mesures, choisissez des sujets qui relèvent bien de la collectivité, travaillez vos dossiers.',
+    camp: 'Faites une vraie campagne dans les trois derniers mois : meetings, tractage, affiches, médias. Composez votre agenda pour ne pas perdre d’heures.',
+    mom: 'Gardez de l’élan jusqu’au vote : un débat réussi, un soutien de poids ou un meeting dans la dernière ligne droite.',
+    prog: 'Étoffez votre programme : quelques mesures phares qui parlent à plusieurs électorats valent mieux qu’une longue liste.',
+    field: 'Envoyez vos militants dans les quartiers où vous êtes faible : la carte du territoire montre votre couverture.',
+    nat: 'Le climat national vous a coûté. Quand votre direction est impopulaire, prenez vos distances, ou visez un scrutin local où la personnalité compte davantage.',
+    bilan: 'Votre bilan a pesé : la prochaine fois, réalisez vos engagements phares avant la fin du mandat et faites-le savoir.' };
+  const fmtPct = n => (Math.round(n * 10) / 10).toLocaleString('fr-FR') + ' %';
+  function postMortemPre(el) {
+    const p = S().p; const key = p.cand.key; const r = el.races[key]; if (!r || !r.cands || p.cand.mode === 'colistier') return null;
+    const c = r.cands.find(x => x.pj || x.pjList); if (!c) return null; let T = null; try { T = pjTerms(c, key, el.type); } catch (e) { T = null; }
+    const u = unit(key); const socle = (c.bucket || [c.party]).reduce((a, k) => a + ((u.base || {})[k] || 0), 0);
+    const r1 = (r.rows || []).slice().sort((a, b) => b.pct - a.pct); const my1 = r1.find(x => x.id === c.id) || r1.find(x => x.pj);
+    const r2 = r.r2 ? r.r2.rows.slice().sort((a, b) => b.pct - a.pct) : null; const my2 = r2 ? r2.find(x => x.id === c.id) || r2.find(x => x.pj) : null;
+    const bk = c.bucket || [c.party]; const mates = r1.filter(x => x !== my1 && x !== r1[0] && !x.pj && x.party !== 'DIV' && bk.includes(x.party || ((r.cands.find(y => y.id === x.id) || {}).party))).map(x => ({ name: x.name || (S().pnj[x.id] || {}).name, pct: x.pct })).filter(x => x.name && x.pct >= 3);
+    const tp = r1[0] && !r1[0].pj ? (r.cands.find(y => y.id === r1[0].id) || r1[0]) : null; const topSocle = tp ? (tp.bucket || [tp.party]).reduce((a, k) => a + ((u.base || {})[k] || 0), 0) : 0;
+    const lst = LIST_T.includes(el.type) ? { pos: p.cand.listPos, seats: (r.seats || {})[c.id] || 0 } : null;
+    return { lst, key, c, T, socle: u.pop && u.pop < 3500 || socle > 70 ? 0 : socle, mates, topSocle: topSocle > 70 ? 0 : topSocle, topParty: tp ? tp.party : null, my1, rank1: my1 ? r1.indexOf(my1) + 1 : null, top1: r1[0], my2, top2: r2 ? r2[0] : null, n1: r1.length, noto: Math.round(c.noto || 0), invested: p.cand.invested, mandBefore: p.mandats.map(m => m.type + '|' + m.since), elType: el.type, label: el.label };
+  }
+  function postMortem(el, pre) {
+    const p = S().p; const s = S(); const won = p.mandats.some(m => MT_EL[m.type] === el.type && m.since === s.date && ['maire', 'cd', 'cr', 'depute', 'senateur', 'meuro', 'president'].includes(m.type));
+    const seat = !won && p.mandats.some(m => MT_EL[m.type] === el.type && m.since === s.date);
+    const nm = x => x ? (x.pj ? p.name : x.name || (s.pnj[x.id] || {}).name || 'Candidat·e') : '';
+    const T = pre.T || {}; const items = Object.keys(PM_L).filter(k => typeof T[k] === 'number' && Math.abs(T[k]) >= 0.015).map(k => ({ k, v: T[k] }));
+    const plus = items.filter(x => x.v > 0).sort((a, b) => b.v - a.v).slice(0, 3).map(x => ({ k: x.k, t: PM_L[x.k] + ' ' + PM_P[x.k] + (x.k === 'noto' ? ' (' + pre.noto + '/100)' : '') + '.' }));
+    const minus = items.filter(x => x.v < 0).sort((a, b) => a.v - b.v).slice(0, 3).map(x => ({ k: x.k, t: PM_L[x.k] + ' ' + PM_N[x.k] + (x.k === 'noto' ? ' (' + pre.noto + '/100)' : '') + '.' }));
+    if (!won) {
+      if ((pre.mates || []).length) minus.unshift({ k: 'split', t: 'Votre camp s’est divisé : ' + pre.mates.slice(0, 2).map(x => x.name + ' (' + fmtPct(x.pct) + ')').join(' et ') + ' a pris des voix qui auraient pu être les vôtres.' });
+      if (pre.socle > 0 && pre.socle < 15 && ['leg', 'dep', 'mun'].includes(el.type)) minus.push({ k: 'socle', t: 'Votre camp ne pèse qu’environ ' + fmtPct(pre.socle) + ' ici : même une bonne campagne ne suffit pas à l’emporter.' });
+      if (pre.topSocle > pre.socle + 8 && pre.topParty && D.PARTIES[pre.topParty]) minus.push({ k: 'top', t: 'En face, ' + nm(pre.top1) + ' (' + (pre.topParty === 'DIV' ? 'divers' : D.PARTIES[pre.topParty].short || pre.topParty) + ') s’appuyait ici sur un électorat d’environ ' + fmtPct(pre.topSocle) + ' : le terrain lui était plus favorable.' });
+      if (!pre.my2 && ['leg', 'dep'].includes(el.type) && pre.my1 && pre.my1.pct < 22) minus.push({ k: 'seuil', t: 'Pour se maintenir au second tour, il faut 12,5 % des inscrits, soit environ 20 % des votants avec l’abstention.' });
+      minus.splice(4);
+    }
+    const my = pre.my2 || pre.my1; const pct = my ? my.pct : null; const top = pre.my2 ? pre.top2 : pre.top1;
+    let head;
+    if (won && pre.lst) head = 'Votre liste fait ' + (pre.my1 ? fmtPct(pre.my1.pct) : 'un bon score') + ' et obtient ' + pre.lst.seats + ' siège' + (pre.lst.seats > 1 ? 's' : '') + ' : en position ' + pre.lst.pos + ', vous êtes élu·e.';
+    else if (won) head = 'Vous l’emportez' + (pct != null ? ' avec ' + fmtPct(pct) : '') + '.';
+    else if (pre.my2) head = 'Battu·e au second tour' + (pct != null ? ' avec ' + fmtPct(pct) : '') + (top && !top.pj ? ', face à ' + nm(top) + ' (' + fmtPct(top.pct) + ')' : '') + '.' + (seat ? ' Votre liste siégera dans l’opposition.' : '');
+    else if (pre.lst) head = 'Votre liste fait ' + (pre.my1 ? fmtPct(pre.my1.pct) + (pre.rank1 ? ' (' + pre.rank1 + (pre.rank1 === 1 ? 're' : 'e') + ' sur ' + pre.n1 + ')' : '') : 'un score') + ' et obtient ' + pre.lst.seats + ' siège' + (pre.lst.seats > 1 ? 's' : '') + '. En position ' + pre.lst.pos + ', vous n’êtes pas élu·e.';
+    else head = (LIST_T.includes(el.type) ? 'Votre liste n’a pas eu assez de sièges pour vous' : seat ? 'Pas de victoire, mais un siège dans l’opposition' : 'Battu·e au premier tour') + (pct != null ? ' avec ' + fmtPct(pct) + (pre.rank1 ? ', ' + pre.rank1 + (pre.rank1 === 1 ? (p.g === 'F' ? 're' : 'er') : 'e') + ' sur ' + pre.n1 : '') : '') + (top && !top.pj ? '. En tête : ' + nm(top) + ' (' + fmtPct(top.pct) + ')' : '') + '.';
+    let socleT = null; if (pre.socle > 0 && pre.my1) { const d = pre.my1.pct - pre.socle; socleT = 'Votre camp pèse environ ' + fmtPct(pre.socle) + ' ici. Au premier tour, vous avez fait ' + fmtPct(pre.my1.pct) + (Math.abs(d) < 2 ? ' : vous avez fait le plein de votre camp, sans plus.' : d > 0 ? ' : ' + Math.round(d) + ' points de mieux, grâce à votre campagne.' : ' : ' + Math.round(-d) + ' points de moins que votre camp. Une partie de vos électeurs naturels ne vous a pas suivi·e.'); }
+    // conseils
+    const adv = []; const push = t => { if (t && !adv.includes(t) && adv.length < 3) adv.push(t); };
+    if (won) {
+      push('Tenez vos promesses : votre bilan sera jugé à la prochaine élection. Les engagements phares d’abord.');
+      if (minus[0]) push(PM_A[minus[0].k]);
+      push(['mun', 'dep'].includes(el.type) ? 'Restez sur le terrain pendant le mandat : la notoriété s’érode vite, même pour un·e élu·e.' : 'Gardez un ancrage local : une permanence et des visites régulières protègent des retournements nationaux.');
+      if (p.mandats.length > 1) push('Surveillez le cumul des mandats : la loi vous obligera peut-être à choisir.');
+    } else {
+      if (pre.lst && pre.lst.pos > pre.lst.seats) push('Sur un scrutin de liste, c’est la place qui compte : négociez une meilleure position (en prenant du poids dans le parti) plutôt que de faire campagne seul·e.');
+      if (pre.invested === false && p.party !== 'NEW') push('Sans l’investiture de votre parti, vous perdez son logo, ses militants et une partie de ses électeurs. Prenez du poids en interne avant le prochain scrutin.');
+      if ((pre.mates || []).length) push('Évitez la division : négociez un accord ou une liste commune avec les autres candidats de votre camp avant le premier tour.');
+      minus.forEach(x => push(PM_A[x.k]));
+      if (pre.socle > 0 && pre.socle < 12 && ['leg', 'dep', 'mun'].includes(el.type)) push('Votre camp est minoritaire ici : une alliance ou un scrutin de liste (régionales, européennes) vous donnerait plus de chances.');
+      if (pre.noto < 40) push(PM_A.noto);
+      push('Une défaite fait partie d’une carrière : restez actif·ve localement, la prochaine élection se prépare dès maintenant.');
+    }
+    return { date: s.date, label: pre.label, type: el.type, won, seat, head, socle: socleT, plus, minus, adv };
   }
   function summarize(races) { const o = {}; for (const k in races) { const r = races[k]; o[k] = { winner: r.winner, seats: r.seats, rows: (r.r2 || r).rows.slice(0, 6), done: true, cands: (r.r2 || r).cands }; } return o; }
   function govFor(party) {
@@ -1274,7 +1343,7 @@ window.E = (function () {
   /* ---------- tour suivant ---------- */
   function endTurn() {
     { const p0 = S().p; if (p0.cumul && addDays(S().date, Math.max(1, Math.ceil(turnDays()))) > p0.cumul.due) { let g = 0; while (cumulConflict() && g++ < 4) resolveCumul(cumulDefault(), true); p0.cumul = null; } if (!p0.cumul) cumulCheck(); }
-    const s = S(), p = s.p; s.estPrevBase = s.estBase || null; s.turnCnt = {}; const days = turnDays(); let newDate; if (days === 0.5) { if (s.half) { newDate = addDays(s.date, 1); } else newDate = s.date; } else newDate = addDays(s.date, days); const f = days / 30;
+    const s = S(), p = s.p; s.estPrevBase = s.estBase || null; s.turnCnt = {}; s.prevDid = s.turnDid || []; s.turnDid = []; const days = turnDays(); let newDate; if (days === 0.5) { if (s.half) { newDate = addDays(s.date, 1); } else newDate = s.date; } else newDate = addDays(s.date, days); const f = days / 30;
     // finances
     const met = D.METIERS.find(m => m.id === p.metier);
     p.cash += (p.fullTime ? 0 : met.income) * f + indemnities() * 0.2 * f;

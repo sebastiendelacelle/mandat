@@ -519,6 +519,24 @@ body[data-face="camp"] h2, body[data-face="camp"] .card h3 { font-family: var(--
 .obj::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--accent); }
 .obj p, .hero p, .cp { color: #3c4258; }
 .guide { background: #e8ecfb; border: 1px solid #c9d2f4; color: var(--text); border-radius: 14px; }
+.coach { background: #e8ecfb; border: 1px solid #c9d2f4; color: var(--text); border-radius: 14px; padding: 12px 14px; margin: 0 0 12px; }
+.coach h3 { margin: 6px 0 2px; font-size: 18px; }
+.coach .steps { list-style: none; margin: 8px 0 0; padding: 0; }
+.coach .steps li { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; border-top: 1px solid #d4dbf3; }
+.coach .steps li:first-child { border-top: 0; }
+.coach .steps li b { font-weight: 600; font-size: 14.5px; }
+.coach .steps li.ok b { color: #6a7088; text-decoration: line-through; text-decoration-color: #b3b9cc; font-weight: 500; }
+.coach .steps li.on b { color: var(--text); font-weight: 700; }
+.coach .steps li p { margin: 4px 0 8px; color: #3c4258; }
+.coach .ck { flex: 0 0 22px; height: 22px; border-radius: 50%; border: 2px solid #9aa6d6; display: grid; place-items: center; font-size: 13px; font-weight: 700; color: #fff; margin-top: 1px; }
+.coach li.ok .ck { background: var(--good, #2f8f6f); border-color: var(--good, #2f8f6f); }
+.coach li.on .ck { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(80,100,200,.15); }
+.coach details.how { margin-top: 8px; } .coach details.how summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.coach details.how p { margin: 6px 0 0; }
+.fil ul.did { margin: 8px 0 0; padding-left: 18px; } .fil ul.did li { margin: 3px 0; font-size: 14px; }
+ul.pm, ol.pm { margin: 4px 0 0; padding-left: 20px; } ul.pm li, ol.pm li { margin: 4px 0; font-size: 14px; line-height: 1.4; }
+details.more { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+details.more > summary { cursor: pointer; font-weight: 600; color: var(--accent); font-size: 15px; padding: 6px 0; }
 .btn { background: #fff; border: 1px solid #c3cada; border-radius: 10px; color: var(--text); }
 .btn:hover:not(:disabled) { border-color: var(--accent); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -652,6 +670,8 @@ svg.isere .ml { fill: #1b1f3b; stroke: #fff; } svg.isere .ml.me { fill: #2337a8;
 .hemil { flex-direction: row; flex-wrap: wrap; gap: 6px 14px; justify-content: center; margin-top: 4px; }
 .fiche{border-left:3px solid var(--accent,#2337a8);background:var(--paper2,rgba(35,55,168,.05));padding:6px 10px;margin:8px 0;border-radius:4px}
 .opt.warn{border-color:var(--warn,#b7791f)}
+.ill{display:block;margin-top:4px;font-size:12px;line-height:1.3;color:var(--bad,#b3261e);font-weight:600;text-align:left}
+.btn.warn{border-color:var(--bad,#b3261e);flex-direction:column;align-items:flex-start;text-align:left}
 .coh{display:inline-block;font-size:11px;padding:1px 6px;border-radius:9px;margin-left:6px;vertical-align:1px}
 .coh.ok{background:rgba(47,143,111,.14);color:var(--good,#2f8f6f)}.coh.ko{background:rgba(201,64,48,.12);color:var(--bad,#c94030)}.coh.mid{background:rgba(120,120,120,.12);color:var(--muted,#666)}
 .lv-fc{border-left:3px solid var(--accent,#2337a8);padding:4px 8px;margin:6px 0;font-size:13px}
@@ -665,25 +685,25 @@ svg.isere .ml { fill: #1b1f3b; stroke: #fff; } svg.isere .ml.me { fill: #2337a8;
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="js/firebase-config.js"></script>
-<script src="js/backend.js?v=20261113i"></script>
-<script src="js/d3-delaunay.min.js?v=20261113i"></script>
-<script src="js/data.js?v=20261113i"></script>
-<script src="js/bank.js?v=20261113i"></script>
-<script src="js/pos.js?v=20261113i"></script>
-<script src="js/viz.js?v=20261113i"></script>
-<script src="js/engine.js?v=20261113i"></script>
-<script src="js/actions.js?v=20261113i"></script>
-<script src="js/levers.js?v=20261113i"></script>
-<script src="js/depth.js?v=20261113i"></script>
-<script src="js/life.js?v=20261113i"></script>
-<script src="js/team.js?v=20261113i"></script>
-<script src="js/mp.js?v=20261113i"></script>
-<script src="js/live.js?v=20261113i"></script>
-<script src="js/gv.js?v=20261113i"></script>
-<script src="js/hq.js?v=20261113i"></script>
-<script src="js/office.js?v=20261113i"></script>
-<script src="js/line.js?v=20261113i"></script>
-<script src="js/ai.js?v=20261113i"></script>
-<script src="js/ui.js?v=20261113i"></script>
+<script src="js/backend.js?v=20261113j"></script>
+<script src="js/d3-delaunay.min.js?v=20261113j"></script>
+<script src="js/data.js?v=20261113j"></script>
+<script src="js/bank.js?v=20261113j"></script>
+<script src="js/pos.js?v=20261113j"></script>
+<script src="js/viz.js?v=20261113j"></script>
+<script src="js/engine.js?v=20261113j"></script>
+<script src="js/actions.js?v=20261113j"></script>
+<script src="js/levers.js?v=20261113j"></script>
+<script src="js/depth.js?v=20261113j"></script>
+<script src="js/life.js?v=20261113j"></script>
+<script src="js/team.js?v=20261113j"></script>
+<script src="js/mp.js?v=20261113j"></script>
+<script src="js/live.js?v=20261113j"></script>
+<script src="js/gv.js?v=20261113j"></script>
+<script src="js/hq.js?v=20261113j"></script>
+<script src="js/office.js?v=20261113j"></script>
+<script src="js/line.js?v=20261113j"></script>
+<script src="js/ai.js?v=20261113j"></script>
+<script src="js/ui.js?v=20261113j"></script>
 </body>
 </html>
