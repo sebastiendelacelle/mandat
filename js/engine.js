@@ -55,7 +55,7 @@ window.E = (function () {
   function communeBase(com, muni) {
     const cb = D.CIRCOS[com.circo - 1].base; const adj = TYPE_ADJ[com.type]; const b = {};
     PIDS.forEach(p => b[p] = cb[p] * adj[D.PARTIES[p].bloc]);
-    if (muni) b.DIV += com.pop < 3500 ? 45 : com.pop < 10000 ? 28 : com.pop < 30000 ? 14 : 6;
+    if (muni) { b.DIV += com.pop < 3500 ? 45 : com.pop < 10000 ? 28 : com.pop < 30000 ? 14 : 6; const M = { RN: 0.55, UDR: 0.6, REC: 0.45, LR: 1.4, PS: 1.15, PCF: 1.3, LFI: 0.8, ECO: 1.05, REN: 0.85, HOR: 1.1, MODEM: 1 }; PIDS.forEach(p => { if (M[p]) b[p] *= M[p]; }); const L = com.local || {}; for (const p in L) b[p] = (b[p] || 0) * L[p]; }
     return norm(b);
   }
   function segAffTable(w) { return D.SEGS.map(s => { const o = {}; PIDS.forEach(p => o[p] = -0.025 * wdist(D.PARTIES[p].ax, s.ideal, w)); return o; }); }
@@ -77,7 +77,7 @@ window.E = (function () {
       const tot = D.CIRCOS.reduce((a, c) => a + c.pop, 0); const mix = [0, 0, 0, 0, 0, 0]; const base = {}; PIDS.forEach(k => base[k] = 0);
       D.CIRCOS.forEach(c => { const m = mixFrom(c.mixOf); m.forEach((v, i) => mix[i] += v * c.pop / tot); PIDS.forEach(k => base[k] += c.base[k] * c.pop / tot); });
       if (key === 'sen38') { const adj = { DIV: 2.2, LR: 1.5, PS: 1.3, PCF: 1.2, RN: 0.45, REC: 0.3, LFI: 0.5, UDR: 0.5, ECO: 0.9, REN: 1, MODEM: 1.1, HOR: 1.1 }; PIDS.forEach(k => base[k] *= adj[k]); }
-      u = { key, name: key === 'sen38' ? 'Collège des grands électeurs de l’Isère' : 'Isère', pop: key === 'sen38' ? 2600 / 0.73 : tot, mix, base: norm(base) };
+      u = { key, name: key === 'sen38' ? 'Collège des grands électeurs de l’Isère' : 'Auvergne-Rhône-Alpes · section de l’Isère', pop: key === 'sen38' ? 2600 / 0.73 : tot, mix, base: norm(base) };
     }
     else if (key.startsWith('com:')) { const com = D.com(key.slice(4)); u = { key, name: com.name, pop: com.pop, mix: mixFrom({ [com.type]: 1 }), base: communeBase(com, false) }; }
     else if (key.startsWith('mun:')) { const com = D.com(key.slice(4)); u = { key, name: com.name, pop: com.pop, mix: mixFrom({ [com.type]: 1 }), base: communeBase(com, true) }; }
@@ -92,7 +92,7 @@ window.E = (function () {
 
   /* ---------- modèle de vote ---------- */
   const TMUL = { pres: 1.22, leg: 0.95, dep: 0.62, mun: 0.95, reg: 0.62, euro: 0.85, sen: 1.6 };
-  const NOTO_K = { mun: 0.8, dep: 0.5, leg: 0.45, pres: 0.6, reg: 0.3, euro: 0.35, sen: 0.6 };
+  const NOTO_K = { mun: 0.85, dep: 0.8, leg: 0.85, pres: 0.6, reg: 0.3, euro: 0.35, sen: 0.6 };
   function personal(c, si, w, type) {
     const ideal = D.SEGS[si].ideal;
     const dev = wdist(c.ax, ideal, w) - wdist(bucketAx(c.bucket), ideal, w);
@@ -123,17 +123,21 @@ window.E = (function () {
     if (n.gov.includes(c.party)) t += -((50 - (n.approval ?? 35)) / 100) * 0.45 * (['mun', 'dep', 'reg'].includes(type) ? 1.3 : type === 'euro' ? 1.5 : type === 'sen' ? 0.5 : 1) * k;
     return t;
   }
-  function vote(key, cands, type, noiseSd) {
+  function vote(key, cands, type, noiseSd, round, turnK) {
     const u = unit(key); const w = axW(); const aff = segAffTable(w);
     const inscrits = Math.round(u.pop * 0.73);
+    const blocs = cands.map(c => (D.PARTIES[c.party] || {}).bloc); const edDuel = round === 2 && blocs.includes('ED') && blocs.some(b => b && b !== 'ED');
+    const barrage = (c, si) => !edDuel || (D.PARTIES[c.party] || {}).bloc === 'ED' ? 0 : (['JUD', 'CAD', 'RET'].includes(D.SEG_IDS[si]) ? 0.45 : 0.2) * (type === 'pres' ? 1.25 : 1); // front républicain
+    const sortant = c => type === 'mun' && !c.pj && S().pnj[c.id] && S().pnj[c.id].role === 'maire' && S().pnj[c.id].territory === key.slice(4) ? 0.32 : 0; // prime au maire sortant
+    const tk = (turnK || 1) * (round === 2 ? (type === 'pres' ? 1.0 : type === 'mun' ? 0.94 : 0.97) : 1);
     if (typeof DP !== 'undefined') cands.forEach(c => { if (!c.pj && !c.prog && S().pnj[c.id] && S().pnj[c.id].prog) c.prog = DP.rivalProgEffect(S().pnj[c.id], type); });
     const noise = cands.map(() => gauss() * (noiseSd ?? 0.1));
     const votes = cands.map(() => 0); let votants = 0;
     D.SEGS.forEach((s, si) => {
       const inscr = inscrits * u.mix[si];
-      const to = clamp(s.turnout * (TMUL[type] || 1) * (1 + (S().national.mobil || 0)), 0.12, 0.95);
+      const to = clamp(s.turnout * (TMUL[type] || 1) * tk * (1 + (S().national.mobil || 0)), 0.12, 0.95);
       const vt = inscr * to; votants += vt;
-      const ut = cands.map((c, j) => lse(c.bucket.map(p => u.k[p] + aff[si][p])) + natTerm(c, type) + personal(c, si, w, type) + noise[j]);
+      const ut = cands.map((c, j) => lse(c.bucket.map(p => u.k[p] + aff[si][p])) + natTerm(c, type) + personal(c, si, w, type) + barrage(c, si) + sortant(c) + noise[j]);
       const L = lse(ut); ut.forEach((x, j) => votes[j] += vt * Math.exp(x - L));
     });
     const blancs = votants * 0.025; const expr = votants - blancs;
@@ -476,6 +480,9 @@ window.E = (function () {
     let rival = findPnj(x => x.party === p.party && x.territory === terr && ['depute', 'maire'].includes(x.role));
     if (el.type === 'pres') rival = s.pnj[s.national.leaders[p.party]];
     if (!rival) rival = cadre(p.party, terr, 'cadre');
+    if ((el.type === 'leg' || el.type === 'dep') && !['depute', 'maire'].includes(rival.role)) { // circonscription gagnable : un·e notable la convoite
+      const u = unit(el.type === 'leg' ? 'c' + p.circo : 'can:' + p.communeId); const blocP = PIDS.filter(k => (D.PARTIES[k] || {}).bloc === (D.PARTIES[p.party] || {}).bloc); const share = blocP.reduce((t, k) => t + (u.base[k] || 0), 0);
+      const wv = clamp((share - 15) / 20, 0, 1); if (!rival.notable && wv > 0.2) { rival.notable = true; rival.std = Math.max(rival.std, Math.round(45 + 35 * wv)); rival.noto = Math.max(rival.noto, Math.round(25 + 35 * wv)); if (!rival.mandat && wv > 0.5) rival.mandat = rnd() < 0.5 ? 'Conseiller·ère départemental·e' : 'Conseiller·ère régional·e'; } }
     const fed = s.pnj[p.fedId]; const scope = el.type === 'mun' ? 'commune' : el.type === 'pres' ? 'nat' : 'circo';
     const parts = { poids: p.std * 0.55, noto: (p.noto[scope] || 0) * 0.35, fed: ((fed ? fed.rel : 0) + 100) / 10, role: (p.prole || 0) * 5 + (p.fedRole && el.type !== 'pres' ? 30 : 0) + (p.chef ? 80 : 0) };
     const me = parts.poids + parts.noto + parts.fed + parts.role; const riv = rival.std * 0.55 + rival.noto * 0.35 + 10 + (rival.mandat ? 18 : 0);
@@ -586,7 +593,7 @@ window.E = (function () {
     const s = S(); let cands;
     if (round === 1) cands = buildCands(el, key);
     else { const r1 = el.races[key]; const wd = typeof MP !== 'undefined' ? MP.withdrawn(el.id, key) : new Set(); cands = r1.t2.filter(id => !wd.has(id)).map(id => r1.cands.find(c => c.id === id)).filter(Boolean).map(c => c.pj ? Object.assign(pjCand(), { bucket: c.bucket, mom: (pjCand().mom || 0) + (typeof MP !== 'undefined' ? MP.endorseBonus(MP.uid()) : 0) }) : (c.human && typeof MP !== 'undefined' ? MP.freshCand(c) : c)); }
-    const r = vote(key, cands, el.type, round === 1 ? 0.12 : 0.06); const me = 'H_' + myUid; const nid = id => id === 'PJ' ? me : id;
+    if (el.turnK == null) el.turnK = 1; const r = vote(key, cands, el.type, round === 1 ? 0.12 : 0.06, round, el.turnK); const me = 'H_' + myUid; const nid = id => id === 'PJ' ? me : id;
     const out = JSON.parse(JSON.stringify({ inscrits: r.inscrits, votants: r.votants, exprimes: r.exprimes, participation: r.participation, rows: r.rows, cands }));
     out.rows.forEach(x => { x.id = nid(x.id); x.pj = false; }); out.cands.forEach(c => { if (c.id === 'PJ') c.human = true; c.id = nid(c.id); c.pj = false; });
     out.by = myUid; out.at = Date.now(); return out;
@@ -620,13 +627,13 @@ window.E = (function () {
       let r;
       const sh = typeof MP !== 'undefined' && MP.shared ? MP.shared(el.id, round, key) : null;
       if (round === 1) {
-        let cands; if (sh) { const L = localize(sh, key); r = L.r; cands = L.cands; } else { cands = buildCands(el, key); r = vote(key, cands, el.type, 0.12); }
+        let cands; if (sh) { const L = localize(sh, key); r = L.r; cands = L.cands; } else { cands = buildCands(el, key); if (el.turnK == null) el.turnK = clamp(1 + gauss() * 0.06 + (el.type === 'pres' ? 0 : (S().national.mobil || 0) * 0.5), 0.85, 1.15); r = vote(key, cands, el.type, 0.12, 1, el.turnK); }
         r.cands = cands; el.races[key] = r;
         decideRace(el, key, r, 1);
       } else {
         const r1 = el.races[key]; if (r1.done) return;
         if (sh) { const L = localize(sh, key); r = L.r; r.cands = L.cands; }
-        else { const cands = r1.t2.map(id => r1.cands.find(c => c.id === id)).filter(Boolean).map(c => c.pj ? Object.assign(pjCand(), { bucket: c.bucket }) : c); r = vote(key, cands, el.type, 0.06); r.cands = cands; }
+        else { const cands = r1.t2.map(id => r1.cands.find(c => c.id === id)).filter(Boolean).map(c => c.pj ? Object.assign(pjCand(), { bucket: c.bucket }) : c); r = vote(key, cands, el.type, 0.06, 2, el.turnK); r.cands = cands; }
         r1.r2 = r; decideRace(el, key, r, 2);
       }
       out.races.push({ key, r: round === 1 ? el.races[key] : el.races[key].r2, name: unit(key).name });
@@ -647,8 +654,21 @@ window.E = (function () {
     for (let i = 0; i < rest; i++) { let best = null, bv = -1; elig.forEach(x => { const v = x.votes / (q[x.id] + 1); if (v > bv) { bv = v; best = x.id; } }); if (best) q[best]++; }
     for (const id in q) seats[id] = (seats[id] || 0) + q[id]; return seats;
   }
+  // Entre-deux-tours : deux listes qualifiées du même bloc fusionnent le plus souvent (la plus faible rejoint la plus forte)
+  function mergeT2(r, q) {
+    const c = id => r.cands.find(x => x.id === id); const pct = id => (r.rows.find(x => x.id === id) || {}).pct || 0; const out = q.slice();
+    ['G', 'GE', 'C', 'D', 'ED'].forEach(b => { const L = out.filter(id => { const x = c(id); return x && !x.pj && !x.pjList && !x.human && !x._pjList && (D.PARTIES[x.party] || {}).bloc === b; }).sort((a, z) => pct(z) - pct(a)); for (let i = 1; i < L.length; i++) { if (rnd() < ({ G: 0.8, GE: 0.8, C: 0.7, D: 0.5, ED: 0.6 })[b]) { const host = c(L[0]), g = c(L[i]); host.bucket = [...new Set(host.bucket.concat(g.bucket))]; out.splice(out.indexOf(L[i]), 1); } } });
+    // gauche et écologistes se rassemblent aussi entre blocs voisins
+    const left = out.filter(id => { const x = c(id); return x && !x.pj && !x.pjList && !x.human && ['G', 'GE'].includes((D.PARTIES[x.party] || {}).bloc); }).sort((a, z) => pct(z) - pct(a));
+    if (left.length > 1 && rnd() < 0.75) { const host = c(left[0]); left.slice(1).forEach(id => { host.bucket = [...new Set(host.bucket.concat(c(id).bucket))]; out.splice(out.indexOf(id), 1); }); }
+    return out.length >= 2 ? out : q.slice(0, 2);
+  }
   function decideRace(el, key, r, round) {
     const s = S(), p = s.p; const rows = r.rows; const top = rows[0];
+    if (el.type === 'reg' && round === 1 && top.pct <= 50) { // régionales : 2nd tour pour les listes à 10 %, fusions dès 5 %
+      let q = rows.filter(x => x.pct >= 10).map(x => x.id); if (q.length < 2) q = rows.slice(0, 2).map(x => x.id);
+      rows.filter(x => x.pct >= 5 && x.pct < 10).forEach(x => { const c = r.cands.find(cc => cc.id === x.id); if (!c || c.pjList || c.pj) return; const host = q.map(id => r.cands.find(cc => cc.id === id)).filter(h => h && !h.pj && (D.PARTIES[h.party] || {}).bloc === (D.PARTIES[c.party] || {}).bloc)[0]; if (host) host.bucket = [...new Set(host.bucket.concat(c.bucket))]; });
+      q = mergeT2(r, q); r.t2 = q; r.done = false; return; }
     if (LIST_T.includes(el.type)) { r.done = true; r.winner = top.id; r.seats = el.type === 'reg' ? dhondt(rows, 26, 5, Math.round(26 / 4), top.id) : el.type === 'euro' ? dhondt(rows, 81, 5, 0) : dhondt(rows, 5, 0, 0); return; }
     if (el.type === 'mun') {
       const com = D.com(key.slice(4)); const n = D.councilSize(com.pop);
@@ -657,7 +677,7 @@ window.E = (function () {
         let q = rows.filter(x => x.pct >= 10).map(x => x.id); if (q.length < 2) q = rows.slice(0, 2).map(x => x.id);
         // fusions des listes entre 5 et 10 %
         rows.filter(x => x.pct >= 5 && x.pct < 10 && !x.pj).forEach(x => { const c = r.cands.find(cc => cc.id === x.id); const host = q.map(id => r.cands.find(cc => cc.id === id)).filter(h => !h.pj && D.PARTIES[h.party].bloc === D.PARTIES[c.party].bloc)[0] || q.map(id => r.cands.find(cc => cc.id === id)).filter(h => !h.pj && Math.abs(D.PARTIES[h.party].ax[0] - D.PARTIES[c.party].ax[0]) < 50)[0]; if (host && rnd() < 0.7) host.bucket = [...new Set(host.bucket.concat(c.bucket))]; });
-        r.t2 = q; r.done = false;
+        q = mergeT2(r, q); r.t2 = q; r.done = false;
       } else { r.done = true; r.winner = top.id; r.seats = seatsMun(rows, n, top.id); el.races[key].winner = top.id; el.races[key].seats = r.seats; el.races[key].done = true; }
       return;
     }
