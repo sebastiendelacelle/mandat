@@ -314,6 +314,7 @@ window.E = (function () {
     institutions: ['Ils votent quoi au juste à l’Assemblée ?', 'Référendum, on vous demande juste ça.'],
     economie: ['Encore une usine qui ferme dans le Nord-Isère.', 'Les PME croulent sous les normes.']
   };
+  if (typeof TB !== 'undefined') for (const t in TB.CITIZEN) CITIZEN_LINES[t] = Array.from(new Set((CITIZEN_LINES[t] || []).concat(TB.CITIZEN[t])));
   function genPosts(n) {
     const sal = S().national.salience; const themes = Object.keys(CITIZEN_LINES);
     for (let i = 0; i < n; i++) { const t = wpick(themes, th => 1 + (sal[th] || 0) * 3); post('Citoyen', pick(HANDLES), pick(CITIZEN_LINES[t])); }
@@ -967,11 +968,11 @@ window.E = (function () {
       if (villageScope() && ['attaque', 'defi', 'rumeur'].includes(act)) act = 'meeting';
       const nm = x.name; const tag = pet ? '' : ' (' + D.PARTIES[x.party].short + ')';
       if (act === 'meeting') { x.mom += 0.03; x.noto = clamp(x.noto + 2, 0, 100); s.turnRival.push(nm + tag + ' multiplie réunions publiques et porte-à-porte.'); if (rnd() < 0.5) article('dauph', nm + ' fait salle comble', 0.1, 'pnj'); }
-      else if (act === 'programme') { x.mom += 0.02; const el2 = s.est ? s.elections.find(e => e.id === s.est.el) : null; const lv = el2 && ['mun', 'dep', 'reg', 'sen'].includes(el2.type) ? 'local' : 'national'; const np = typeof DP !== 'undefined' ? DP.genProp(x, lv) : null; if (np) { (x.prog = x.prog || []).push(np); s.turnRival.push(nm + tag + ' propose « ' + np.label + ' ».'); article('dauph', nm + ' propose : ' + np.label.charAt(0).toLowerCase() + np.label.slice(1), 0, 'pnj'); } else { const pr = PROMESSES[bloc] || PROMESSES.DIV; s.turnRival.push(nm + tag + ' promet ' + pr + '.'); article('dauph', nm + ' promet ' + pr, 0, 'pnj'); } }
-      else if (act === 'attaque') { asks++; const txt = gtxt(pick(ATT[bloc] || ATT.DIV), p.g).replace('{P}', p.name); const viral = rnd() < 0.4; s.turnRival.push(nm + tag + ' vous attaque.'); post(nm, '@' + slug(nm), txt, false, viral ? rint(800, 4000) : rint(40, 600)); s.queue.push({ kind: 'rival', type: 'attaque', pnj: id, text: txt, viral }); }
+      else if (act === 'programme') { x.mom += 0.02; const el2 = s.est ? s.elections.find(e => e.id === s.est.el) : null; const lv = el2 && ['mun', 'dep', 'reg', 'sen'].includes(el2.type) ? 'local' : 'national'; const np = typeof DP !== 'undefined' ? DP.genProp(x, lv) : null; if (np) { (x.prog = x.prog || []).push(np); s.turnRival.push(nm + tag + ' propose « ' + np.label + ' ».'); article('dauph', nm + ' propose : ' + np.label.charAt(0).toLowerCase() + np.label.slice(1), 0, 'pnj'); } else { const pr = typeof TB !== 'undefined' ? TB.promesse(bloc, lv, rnd) : (PROMESSES[bloc] || PROMESSES.DIV); s.turnRival.push(nm + tag + ' promet ' + pr + '.'); article('dauph', nm + ' promet ' + pr, 0, 'pnj'); } }
+      else if (act === 'attaque') { asks++; const elT = s.est ? (s.elections.find(e => e.id === s.est.el) || {}).type : null; let txt, kind = 'fond'; if (typeof TB !== 'undefined') { s.recentTxt = s.recentTxt || {}; const seen = s.recentTxt.att = s.recentTxt.att || []; let a; for (let k = 0; k < 6; k++) { a = TB.attack(x, p, elT, rnd); if (!seen.includes(a.text)) break; } txt = a.text; kind = a.kind; seen.push(txt); if (seen.length > 40) seen.shift(); } else txt = gtxt(pick(ATT[bloc] || ATT.DIV), p.g).replace('{P}', p.name); const viral = rnd() < (kind === 'perso' ? 0.5 : 0.3); s.turnRival.push(nm + tag + ' vous attaque.'); post(nm, '@' + slug(nm), txt, false, viral ? rint(800, 4000) : rint(40, 600)); s.queue.push({ kind: 'rival', type: 'attaque', pnj: id, text: txt, viral, akind: kind }); }
       else if (act === 'defi') { asks++; s.turnRival.push(nm + tag + ' vous défie en débat.'); s.queue.push({ kind: 'rival', type: 'defi', pnj: id, media: pick(['radio', 'alpes3']) }); }
       else if (act === 'alliance') { asks++; const cl = (s.est && s.est.rank > 0 && s.est.rows.findIndex(r => r.id === id) > s.est.rank - 1) ? ['desistement'] : pick([['nonagression'], ['soutien'], ['desistement']]); s.turnRival.push(nm + tag + ' vous propose un accord.'); s.queue.push({ kind: 'rival', type: 'alliance', pnj: id, clauses: cl }); }
-      else if (act === 'rumeur') { asks++; const ru = gtxt(pick(RUMEURS), p.g); s.turnRival.push('L’entourage de ' + nm + ' fait courir une rumeur sur vous.'); s.queue.push({ kind: 'rival', type: 'rumeur', pnj: id, text: ru }); }
+      else if (act === 'rumeur') { asks++; let ru = gtxt(pick(RUMEURS), p.g); if (typeof TB !== 'undefined') { s.recentTxt = s.recentTxt || {}; const seen = s.recentTxt.rum = s.recentTxt.rum || []; for (let k = 0; k < 6; k++) { ru = TB.rumeur(p, rnd); if (!seen.includes(ru)) break; } seen.push(ru); if (seen.length > 12) seen.shift(); } s.turnRival.push('L’entourage de ' + nm + ' fait courir une rumeur sur vous.'); s.queue.push({ kind: 'rival', type: 'rumeur', pnj: id, text: ru }); }
       else if (act === 'critique') { asks++; const ms = p.prog.filter(m => m.status !== 'retiree' && (m.phare || m.visib > 25)); const m = pick(ms); const angle = m.cout > 0 ? 'qui la paiera ? ' + (m.level === 'local' ? 'Les contribuables, avec ' + eur(m.cout) + ' par an.' : 'Les Français, avec ' + (m.cout / 1e9).toFixed(1).replace('.', ',') + ' milliards par an.') : (m.perdants && m.perdants.length ? 'elle sacrifie les ' + D.SEGS.find(g => g.id === m.perdants[0]).name.toLowerCase() + '.' : 'c’est un slogan, pas une politique.'); s.turnRival.push(nm + tag + ' démonte votre proposition « ' + m.resume + ' ».'); article(pick(['dauph', 'radio']), nm + ' attaque la proposition ' + deN(p.name) + ' : « ' + angle + ' »', -0.2, 'pj'); s.queue.push({ kind: 'rival', type: 'critique', pnj: id, mes: m.id, text: angle }); }
       else if (act === 'debauche') { const st = p.staff.filter(y => y.loy < 50).sort((a, b) => a.loy - b.loy)[0]; if (st && rnd() < 0.5) { p.staff = p.staff.filter(y => y.id !== st.id); s.turnRival.push(nm + tag + ' débauche votre collaborateur ' + st.name + '.'); log(nm + ' débauche ' + st.name + ' (' + D.STAFF_ROLES[st.role].l + ').', 'bad'); p.casseroles.filter(c => c.known.includes(st.id)).forEach(c => c.risk += 0.04); x.mom += 0.02; } else s.turnRival.push(nm + tag + ' tente de débaucher un membre de votre équipe, sans succès.'); }
     });
@@ -980,9 +981,9 @@ window.E = (function () {
     const s = S(), p = s.p; const x = s.pnj[q.pnj]; const nm = x.name; let msg = '';
     if (q.type === 'attaque') {
       if (choice === 'ignore') { addImageAll(-1.2); x.mom += 0.02; msg = 'Vous ignorez l’attaque. Une partie de l’opinion y voit un aveu.'; }
-      else if (choice === 'cinglant') { if (rnd() < 0.45 + (q.viral ? 0.12 : -0.05) + (p.traits.sangfroid - 50) / 200 + p.mediaTraining * 0.08) { addImageAll(1.8); x.mom -= 0.03; x.rel -= 8; addNoto('circo', 2); msg = 'Votre réplique fait mouche et tourne en boucle.'; post(p.name, '@' + slug(p.name), 'Quand on n’a pas de bilan, on attaque. Moi, je travaille.', true, rint(200, 1500)); } else { addImageAll(-1.5); x.rel -= 10; msg = 'Votre réplique tombe à plat, on vous trouve agressif·ve.'; } }
+      else if (choice === 'cinglant') { if (rnd() < 0.45 + (q.viral ? 0.12 : -0.05) + (q.akind === 'perso' ? 0.06 : q.akind === 'fond' ? -0.04 : 0) + (p.traits.sangfroid - 50) / 200 + p.mediaTraining * 0.08) { addImageAll(1.8); x.mom -= 0.03; x.rel -= 8; addNoto('circo', 2); msg = 'Votre réplique fait mouche et tourne en boucle.'; post(p.name, '@' + slug(p.name), 'Quand on n’a pas de bilan, on attaque. Moi, je travaille.', true, rint(200, 1500)); } else { addImageAll(-1.5); x.rel -= 10; msg = 'Votre réplique tombe à plat, on vous trouve agressif·ve.'; } }
       else if (choice === 'fond') { // efficace contre une critique de fond, inaudible face à un buzz, et s'use si on ne fait que ça
-        const used = (p.fondN || 0); const k = Math.pow(0.65, used); p.fondN = used + 1; p.fondAt = s.date;
+        const used = (p.fondN || 0); const k = Math.pow(0.65, used) * (q.akind === 'perso' ? 0.75 : q.akind === 'fond' ? 1.15 : 1); p.fondN = used + 1; p.fondAt = s.date;
         if (q.viral) { addImageAll(-0.6); x.mom += 0.015; msg = 'Votre réponse posée passe inaperçue : l’attaque a déjà fait le buzz, votre mise au point ne circule pas.'; }
         else { p.cred = clamp(p.cred + 1.5 * k, 0, 100); x.rel -= 3; addImage('CAD', 1 * k); addImage('RET', 1 * k); msg = k > 0.6 ? 'Votre réponse argumentée rassure les électeurs les plus attentifs.' : 'Encore une mise au point calme : elle rassure, mais on ne l’écoute presque plus.'; } }
     }
@@ -1051,11 +1052,20 @@ window.E = (function () {
     { id: 'croissance', scope: 'nat', t: 'Embellie : la croissance surprend à la hausse', d: 'Le gouvernement savoure.', th: 'economie', sal: 0.2, cl: {}, gov: 0.03, ch: null },
     { id: 'jo2030', scope: 'loc', t: 'JO d’hiver 2030 : les surcoûts explosent dans les Alpes', d: 'Les budgets de la Haute-Savoie et de la Savoie dérapent, l’Isère s’inquiète pour ses sites.', th: 'fiscalite', sal: 0.4, cl: { ECO: 0.01 }, ch: [{ l: 'Défendre l’événement et ses retombées', v: { ecol: 30, eco: 15 }, txt: 'Les Jeux sont une chance pour nos vallées.' }, { l: 'Dénoncer un gouffre financier et écologique', v: { ecol: -35, inst: 15 }, txt: 'Ces Jeux sont un gouffre financier et écologique.' }] }
   ];
+  if (typeof TB !== 'undefined') { EVENTS.forEach(e => Object.assign(e, TB.EV_META[e.id] || {})); TB.EVENTS.forEach(e => { if (!EVENTS.some(x => x.id === e.id)) EVENTS.push(e); }); }
+  const ymOf = d => d.slice(0, 7);
+  function evEligible(e, date, wk, last) {
+    const m = +date.slice(5, 7); if (e.months && !e.months.includes(m)) return false;
+    if (e.to && ymOf(date) > e.to) return false; if (e.from && ymOf(date) < e.from) return false;
+    const l = last[e.id]; if (l != null && wk - l < (e.cool || 26)) return false; return true;
+  }
   // actualité nationale déterministe : même graine (même partie multijoueur) = mêmes événements aux mêmes dates
   function hrand(seed, a, b) { let x = (seed ^ Math.imul(a + 1, 2654435761) ^ Math.imul(b + 7, 40503)) >>> 0; x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; x = Math.imul(x ^ (x >>> 15), 2246822507) >>> 0; x = Math.imul(x ^ (x >>> 13), 3266489909) >>> 0; return ((x ^ (x >>> 16)) >>> 0) / 4294967296; }
   function rollEvents(days) {
     const s = S(); const seed = s.seed0 || 12345; const wk = Math.floor(diffDays('2026-06-15', s.date) / 7); if (s.evWeek == null) s.evWeek = wk - Math.max(1, Math.round(days / 7));
-    for (let w = s.evWeek + 1; w <= wk; w++) { const n = (hrand(seed, w, 1) < 0.13 ? 1 : 0) + (hrand(seed, w, 2) < 0.04 ? 1 : 0); for (let i = 0; i < n; i++) applyEvent(EVENTS[Math.floor(hrand(seed, w, 3 + i) * EVENTS.length)]); }
+    const last = s.evLast = s.evLast || {};
+    for (let w = s.evWeek + 1; w <= wk; w++) { const n = (hrand(seed, w, 1) < 0.15 ? 1 : 0) + (hrand(seed, w, 2) < 0.05 ? 1 : 0); const wd = addDays('2026-06-15', w * 7);
+      for (let i = 0; i < n; i++) { const pool = EVENTS.filter(e => evEligible(e, wd, w, last)); if (!pool.length) break; const e = pool[Math.floor(hrand(seed, w, 3 + i) * pool.length)]; last[e.id] = w; applyEvent(e); } }
     s.evWeek = wk;
   }
   function applyEvent(e) {

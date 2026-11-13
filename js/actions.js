@@ -242,7 +242,7 @@ window.X = (function () {
     return { n: live.length, phares: live.filter(m => m.phare).length, locCost: tot('local'), natCost: tot('national'), locUnf: unfunded('local'), natUnf: unfunded('national'), cred, holes };
   }
   function setPhare(id) { const p = P(); const m = p.prog.find(x => x.id === id); if (!m) return ''; if (m.phare) { m.phare = false; return 'Retirée des mesures phares.'; } if (p.prog.filter(x => x.phare).length >= 3) return 'Trois mesures phares au maximum : retirez-en une d’abord.'; m.phare = true; m.visib = clamp(m.visib + 8, 0, 100); return '« ' + m.resume + ' » devient une mesure phare.'; }
-  function curLevel() { const t = curType(); return t ? (t === 'mun' || t === 'dep' ? 'local' : 'national') : null; }
+  function curLevel() { const t = curType(); return t ? (['mun', 'dep', 'reg', 'sen'].includes(t) ? 'local' : 'national') : null; }
   function defendMeasure(id) {
     const p = P(); const m = p.prog.find(x => x.id === id); const e = E.eff() * (m.phare ? 1.2 : 1);
     m.visib = clamp((m.visib || 0) + 16 * e, 0, 100); m.defended = (m.defended || 0) + 1;

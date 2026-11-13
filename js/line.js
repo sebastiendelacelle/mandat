@@ -132,6 +132,7 @@ const LN = (() => {
     p.cred = clamp(p.cred + (coherent ? 1 : -4), 0, 100); E.addNoto(X.scopeOf(), 3); p.mom -= 0.02;
     if (from !== 'NEW') { const fd = s.pnj[p.fedId]; if (fd) fd.rel = clamp(fd.rel - 30, -100, 100); const ld = leader(from); if (ld) ld.rel = clamp(ld.rel - 15, -100, 100); }
     if (p.cand && p.cand.label && p.cand.label !== 'DIV' && !p.cand.sansEtiquette) { p.cand.label = 'DIV'; p.cand.invested = false; E.log('En quittant ' + fromS + ', vous perdez votre investiture.', 'bad'); }
+    p.exParties = (p.exParties || []).concat([from]).slice(-4);
     if (party === 'NEW') { p.party = 'NEW'; p.movement = movement || 'Indépendant·e'; p.std = 0; p.fedId = null; p.secId = null; }
     else {
       p.party = party; p.std = 18; p.prole = 0; p.fedRole = null; p.fedSup = 10; p.natSup = 5;

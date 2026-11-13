@@ -78,6 +78,12 @@ window.DP = (function () {
     p => p.party === 'NEW' ? 'Sans parti, sans réseau : vous n’êtes pas un peu seul·e ?' : null,
     p => p.fullTime ? 'Vous vivez de la politique. Vous comprenez encore les gens qui travaillent ?' : 'Vous avez un emploi à côté. Vous serez vraiment disponible ?'
   ];
+  // banque de questions adaptée à l’élection en jeu (ou au média, hors campagne)
+  function bankKeyOf(dctx) {
+    if (typeof TB === 'undefined') return 'mun'; const vil = !!(E.myPetite && E.myPetite()); let t = (dctx && dctx.elType) || X.curType();
+    if (!t) { const j = dctx && dctx.journalist ? S().pnj[dctx.journalist.id] : null; t = j && ['quotlib', 'info24'].includes(j.territory) ? 'leg' : 'mun'; }
+    return TB.bankKey(t, vil) || 'mun';
+  }
   function rivalsOf(dctx) { return (dctx.opponents || []).map(o => S().pnj[o.id] || E.findPnj(x => x.name === o.name)).filter(Boolean); }
   function qKey(k) { const s = S(); s.qHist = s.qHist || []; return !s.qHist.includes(k); }
   function remember(k) { const s = S(); s.qHist = (s.qHist || []).concat([k]).slice(-160); }
@@ -132,12 +138,13 @@ window.DP = (function () {
           { posture: 'Humour', texte: 'Vous avez de bonnes archives ! Oui, et je pourrais même vous le chanter.', q: E.rint(-4, 10), punch: true }] };
       }
       if (ang === 'local') {
-        const ths = Object.keys(LOCALQ).sort((a, b) => (s.national.salience[b] || 0) - (s.national.salience[a] || 0) + (R() - 0.5));
-        for (const th of ths) { const qi = LOCALQ[th].findIndex((_, i) => qKey('lc' + th + i)); if (qi >= 0) { const mine = p.prog.find(m => m.theme === th && m.status !== 'retiree'); const ax = D.THEMES[th].ax; const k0 = Object.keys(ax)[0]; const sg = Math.sign(p.ax[E.AXI[k0]] || 1) * Math.sign(ax[k0]);
-          q = { key: 'lc' + th + qi, theme: th, question: LOCALQ[th][qi], opts: [
+        const bk = bankKeyOf(dctx); const BQ = (typeof TB !== 'undefined' && TB.Q[bk]) || LOCALQ; const natL = bk === 'nat' || bk === 'euro'; const pre = 'lc' + (BQ === LOCALQ ? '' : bk);
+        const thU = dctx._thU || (dctx._thU = []); const ths = Object.keys(BQ).map(t => [t, (s.national.salience[t] || 0) * 0.8 + R() - (thU.includes(t) ? 3 : 0)]).sort((a, b) => b[1] - a[1]).map(x => x[0]);
+        for (const th of ths) { const order = BQ[th].map((_, i) => i).sort(() => R() - 0.5); const qi = order.find(i => qKey(pre + th + i)); if (qi != null) { const mine = p.prog.find(m => m.theme === th && m.status !== 'retiree' && (m.level || 'local') === (natL ? 'national' : 'local')); const ax = D.THEMES[th].ax; const k0 = Object.keys(ax)[0]; const sg = Math.sign(p.ax[E.AXI[k0]] || 1) * Math.sign(ax[k0]);
+          thU.push(th); q = { key: pre + th + qi, theme: th, question: BQ[th][qi], opts: [
             mine ? { posture: 'Proposition', texte: 'Je propose « ' + mine.resume + ' »' + (mine.finL ? ', financé par ' + mine.finL.toLowerCase() : '') + '.', q: 12, ax: mine.axes } : { posture: 'Proposition', texte: 'J’ai un plan précis, je le présenterai dans les prochains jours.', q: -3 },
             { posture: sg > 0 ? 'Fermeté' : 'Solidarité', texte: sg > 0 ? 'Il faut de l’ordre, des règles claires et les faire respecter.' : 'Il faut des moyens publics et ne laisser personne au bord du chemin.', q: 5, ax: { [k0]: 35 * sg * Math.sign(ax[k0]) } },
-            { posture: 'Terrain', texte: 'Je connais ce problème : j’ai fait du porte-à-porte dans ce quartier la semaine dernière.', q: Math.min(12, p.camp.terrain / 10 + 2) },
+            { posture: 'Terrain', texte: natL ? 'Je le vois chaque semaine sur le terrain : les gens n’en peuvent plus, et ils attendent des actes.' : bk === 'dep' ? 'Je connais ce dossier : je l’ai vu dans chaque commune du canton.' : bk === 'reg' ? 'Je l’entends dans toutes les vallées du département.' : 'Je connais ce problème : j’ai fait du porte-à-porte dans ce quartier la semaine dernière.', q: Math.min(12, p.camp.terrain / 10 + 2) },
             { posture: 'Attaque', texte: 'Ceux qui sont aux responsabilités depuis des années n’ont rien fait. Les habitants le savent.', q: 4 },
             { posture: 'Esquive', texte: 'C’est un sujet complexe, qui mérite mieux qu’une formule.', q: -5 }] }; break; } }
       }
@@ -151,9 +158,11 @@ window.DP = (function () {
         }
       }
       if (ang === 'valeurs') {
-        const qi = D.QUIZ_POOL.map((_, i) => i).sort(() => R() - 0.5).find(i => qKey('vl' + i)); if (qi != null) { const qq = D.QUIZ_POOL[qi]; const pos = {}; const neg = {}; for (const k in qq.w) { pos[k] = qq.w[k]; neg[k] = -qq.w[k]; }
-          const th = Object.keys(qq.w)[0] === 'souv' ? 'immigration' : Object.keys(qq.w)[0] === 'aut' ? 'securite' : Object.keys(qq.w)[0] === 'ecol' ? 'ecologie' : Object.keys(qq.w)[0] === 'inst' ? 'institutions' : Object.keys(qq.w)[0] === 'eco' ? 'economie' : 'societe';
-          q = { key: 'vl' + qi, theme: th, question: 'Question directe : « ' + qq.q + ' » Oui ou non ?', opts: [
+        const bkv = bankKeyOf(dctx); const VP = typeof TB === 'undefined' ? null : bkv === 'mun' || bkv === 'vil' ? TB.VALQ.mun : bkv === 'dep' ? TB.VALQ.dep : null; const skipV = typeof TB !== 'undefined' && (bkv === 'reg' || bkv === 'sen');
+        const POOL = VP || D.QUIZ_POOL; const vpre = VP ? 'vl' + bkv : 'vl';
+        const qi = skipV ? null : POOL.map((_, i) => i).sort(() => R() - 0.5).find(i => qKey(vpre + i)); if (qi != null) { const qq = POOL[qi]; const pos = {}; const neg = {}; for (const k in qq.w) { pos[k] = qq.w[k]; neg[k] = -qq.w[k]; }
+          const th = qq.th ? qq.th : Object.keys(qq.w)[0] === 'souv' ? 'immigration' : Object.keys(qq.w)[0] === 'aut' ? 'securite' : Object.keys(qq.w)[0] === 'ecol' ? 'ecologie' : Object.keys(qq.w)[0] === 'inst' ? 'institutions' : Object.keys(qq.w)[0] === 'eco' ? 'economie' : 'societe';
+          q = { key: vpre + qi, theme: th, question: 'Question directe : « ' + qq.q + ' » Oui ou non ?', opts: [
             { posture: 'Oui', texte: 'Oui, clairement. Et je l’assume devant tous les électeurs.', q: 6, ax: pos },
             { posture: 'Non', texte: 'Non. Et je ne changerai pas d’avis pour plaire.', q: 6, ax: neg },
             { posture: 'Oui, mais', texte: 'Sur le principe oui, mais avec des garde-fous stricts.', q: 3, ax: Object.fromEntries(Object.entries(pos).map(([k, v]) => [k, v / 2])) },
@@ -169,6 +178,7 @@ window.DP = (function () {
             { posture: 'Agacement', texte: 'C’est une question indigne, je ne répondrai pas.', q: -6 }] }; }
       }
       if (ang === 'chiffres') {
+        const bkc = bankKeyOf(dctx); if (['dep', 'reg', 'sen'].includes(bkc)) continue;
         const n = L.NAT.find(x => qKey('ch' + x.l)); const loc = L.local(E.commune()); const lr = loc.rows.find(r => qKey('chl' + r[1]));
         const useLoc = X.curLevel() === 'local' && lr; const lab = useLoc ? lr[1] + ' : ' + lr[2] : n ? n.l + ' : ' + n.v : null;
         if (lab) { const th = useLoc ? lr[0] : n.th; const mine = p.prog.find(m => m.theme === th && m.status !== 'retiree');
@@ -208,11 +218,15 @@ window.DP = (function () {
     institutions: { g: ['Je veux associer les habitants à chaque grande décision.', 'Un budget participatif, pour que les habitants décident.'], c: ['Une mairie plus transparente, avec un compte rendu public de chaque décision.', 'Je rendrai des comptes chaque année devant les habitants.'], d: ['Moins de réunions, plus de décisions.', 'Les habitants veulent une mairie qui agit, pas qui consulte sans fin.'], loc: ['Une réunion publique par trimestre, et la mairie ouverte le samedi.', 'Ici, tout le monde doit pouvoir venir parler au maire.'] }
   };
   const SIDE = { G: 'g', GE: 'g', C: 'c', D: 'd', ED: 'd', DIV: 'c' };
+  if (typeof TB !== 'undefined') for (const b in TB.OPPL) OPPL[b] = (OPPL[b] || []).concat(TB.OPPL[b]);
+  const NOLOC = /mairie|municipal|commune|village|cantine|taxe foncière|conseil municipal|maire/i;
   const lc = l => l.charAt(0).toLowerCase() + l.slice(1);
   function oppLine(x, th, villageMode) { const side = villageMode ? 'loc' : SIDE[D.PARTIES[x.party].bloc] || 'c';
     const mine = (x.prog || []).find(pr => pr.th === th);
     if (mine && R() < 0.5) return E.fresh('opp' + x.id, ['Ma proposition est claire : ' + lc(mine.label) + '.', 'Ce que je propose : ' + lc(mine.label) + '. C’est concret.', 'Avec « ' + mine.label + ' », on change la vie des gens.']);
-    const T = TH_LINES[th]; if (T) return E.fresh('oppt' + x.id + th, T[side] || T.c);
+    const bk = bankKeyOf(null); const bloc = D.PARTIES[x.party].bloc;
+    if (!villageMode && typeof TB !== 'undefined' && (bk === 'nat' || bk === 'euro')) { const NL = TB.natLine(bloc, th); if (NL) return E.fresh('oppn' + x.id + th, NL); }
+    const T = TH_LINES[th]; if (T) { let Ls = T[side] || T.c; if (!villageMode && ['dep', 'reg', 'sen'].includes(bk)) { const f = Ls.filter(l => !NOLOC.test(l)); Ls = f.length ? f : (typeof TB !== 'undefined' && TB.natLine(bloc, th)) || Ls; } return E.fresh('oppt' + x.id + th, Ls); }
     const L = OPPL[D.PARTIES[x.party].bloc] || OPPL.C; return E.fresh('oppl' + x.id, L);
   }
   function fallbackJudge(dctx, q, reply, chosen) {

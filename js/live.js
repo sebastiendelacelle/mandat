@@ -195,18 +195,19 @@ const LV = (() => {
   const LOCAL_TH = ['securite', 'fiscalite', 'education', 'sante', 'economie', 'pouvoir_achat', 'ecologie', 'transports', 'logement', 'institutions'];
   const VIL_TH = ['fiscalite', 'education', 'sante', 'economie', 'ecologie', 'institutions', 'securite', 'transports'];
   function isLocal() { const p = P(); const e = p.cand ? S().elections.find(z => z.id === p.cand.el) : null; return !!e && ['mun', 'dep'].includes(e.type); }
-  const TH_PICK = st => { const s = S(), p = P(); const loc = isLocal(); const allowed = loc ? (E.myPetite() ? VIL_TH : LOCAL_TH) : Object.keys(D.THEMES);
+  function elTypeNow() { const p = P(); const e = p.cand ? S().elections.find(z => z.id === p.cand.el) : null; return e ? e.type : null; }
+  const TH_PICK = st => { const s = S(), p = P(); const loc = isLocal(); const cp = typeof TB !== 'undefined' ? TB.comp(elTypeNow(), E.myPetite()) : null; const allowed = cp ? cp.filter(t => D.THEMES[t]) : loc ? (E.myPetite() ? VIL_TH : LOCAL_TH) : Object.keys(D.THEMES);
     const progTh = [].concat((p.prog || []).filter(m => m.status !== 'retiree').map(m => m.th), st.oppX ? (st.oppX.prog || []).map(m => m.th) : []).filter(t => allowed.includes(t) && !st.used.includes('th' + t));
     const sal = Object.entries(s.national.salience).filter(([t]) => allowed.includes(t)).sort((a, b) => b[1] - a[1]).map(([t]) => t).filter(t => !st.used.includes('th' + t));
     const fresh = (progTh.length && R() < 0.7 ? pick(progTh) : sal[0]) || pick(allowed); st.used.push('th' + fresh); return fresh; };
   function oppSpeech(st) {
-    const x = st.oppX; const t = TH_PICK(st); const tl = TH_SUR[t] || D.THEMES[t].l.toLowerCase(); const host = st.dctx.host; const vil = E.myPetite() && isLocal();
+    const x = st.oppX; const t = TH_PICK(st); const tl = t === 'institutions' && !isLocal() ? 'les institutions' : TH_SUR[t] || D.THEMES[t].l.toLowerCase(); const host = st.dctx.host; const vil = E.myPetite() && isLocal();
     const q = E.fresh('oq', ['Quelle est votre priorité pour ' + tl + ' ?', 'Concrètement, sur ' + tl + ', que changez-vous la première année ?', 'Beaucoup d’habitants nous parlent ' + deArt(tl) + '. Que leur répondez-vous ?', 'Sur ' + tl + ', qu’est-ce qui vous distingue de votre adversaire ?', 'Votre premier engagement sur ' + tl + ' ?']);
     const S1 = []; const line = () => x && typeof DP !== 'undefined' ? DP.oppLine(x, t, vil) : E.fresh('gen', ['Je crois à des solutions simples et concrètes.', 'Les habitants méritent mieux que ce qu’on leur propose.', 'Il faut du courage pour dire la vérité.']);
     S1.push({ k: 'claim', t: line() });
     const pr = x && (x.prog || []).find(z => z.th === t); const weakFin = pr && ['aucun', 'dette', 'croissance'].includes(pr.fin);
-    const r = R(); const tr = (x && x.traits) || {};
-    if ((tr.scrupules ?? 50) < 50 && r < 0.45) S1.push({ k: 'bluff', t: E.fresh('bluff', ['Sous ma responsabilité, la délinquance a baissé de 40 %.', 'Ma mesure ne coûte rien, elle est autofinancée.', 'Tous les experts sont d’accord avec moi.', 'Le chômage a doublé ici en cinq ans.', 'Neuf habitants sur dix soutiennent mon projet.', 'Mon adversaire a voté contre toutes les baisses d’impôts.']) });
+    const r = R(); const tr = (x && x.traits) || {}; const loc0 = ['mun', 'dep', 'reg', 'sen'].includes(elTypeNow()) || (!elTypeNow() && isLocal());
+    if ((tr.scrupules ?? 50) < 50 && r < 0.45) S1.push({ k: 'bluff', t: typeof TB !== 'undefined' ? E.fresh('bluff' + (loc0 ? 'l' : 'n'), TB.BLUFF[loc0 ? 'local' : 'national']) : E.fresh('bluff', ['Sous ma responsabilité, la délinquance a baissé de 40 %.', 'Ma mesure ne coûte rien, elle est autofinancée.', 'Tous les experts sont d’accord avec moi.', 'Le chômage a doublé ici en cinq ans.', 'Neuf habitants sur dix soutiennent mon projet.', 'Mon adversaire a voté contre toutes les baisses d’impôts.']) });
     else if (pr) S1.push(weakFin ? { k: 'weak', t: 'Pour « ' + pr.label + ' », le financement viendra ' + (pr.fin === 'dette' ? 'de l’emprunt, comme partout.' : pr.fin === 'aucun' ? 'tout seul : ça ne coûte presque rien.' : 'de la croissance que ça va créer.'), pr } : { k: 'strong', t: '« ' + pr.label + ' » : c’est chiffré, c’est financé, c’est prêt.' });
     else S1.push({ k: 'claim', t: line() });
     if (R() < 0.55 + ((tr.rancune ?? 50) - 50) / 200) { const a = attack(st); S1.push({ k: 'attack', t: a.text.replace(/^[^«]*« /, '').replace(/ »$/, ''), atk: a }); }
@@ -251,6 +252,7 @@ const LV = (() => {
     ['Vos amis ont tout raté pendant des années.', 'Je ne suis comptable que de mes propres engagements, et je les tiens.', 'Les vôtres sont au pouvoir depuis six ans. Le bilan, c’est le vôtre.', 'Mes amis vous saluent.'],
     ['Vous faites des promesses que vous ne tiendrez pas.', 'J’ai pris trois engagements, avec un calendrier. Jugez-moi dessus.', 'Les promesses non tenues, c’est votre spécialité. On fait la liste ?', 'Promis, je ne promettrai plus rien.']
   ];
+  if (typeof TB !== 'undefined') TB.JABS.forEach(j => JABS.push(j));
   function clashJab(st) {
     const nm = st.opp ? st.opp.name : 'Votre adversaire'; const j = JABS[(st.jabI = ((st.jabI == null ? Math.floor(R() * JABS.length) : st.jabI + 3) % JABS.length))];
     return { who: nm, jab: j[0], opts: [{ l: '« ' + j[1] + ' »', tag: 'Réfuter', d: 1.4 + skill('fond'), mv: 'nuance', tens: -2 }, { l: '« ' + j[2] + ' »', tag: 'Contre-attaquer', d: 1 + E.gauss() * 1.2, mv: 'attaque', tens: 6 }, { l: '« ' + j[3] + ' »', tag: 'Ironie', d: E.gauss() * 2.4 + 0.6, mv: 'punch', tens: 2 }] };
