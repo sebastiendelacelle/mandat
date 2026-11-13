@@ -1,5 +1,6 @@
 /* MANDAT — interface */
 (function () {
+  if (typeof window.VZ === 'undefined') window.VZ = { icon: () => '', ring: () => '', donut: () => '', legend: () => '', timeline: items => '<div class="cal">' + items.map(it => '<div class="' + (it.on ? 'on' : '') + '"><b>' + it.label + '</b><span>' + it.day + ' ' + it.year + '</span>' + (it.extra || '') + '</div>').join('') + '</div>', FAM: {}, P: {} };
   const $app = document.getElementById('app');
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const S = () => G.S, P = () => G.S && G.S.p;
@@ -1989,7 +1990,10 @@
   }
 
   /* ---------- rendu ---------- */
-  function render() { if (UI.screen === 'game' && G.S) { renderGame(); autoSave(); } else if (UI.screen === 'wiz') renderWiz(); else renderHome(); }
+  function render() {
+    try { if (UI.screen === 'game' && G.S) { renderGame(); autoSave(); } else if (UI.screen === 'wiz') renderWiz(); else renderHome(); }
+    catch (e) { console.error(e); const a = document.getElementById('app'); if (a) a.innerHTML = '<div class="hero"><h1 style="font-size:44px">Mandat</h1><div class="card" style="margin-top:16px"><h3>L’affichage a rencontré une erreur</h3><p class="muted small">Votre partie est sauvegardée. Rechargez la page ; si l’erreur revient, envoyez ce message au développeur.</p><pre class="small" style="white-space:pre-wrap;background:var(--raise);padding:8px;border-radius:8px">' + esc(String(e && e.stack || e).slice(0, 600)) + '</pre><div class="row"><button class="btn primary" onclick="location.reload()">Recharger</button><button class="btn" id="err-home">Retour à l’accueil</button></div></div></div>'; const hb = document.getElementById('err-home'); if (hb) hb.onclick = () => { UI.screen = 'home'; render(); }; }
+  }
   // Sauvegarde automatique après chaque action (hors fenêtres en cours), pour ne rien perdre en fermant l'appli
   function autoSave() { clearTimeout(UI.svT); UI.svT = setTimeout(function tick() { if (UI.screen !== 'game' || !G.S) return; if (document.querySelector('.ov')) { UI.svT = setTimeout(tick, 3000); return; } Store.save(); }, 2500); }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && UI.screen === 'game' && G.S && !document.querySelector('.ov')) { try { localStorage.setItem(Store.lsKey(Store.slot()), X.serialize()); } catch (e) { } Store.save(); } });
