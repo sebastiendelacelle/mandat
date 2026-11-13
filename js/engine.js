@@ -136,7 +136,7 @@ window.E = (function () {
     const b = isNew ? Math.min(base, 0.6) : base;
     if (type === 'pres') return b * 1.5 + noto * (isNew ? 0.04 : 0.07) + (lead ? 6 : 0) + (isInc ? 15 : 0);
     if (type === 'euro') return b * 1.5 + noto * (isNew ? 0.025 : 0.06) + (lead ? 5 : 0) + (isInc ? 4 : 0);
-    if (type === 'leg') return b * 1.3 + noto * 0.1 + Math.min(8, loc * 4) + (isInc ? 14 : 0);
+    if (type === 'leg') return b * 1.2 + noto * 0.1 + Math.min(8, loc * 4) + (isInc ? 14 : 0);
     if (type === 'reg') return b * 1.4 + noto * 0.08 + Math.min(4, loc * 2) + (isInc ? 4 : 0);
     if (type === 'dep') return b * 1.35 + noto * 0.15 + Math.min(8, loc * 4) + (isInc ? 15 : 0);
     if (type === 'sen') return b * 1.5 + noto * 0.1 + Math.min(10, loc * 5) + (isInc ? 10 : 0);
@@ -897,12 +897,12 @@ window.E = (function () {
   function initParty() {
     const s = S(), p = s.p; p.prole = 0; p.fedSup = p.party === 'NEW' ? 100 : 4; p.natSup = p.party === 'NEW' ? 100 : 0; p.fedRole = false; p.chef = p.party === 'NEW';
     if (p.party === 'NEW') { p.prole = 5; s.partyCal = []; return; }
-    const ld = s.pnj[s.national.leaders[p.party]]; ld.natW = rint(36, 46);
+    const ld = s.pnj[s.national.leaders[p.party]]; if (!ld) { s.partyCal = []; return; } ld.natW = rint(36, 46);
     for (let i = 0; i < 3; i++) mkPnj({ party: p.party, role: 'baron', territory: 'nat', noto: rint(40, 68), std: rint(60, 85), natW: rint(9, 20), mandat: pick(['Ancien·ne ministre', 'Président·e de groupe à l’Assemblée', 'Maire d’une grande ville', 'Président·e de région', 'Sénateur·rice influent·e', 'Député·e européen·ne']) + ', ' + D.PARTIES[p.party].short });
     s.partyCal = [{ t: 'federal', d: '2027-10-03' }, { t: 'congres', d: '2027-11-21' }];
   }
   function partyTick(days) {
-    const s = S(), p = s.p; if (p.party === 'NEW') return; const f = days / 30;
+    const s = S(), p = s.p; if (p.party === 'NEW' || !s.pnj[s.national.leaders[p.party]]) return; const f = days / 30;
     p.natSup = clamp(p.natSup * Math.pow(0.97, f) + (p.noto.nat / 500 + (p.chef ? 1 : 0)) * f, 0, 100); p.fedSup = clamp(p.fedSup * Math.pow(0.985, f) + (p.fedRole ? 0.6 : 0) * f, 0, 100);
     s.partyCal.filter(c => c.d <= s.date).forEach(c => { s.queue.push({ kind: 'party', t: c.t, el: c.el }); c.done = true; if (c.t === 'designation') (s.desigDone = s.desigDone || []).push(c.el); if (c.t !== 'designation') s.partyCal.push({ t: c.t, d: addDays(c.d, 365 * 3) }); });
     s.partyCal = s.partyCal.filter(c => !c.done);
@@ -918,6 +918,7 @@ window.E = (function () {
   }
   function partyResolve(q, choice, extra) {
     const s = S(), p = s.p; const fed = s.pnj[p.fedId]; const ld = s.pnj[s.national.leaders[p.party]]; let msg = '';
+    if (!ld && p.party !== 'NEW') return '';
     if (q.t === 'federal') {
       if (choice === 'run') { const sc = p.fedSup + (rnd() - 0.5) * 22 + (p.secLeader ? 6 : 0) + p.militants / 10; if (sc > 50) { p.fedRole = true; p.prole = Math.max(p.prole, 3); addStd(12); if (fed) { fed.rel -= 30; fed.role = 'cadre'; fed.mandat = 'Ancien·ne premier·e fédéral·e'; } p.fedSup = clamp(p.fedSup + 20, 0, 100); addNoto('dept', 8); msg = 'Vous êtes élu·e premier·e fédéral·e de l’Isère (' + Math.round(clamp(sc, 50.5, 78)) + ' %). Vous tenez désormais les investitures du département.'; article('dauph', D.PARTIES[p.party].short + ' Isère : ' + p.name + ' prend la fédération', 0.3, 'pj'); } else { p.fedSup = clamp(p.fedSup - 6, 0, 100); if (fed) fed.rel -= 15; msg = 'Battu·e pour la fédération (' + Math.round(clamp(sc, 15, 49.5)) + ' %). ' + (fed ? fed.name + ' reste en place et s’en souviendra.' : ''); } }
       else { if (fed) fed.rel += 10; addStd(3); p.fedSup = clamp(p.fedSup + 2, 0, 100); msg = 'Vous soutenez la direction fédérale sortante.'; }

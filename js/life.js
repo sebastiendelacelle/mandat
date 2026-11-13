@@ -3,7 +3,10 @@ window.LF = (function () {
   const S = () => G.S, P = () => G.S.p; const R = () => E.rnd(); const pick = a => a[Math.floor(R() * a.length)]; const clamp = E.clamp;
 
   /* ===== SMS ===== */
+  // les SMS s’adressent au joueur : accords selon son genre
+  const gzS = t => typeof t !== 'string' ? t : t.replace(/([A-Za-zÀ-ÿ]+)·([a-zà-ÿ]+)/g, (m, b, x) => { const g = (S().p || {}).g; return g !== 'F' ? b : x === 'ère' ? b.replace(/ier$/, 'ière') : x === 'rice' ? b.replace(/eur$/, 'rice') : x === 've' && /f$/.test(b) ? b.slice(0, -1) + 've' : x === 'se' && /x$/.test(b) ? b.slice(0, -1) + 'se' : b + x; });
   function sms(from, text, replies, opt) {
+    text = gzS(text); if (replies) replies = replies.map(r => Object.assign({}, r, { l: gzS(r.l) }));
     const s = S(); s.sms = s.sms || []; const x = typeof from === 'string' && s.pnj[from] ? s.pnj[from] : null;
     s.sms.unshift({ id: E.uid('sm'), from: x ? x.id : null, name: x ? x.name : from, party: x ? x.party : (opt && opt.party) || null, role: x ? (x.mandat || x.role) : (opt && opt.role) || '', text, date: s.date, half: s.half || 0, read: false, replies: replies || null, answered: null, human: (opt && opt.human) || null });
     if (s.sms.length > 90) s.sms.length = 90;

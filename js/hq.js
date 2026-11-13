@@ -423,13 +423,13 @@ const HQ = (() => {
   function afterResults(r0) {
     const s = S(), p = P(), h = hq(); const sn = r0.snapshot[0]; if (!sn) return; const row = (sn.rows || []).find(x => x.id === 'PJ'); if (!row) return;
     const u = E.unit(sn.key); const lab = row.party || (p.party === 'NEW' ? 'DIV' : p.party); const b0 = u && u.base ? (u.base[lab] || u.base[p.party] || 0) : 0; const base = b0 > 1 ? b0 : b0 * 100;
-    const diff = base ? row.pct - base : 0; const won = sn.winner === 'PJ' || (sn.seats && sn.seats.PJ); const inT2 = (sn.t2 || []).includes('PJ');
+    const diff = base ? row.pct - base : 0; const elT = (S().elections.find(x => x.id === r0.el) || {}).type; const won = sn.winner === 'PJ' || (elT !== 'mun' && sn.seats && sn.seats.PJ); const oppSeats = elT === 'mun' && !won && sn.seats ? (sn.seats.PJ || 0) : 0; const inT2 = (sn.t2 || []).includes('PJ');
     if (r0.round === 1 && !won) {
       let t = 'Si on compare avec le socle habituel de notre famille politique ici (' + E.pct(base) + '), on fait ' + (diff >= 0 ? '+' : '') + diff.toFixed(1).replace('.', ',') + ' points. ';
       t += diff > 3 ? 'C’est très bien : ça démontre une campagne de terrain efficace, qui a porté ses fruits. ' : diff < -3 ? 'On n’a pas imprimé. Il faudra comprendre pourquoi. ' : 'Conforme à notre socle, ni plus ni moins. ';
       if (S().elections.find(x => x.id === r0.el)?.type === 'mun') fusionOffer(r0, sn);
       if (inT2) { const blocs = [...new Set(rivals().filter(x => !(sn.t2 || []).includes(x.id)).map(x => D.PARTIES[x.party].short))].slice(0, 2); t += 'Mais j’ai peur que ce levier ne suffise pas au second tour : il va falloir des tractations' + (blocs.length ? ' avec les ' + blocs.join(' et les ') : '') + ' pour qu’ils guident des voix. Haut les cœurs, on est encore là !'; }
-      else t += 'C’est fini pour nous cette fois. Merci à tous, vous avez été formidables.';
+      else t += 'C’est fini pour nous cette fois' + (oppSeats ? ', mais nous aurons ' + oppSeats + ' élu' + (oppSeats > 1 ? 's' : '') + ' d’opposition au conseil municipal' : '') + '. Merci à tous, vous avez été formidables.';
       post('dc', '📊 ' + t);
       if (!inT2 && !h.pend.some(x => x.tpl === 'fusion')) { dissolve(); h.pend.push({ tpl: 'lendemain', at: s.date }); }
     } else if (won) { post('dc', '🎉 ' + E.pct(row.pct) + ' ! ' + (diff > 3 ? 'Bien au-dessus de notre socle : le terrain a payé.' : 'Victoire. On savoure ce soir, on travaille demain.')); moral(20); h.pend.push({ tpl: 'victoire', at: s.date }); h.alumniNext = true; }

@@ -53,7 +53,7 @@ window.DP = (function () {
     const sigPool = pool0.filter(l => sig.includes(l.id) && fresh(l));
     const cands = pool0.filter(fresh).map(l => { let dot = 0; for (const k in l.ax) dot += Math.sign(l.ax[k]) * pa[E.AXI[k]] / 100; return { l, dot }; }).filter(c => c.dot > 0.25).sort((a, b) => b.dot - a.dot);
     let lev = sigPool.length && (R() < 0.8 || !cands.length) ? pick(sigPool) : cands.length ? pick(cands.slice(0, 4)).l : null; if (!lev) return null;
-    let v = lev.def + Math.round((R() - 0.4) * (lev.max - lev.min) / 4 / lev.step) * lev.step; v = clamp(v, lev.min, lev.max); if (lev.id === 'retraite') v = pa[0] < 0 ? 62 : pa[0] > 40 ? 65 : 64; if (lev.id === 'tf') v = pa[0] > 0 ? -2 : 1;
+    let v = lev.def + Math.round((R() - 0.4) * (lev.max - lev.min) / 4 / lev.step) * lev.step; v = clamp(v, lev.min, lev.max); if (lev.id === 'retraite') v = pa[0] < 0 ? 62 : pa[0] > 40 ? 65 : 64; if (lev.id === 'tf') v = ['G', 'GE'].includes(bloc) ? 1 : -2;
     const fin = finFor(lev, v, bloc, lev.lvl); const ev = L.evaluate(lev, v, fin, E.commune());
     return { id: E.uid('rp'), lev: lev.id, lvl: lev.lvl, cp: lev.cp, v, fin, th: lev.th, label: ev.label, cost: ev.cost, inv: ev.inv, cred: clamp(ev.cred + (R() - 0.5) * 16, 15, 90), seg: ev.seg, gagnants: ev.gagnants, perdants: ev.perdants, vis: 35, hits: 0 };
   }
@@ -152,7 +152,7 @@ window.DP = (function () {
     return base;
   }
   /* ---- cohérence, pertinence et vérification des faits ---- */
-  const gz = t => { const g = (P() || {}).g; return String(t).replace(/([A-Za-zÀ-ÿ]+)·([a-zà-ÿ]+)/g, (m, b, x) => g !== 'F' ? b : x === 'ère' ? b.replace(/ier$/, 'ière') : x === 'rice' ? b.replace(/eur$/, 'rice') : b + x); };
+  const gz = t => { const g = (P() || {}).g; return String(t).replace(/([A-Za-zÀ-ÿ]+)·([a-zà-ÿ]+)/g, (m, b, x) => g !== 'F' ? b : x === 'ère' ? b.replace(/ier$/, 'ière') : x === 'rice' ? b.replace(/eur$/, 'rice') : x === 've' && /f$/.test(b) ? b.slice(0, -1) + 've' : x === 'se' && /x$/.test(b) ? b.slice(0, -1) + 'se' : b + x); };
   const hasPL = () => typeof PL !== 'undefined';
   const isNatBk = bk => bk === 'nat' || bk === 'euro';
   const BLOC_OPP = { G: 'ED', GE: 'ED', C: 'G', D: 'G', ED: 'G', DIV: 'G' };

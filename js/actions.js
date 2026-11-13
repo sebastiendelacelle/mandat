@@ -215,17 +215,20 @@ window.X = (function () {
   function applyTribune(text, ev, mediaId) { const sc = clamp(+ev.score || 50, 0, 100); E.addNoto(scopeOf(), 2 + sc / 20); P().cred = clamp(P().cred + (sc - 50) / 20, 0, 100); E.statement(text, ev.theme || 'institutions', vecOf(ev.axes), 0.7, 'tribune'); E.article(mediaId, 'Tribune — ' + (ev.titre || P().name + ' : « ' + text.slice(0, 60) + '… »'), 0.2, 'pj', text.slice(0, 300)); if (ev.mensonge) E.lie(text.slice(0, 140), 1); return 'Tribune publiée dans ' + D.MEDIAS.find(m => m.id === mediaId).name + ' (qualité ' + Math.round(sc) + '/100).'; }
 
   /* ---------- programme ---------- */
-  function newMeasureFromCatalogue(cid) {
+  // financement d’une mesure du catalogue : effet sur la crédibilité et sur les perdants
+  const CAT_FIN = { local: { redeploiement: [2, []], taxe: [0, ['RET', 'PERI']], emprunt: [-14, []], subventions: [-10, []], aucun: [-10, []] }, national: { economies: [0, ['POP']], riches: [2, ['CAD']], tva: [-2, ['POP', 'PERI']], dette: [-8, []], croissance: [-12, []], aucun: [-12, []] } };
+  function newMeasureFromCatalogue(cid, fin) {
     const c = D.CATALOGUE.find(x => x.id === cid); const pop = E.commune().pop;
     const cout = c.level === 'local' ? Math.round(c.cph * pop) : Math.round(c.md * 1e9);
-    return addMeasure({ text: c.t, resume: c.t, level: c.level, theme: c.th, axes: Object.assign({}, c.ax), cout, competence: 'oui', cred: c.cred + E.rint(-4, 4), gagnants: c.g.slice(), perdants: c.l.slice(), critique: '', src: cid });
+    const fx = fin && (CAT_FIN[c.level] || {})[fin]; const f = fin && (L.FIN[c.level] || []).find(z => z.id === fin); const per = c.l.slice(); if (fx) fx[1].forEach(g => { if (!per.includes(g) && !c.g.includes(g)) per.push(g); });
+    return addMeasure({ text: c.t + (f && fin !== 'aucun' ? ', financé par : ' + f.l.toLowerCase() : ''), resume: c.t, level: c.level, theme: c.th, axes: Object.assign({}, c.ax), cout, fin: fin || null, finL: f && fin !== 'aucun' ? f.l : '', competence: 'oui', cred: c.cred + E.rint(-4, 4) + (fx ? fx[0] : 0), gagnants: c.g.slice(), perdants: per, critique: fin === 'aucun' ? 'Financement absent : « qui paiera ? »' : '', src: cid });
   }
   function addMeasure(m) {
     const p = P(); const o = Object.assign({ id: E.uid('mes'), date: S().date, status: 'proposee', phare: false, visib: 20, defended: 0 }, m);
     if (!o.level) o.level = 'local';
     const dup = p.prog.find(x => x.status !== 'retiree' && x.level === o.level && ((o.lever && x.lever === o.lever) || (o.src && x.src === o.src) || x.resume === o.resume));
     if (dup) { const keep = { id: dup.id, date: dup.date, phare: dup.phare, visib: dup.visib, defended: dup.defended, status: dup.status }; Object.keys(dup).forEach(k => delete dup[k]); Object.assign(dup, o, keep, { updated: true }); return dup; } // pas de doublon : on met à jour la mesure existante
-    const vo = o.axes ? E.vecFrom(o.axes) : null; const ctr = vo ? p.prog.filter(x => x.status !== 'retiree' && x.axes).find(x => { const w = E.vecFrom(x.axes); let d = 0; for (let i = 0; i < 6; i++) d += vo[i] * w[i]; return d < -700; }) : null;
+    const vo = o.axes ? E.vecFrom(o.axes) : null; const ctr = vo ? p.prog.filter(x => x.status !== 'retiree' && x.axes && x.theme === o.theme && x.level === o.level).find(x => { const w = E.vecFrom(x.axes); let d = 0; for (let i = 0; i < 6; i++) d += vo[i] * w[i]; return d < -1200; }) : null; // même thème, sens opposés
     if (ctr) { o.contra = ctr.id; ctr.contra = o.id; E.log('Attention : « ' + o.resume + ' » contredit « ' + ctr.resume + ' », déjà dans votre programme. Vos adversaires vont s’en servir.', 'bad'); p.cred = clamp(p.cred - 2, 0, 100); }
     p.prog.unshift(o); E.statement(o.text, o.theme, o.axes, 0.5, 'programme');
     (o.gagnants || []).forEach(g => D.SEG_IDS.includes(g) && E.addImage(g, 1.2)); (o.perdants || []).forEach(g => D.SEG_IDS.includes(g) && E.addImage(g, -0.8));
@@ -375,5 +378,5 @@ window.X = (function () {
     const p = s.p; if (p.cand && !(s.elections || []).some(e => e.id === p.cand.el)) { p.cand = null; p.camp = { terrain: 0, medias: 0, num: 0, meet: 0 }; }
   }
 
-  return { doOff, setMission, raise, recadrer, addBuilt, progSummary, applyContribution, newMeasureFromCatalogue, addMeasure, setPhare, defendMeasure, applyConference, applyInOffice, curLevel, snap, deltas, ACTIONS, avail, doAction, startAI, costOf, applyPost, applyMeasure, applySpeech, applyDebate, applyDialogue, applyQag, applyTribune, staffCandidates, hire, fire, resolveSection, resolveOffer, resolveT2, resolveConsigne, PROJETS, mairieProjet, mairieTaxe, mairieEmprunt, serialize, load, scopeOf, curType, inCampaign };
+  return { CAT_FIN, doOff, setMission, raise, recadrer, addBuilt, progSummary, applyContribution, newMeasureFromCatalogue, addMeasure, setPhare, defendMeasure, applyConference, applyInOffice, curLevel, snap, deltas, ACTIONS, avail, doAction, startAI, costOf, applyPost, applyMeasure, applySpeech, applyDebate, applyDialogue, applyQag, applyTribune, staffCandidates, hire, fire, resolveSection, resolveOffer, resolveT2, resolveConsigne, PROJETS, mairieProjet, mairieTaxe, mairieEmprunt, serialize, load, scopeOf, curType, inCampaign };
 })();
