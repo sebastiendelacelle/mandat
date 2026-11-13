@@ -288,7 +288,7 @@
     const subs = subsOf(tab);
     if (subs) h += '<div class="seg" role="tablist">' + subs.map(([k, l]) => '<button role="tab" data-sub="' + k + '" class="' + (view === k ? 'on' : '') + '">' + l + (k === 'sms' && un ? '<span class="badge">' + un + '</span>' : k === 'boucle' && bun ? '<span class="badge">' + (bpd || bun) + '</span>' : k === 'carnet' && casOut ? '<span class="badge">' + casOut + '</span>' : '') + '</button>').join('') + '</div>';
     h += (VIEWS()[view] || tBureau)();
-    const nb = k => '<button data-nav="' + k + '" class="' + (tab === k ? 'on' : '') + '"' + (tab === k ? ' aria-current="page"' : '') + '>' + ico(k) + '<span>' + (k === 'bureau' && hasOF() && OF.mode() === 'mandat' ? 'Bureau' : NAV[k].l) + '</span>' + (k === 'msg' && (un + bpd) ? '<i class="badge">' + (un + bpd) + '</i>' : k === 'plus' && casOut ? '<i class="badge">' + casOut + '</i>' : '') + '</button>';
+    const nb = k => '<button data-nav="' + k + '" class="' + (tab === k ? 'on' : '') + '"' + (tab === k ? ' aria-current="page"' : '') + '>' + ico(k) + '<span>' + NAV[k].l + '</span>' + (k === 'msg' && (un + bpd) ? '<i class="badge">' + (un + bpd) + '</i>' : k === 'plus' && casOut ? '<i class="badge">' + casOut + '</i>' : '') + '</button>';
     h += '</main><nav class="bnav" aria-label="Navigation"><div class="bin">' + nb('bureau') + nb('agir') + '<button class="bnext" id="end"><b>' + (E.silence() ? 'Jour du vote' : 'Tour suivant') + '</b><span class="num">' + daysL(days) + '</span></button>' + nb('msg') + nb('plus') + '</div></nav>';
     $app.innerHTML = h;
     $app.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
@@ -381,7 +381,7 @@
     const s = S(), p = P(); const o = objective(); const pop = E.popularity();
     const une = s.news.slice(0, 4).find(n => n.about === 'pj') || s.news[0];
     const md = hasOF() ? OF.mode() : 'libre';
-    const cs0 = campSteps(); const head = coachCard() + (md === 'mandat' ? bureauElu() + '<div style="height:12px"></div>' : md === 'both' ? eluBar() : '') + '' ; const dash = dashTiles(); let h = '<div class="obj"><div class="eyebrow">Votre objectif</div><h2>' + esc(o.t) + '</h2><p>' + esc(o.x) + '</p>';
+    const cs0 = campSteps(); const head = coachCard() + (md === 'mandat' ? bureauElu() + '<div style="height:12px"></div>' : '') + '' ; const dash = dashTiles(); let h = '<div class="obj"><div class="eyebrow">Votre objectif</div><h2>' + esc(o.t) + '</h2><p>' + esc(o.x) + '</p>';
     if (o.e) h += '<div class="row">' + declBtns(o.e) + '</div>';
     if (p.cumul && E.cumulConflict()) h += '<div class="row"><button class="btn primary" data-cumul>Régler le cumul de mandats (avant le ' + E.fmtDate(p.cumul.due) + ')</button></div>';
     if (o.a.length) h += '<div class="qas">' + o.a.slice(0, 3).map(quick).join('') + '</div>';
@@ -392,7 +392,6 @@
     const msc = msCard();
     if (S().mp) MP.waitingForMe().forEach(w => { h += '<button class="smsbar" data-go="plus:joueurs" style="border-left-color:#5a78c2"><span><b>' + esc(w.name) + ' vous attend</b><span class="cp">Avancez jusqu’au scrutin : il ne peut pas voter sans vous</span></span></button>'; });
     if (S().mp && S().mp.wait) h += '<button class="smsbar" data-go="plus:joueurs" style="border-left-color:var(--warn)"><span><b>Rendez-vous électoral</b><span class="cp">Vous attendez d’autres joueurs pour un scrutin</span></span></button>';
-    h += boucleBar();
     const un = LF.unread(); if (un) { const last = S().sms.find(m => !m.read); h += '<button class="smsbar" data-go="msg:sms">' + avatar(last.name, last.party) + '<span><b>' + esc(last.name) + '</b><span class="cp">' + esc(last.text) + '</span></span><span class="badge">' + un + '</span></button>'; }
     const ms = h; const vilS = E.villageScope(); const est = estBlock(), why = whyCard(), nat = vilS ? '' : natBlock();
     const uneH = '<div class="une">' + (une && une.about === 'pj' ? '<div class="flash">VOUS</div>' : '') + '<div class="mast"><b>' + esc(une ? une.media : 'Le Dauphinois') + '</b><span>' + E.fmtDate(s.date) + '</span></div><h2>' + esc(une ? une.title : 'Calme plat avant la tempête') + '</h2>' + (une && une.body ? '<p>' + esc(une.body) + '</p>' : '') + '</div>';
@@ -543,9 +542,23 @@
     return {};
   }
   function planState() { if (UI.planDate !== S().date + ':' + (S().half || 0)) { UI.plan = []; UI.planDate = S().date + ':' + (S().half || 0); } return UI.plan; }
-  function planBudget() { const p = P(); const plan = planState(); let hrs = p.hours, cost = 0; plan.forEach(it => { const a = X.ACTIONS.find(x => x.id === it.id); if (it.id === 'conges') hrs += 20; hrs -= a.h; cost += X.costOf(a) || 0; }); return { left: hrs, cost }; }
+  function reservedH() { if (typeof FL === 'undefined') return { h: 0, L: [] }; const L = FL.pending().filter(it => it.k === 'rdv' || it.urgent || it.k === 'arc').map(it => ({ t: it.t.replace(/ · .*$/, ''), h: (it.opts.find(o => o.h) || {}).h || 0 })).filter(x => x.h > 0); return { h: Math.min(P().hours, L.reduce((a, x) => a + x.h, 0)), L }; }
+  function smartIds() {
+    const p = P(), s = S(); const cc = campCtx(); const camp = cc && cc.cand; const I = E.indicators(); const ob = objective() || {}; const ids = [];
+    if (camp) { const dd = E.diffDays(s.date, cc.el.d1); ids.push(...(I.noto < 40 ? ['porte', 'marche', 'affiches', 'porte'] : ['porte', 'appart', 'phoning', 'marche'])); ids.push(dd < 45 ? 'phoning' : 'levee'); }
+    else {
+      (ob.a || []).forEach(id => ids.push(id));
+      if (I.noto < 35) ids.push('porte', 'marche', 'asso');
+      const el = E.nextElection(); if (el && p.party !== 'NEW' && E.diffDays(s.date, el.d1) < 420 && p.std < 45) ids.push('section', 'mission');
+      if (p.cred < 40) ids.push('dossier_tech');
+      if (p.mandats.length) ids.push('permanence', 'conseil');
+      ids.push('porte', 'asso', 'section');
+    }
+    return ids;
+  }
+  function planBudget() { const p = P(); const plan = planState(); let hrs = p.hours - reservedH().h, cost = 0; plan.forEach(it => { const a = X.ACTIONS.find(x => x.id === it.id); if (it.id === 'conges') hrs += 20; hrs -= a.h; cost += X.costOf(a) || 0; }); return { left: hrs, cost }; }
   function planTemplates() {
-    const cc = campCtx(); const camp = cc && cc.cand; const p = P(); const T = [];
+    const cc = campCtx(); const camp = cc && cc.cand; const p = P(); const T = [['Agenda conseillé', smartIds()]];
     if (camp) T.push(['Semaine terrain', ['conges', 'porte', 'porte', 'marche', 'appart', 'phoning']], ['Se faire connaître', ['affiches', 'marche', 'numerique', 'marche', 'porte']], ['Sprint final', ['conges', 'phoning', 'porte', 'phoning', 'marche']], ['Lever des fonds', ['levee', 'levee', 'porte']]);
     if (p.mandats.length) T.push(['Semaine d’élu·e', ['permanence', 'conseil', 'circo', 'amend', 'permanence']]);
     if (!camp) T.push(['Implantation locale', ['asso', 'marche', 'section', 'porte']], ['Monter dans le parti', ['section', 'mission', 'dossier_tech']], ['Stature nationale', ['tournee', 'dossier_tech', 'training']]);
@@ -561,8 +574,9 @@
     return '<select class="field psel" data-pp="' + i + ':' + k + '">' + opts.map(([v, l]) => '<option value="' + esc(v) + '"' + (it.o[k] === v ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select>';
   }
   function planHTML() {
-    const p = P(); const plan = planState(); const b = planBudget(); const tot = p.hours + (plan.some(x => x.id === 'conges') ? 20 : 0); const used = tot - b.left;
+    const p = P(); const plan = planState(); const b = planBudget(); const tot = p.hours - reservedH().h + (plan.some(x => x.id === 'conges') ? 20 : 0); const used = tot - b.left;
     let h = '<h2>Composer mon agenda</h2><p class="muted small" style="margin-top:-4px">Programmez plusieurs actions, lancez-les d’un coup et voyez le bilan sur un seul écran.</p>';
+    { const rv = reservedH(); if (rv.h) h += '<p class="small" style="margin:0 0 8px">' + rv.h + ' h gardées pour : ' + rv.L.map(x => esc(x.t) + ' (' + x.h + ' h)').join(', ') + '. Traitez-les dans « À trancher ».</p>'; }
     h += '<div class="pbud"><div class="row" style="justify-content:space-between"><span><b class="num">' + used + '</b> / ' + tot + ' h</span><span class="num">' + (b.cost ? E.eur(b.cost) : '0 €') + '</span></div><div class="hbar" style="width:100%;height:8px;margin-top:5px"><i style="width:' + Math.min(100, used / Math.max(1, tot) * 100) + '%;' + (b.left < 0 ? 'background:var(--bad)' : '') + '"></i></div></div>';
     const tp = planTemplates(); if (tp.length) h += '<div class="eyebrow" style="margin-top:12px">Agendas types</div><div class="chips" style="padding-top:6px">' + tp.map(([l, ids], i) => '<button data-ptpl="' + i + '">' + esc(genderize(l, P().g)) + '</button>').join('') + '</div>';
     h += '<div class="eyebrow" style="margin-top:12px">Votre agenda</div>' + (plan.length ? '<div class="plist">' + plan.map((it, i) => { const a = X.ACTIONS.find(x => x.id === it.id); const c = X.costOf(a); return '<div class="pitem"><span class="pn num">' + (i + 1) + '</span><div class="grow"><div class="row" style="justify-content:space-between;gap:6px"><b>' + esc(a.l) + '</b><span class="muted small num">' + (a.h ? a.h + ' h' : '+20 h') + (c ? ' · ' + E.eur(c) : '') + '</span></div>' + paramSel(it, i) + '</div><button class="btn sm ghost" data-prm="' + i + '" aria-label="Retirer">×</button></div>'; }).join('') + '</div>' : '<p class="muted small" style="margin:6px 0">Vide. Choisissez un agenda type ou ajoutez des actions ci-dessous.</p>');
@@ -658,10 +672,18 @@
   }
   function dashTiles() {
     const s = S(); const I = E.indicators(); const B = (s.estPrevBase || s.estBase || {}).ind || null; const SC = { commune: 'commune', circo: 'circonscription', dept: 'Isère', nat: 'France' };
-    const t = (k, l, v, sub, fmt) => { const d = B ? v - B[k] : 0; return '<div class="dt">' + VZ.ring(v, k === 'image' ? -100 : 0, 100) + '<small>' + l + '</small><b class="num">' + (fmt ? fmt(v) : v) + '</b>' + (Math.abs(d) >= 1 ? '<span class="num ' + (d > 0 ? 'up' : 'down') + '">' + (d > 0 ? '▲' : '▼') + Math.abs(Math.round(d)) + '</span>' : '') + '<span class="sub">' + sub + '</span></div>'; };
-    return '<div class="dash">' + t('noto', 'Notoriété', I.noto, SC[I.scope]) + t('image', 'Image', I.image, 'auprès de vos électeurs', v => (v > 0 ? '+' : '') + v) + t('dyn', 'Dynamique', I.dyn, I.dyn >= 60 ? 'vous avez le vent en poupe' : I.dyn <= 40 ? 'en perte de vitesse' : 'stable') + (E.villageScope() ? '' : t('app', P().party === 'NEW' ? 'Mouvement' : 'Poids au parti', I.app, P().party === 'NEW' ? 'force militante' : 'fédération, rang, soutiens') )+ '</div>';
+    const t = (k, l, v, sub, fmt) => { const d = B && B[k] != null ? v - B[k] : 0; return '<div class="dt" role="button" tabindex="0" data-tile="' + k + '">' + VZ.ring(v, k === 'image' ? -100 : 0, 100) + '<small>' + l + '</small><b class="num">' + (fmt ? fmt(v) : v) + '</b>' + (Math.abs(d) >= 1 ? '<span class="num ' + (d > 0 ? 'up' : 'down') + '">' + (d > 0 ? '▲' : '▼') + Math.abs(Math.round(d)) + '</span>' : '') + '<span class="sub">' + sub + '</span></div>'; };
+    const cr = Math.round(P().cred); const tc = t('cred', 'Crédibilité', cr, cr >= 60 ? 'on vous prend au sérieux' : cr <= 35 ? 'on doute de vous' : 'sérieux perçu');
+    return '<div class="dash">' + t('noto', 'Notoriété', I.noto, 'qui vous connaît · ' + SC[I.scope]) + t('image', 'Image', I.image, 'ce qu’on pense de vous', v => (v > 0 ? '+' : '') + v) + tc + (E.villageScope() ? t('dyn', 'Dynamique', I.dyn, I.dyn >= 60 ? 'le vent en poupe' : I.dyn <= 40 ? 'en perte de vitesse' : 'stable') : t('app', P().party === 'NEW' ? 'Mouvement' : 'Poids au parti', I.app, P().party === 'NEW' ? 'votre force militante' : 'pour l’investiture')) + '</div><p class="muted small" style="margin:4px 0 0;text-align:center">Touchez une jauge pour le détail.</p>';
   }
 
+  function tileFlow(k) {
+    const p = P(), I = E.indicators(); const bar = (l, v, mn) => '<div class="row" style="justify-content:space-between;margin-top:6px"><span class="small">' + esc(l) + '</span><b class="num">' + Math.round(v) + '</b></div><div class="hbar" style="width:100%;height:6px"><i style="width:' + Math.max(0, Math.min(100, (v - (mn || 0)) / (100 - (mn || 0)) * 100)) + '%"></i></div>';
+    if (k === 'noto') return info('Notoriété', '<p>La part des électeurs qui savent qui vous êtes. Sans elle, personne ne vote pour vous. Elle s’érode quand vous ne faites rien.</p>' + bar('Commune', p.noto.commune) + bar('Circonscription', p.noto.circo) + bar('Département', p.noto.dept) + bar('France', p.noto.nat) + '<p class="muted small" style="margin-top:10px">Elle monte avec le terrain (porte-à-porte, marchés, associations) et les médias.</p>', 'Compris');
+    if (k === 'image') return info('Image', '<p>Ce que pensent de vous les électeurs qui vous connaissent, électorat par électorat (de −100 à +100).</p>' + D.SEGS.map(g => bar(g.name, p.image[g.id] || 0, -100)).join('') + '<p class="muted small" style="margin-top:10px">Vos positions, vos votes et vos choix la font bouger, différemment selon les électorats.</p>', 'Compris');
+    if (k === 'cred') return info('Crédibilité', '<p>Le sérieux qu’on vous prête : mesures chiffrées et financées, cohérence entre vos paroles et vos actes, absence d’affaires.</p>' + bar('Crédibilité', p.cred) + '<p class="muted small" style="margin-top:10px">Elle pèse en débat, face aux attaques et dans les promesses. Les volte-face et les promesses non tenues la font baisser.</p>', 'Compris');
+    return info(p.party === 'NEW' ? 'Mouvement' : 'Poids au parti', '<p>' + (p.party === 'NEW' ? 'La force de votre mouvement : militants et soutiens.' : 'Votre poids à la fédération : c’est lui qui décide de l’investiture et de votre place sur les listes.') + '</p>' + bar(p.party === 'NEW' ? 'Mouvement' : 'Poids au parti', I.app) + bar('Dynamique de campagne', I.dyn) + '<p class="muted small" style="margin-top:10px">' + (p.party === 'NEW' ? 'Il monte avec les militants recrutés et les actions de terrain.' : 'Il monte avec les réunions de section, les missions pour le parti et la loyauté dans les votes.') + '</p>', 'Compris');
+  }
   /* ---------- progression, récit, pouvoir ---------- */
   /* ---------- premier mois guidé ---------- */
   function coachSteps() {
@@ -689,9 +711,19 @@
   }
   /* ---------- « À trancher » : le fil des dossiers ---------- */
   function flCard() {
-    if (typeof FL === 'undefined') return ''; const L = FL.pending(); if (!L.length) return '';
-    const gz = t => genderize(t, P().g);
-    return '<div class="card flc"><h3>À trancher <span class="muted">' + L.length + '</span></h3>' + L.slice(0, 5).map(it => '<button class="flit' + (it.urgent ? ' urg' : '') + '" data-fl="' + it.id + '"><span class="grow"><b>' + esc(gz(it.t)) + '</b><span class="muted small">' + esc(it.from) + ' · avant le ' + E.fmtDate(it.due) + '</span></span><span class="chev">›</span></button>').join('') + '<p class="muted small" style="margin:8px 0 0">Sans réponse à la date dite, la décision se fait sans vous, et ça se voit.</p></div>';
+    const gz = t => genderize(t, P().g); const L = []; const endT = 'avant la fin du tour';
+    if (typeof FL !== 'undefined') FL.pending().forEach(it => L.push({ rank: it.urgent ? 0 : 3, due: it.due, a: 'data-fl="' + it.id + '"', t: it.t, sub: it.from + ' · avant le ' + E.fmtDate(it.due), urg: it.urgent }));
+    if (hasOF()) OF.pending().forEach(d => L.push({ rank: 1, due: S().date, a: 'data-ofo="' + d.id + '"', t: d.t.length > 90 ? d.t.slice(0, 88) + '…' : d.t, sub: (d.who ? 'Note de ' + d.who : 'Votre mandat') + ' · ' + endT }));
+    if (hasHQ()) HQ.pending().forEach(m => L.push({ rank: 1, due: S().date, a: 'data-go="msg:boucle"', t: (m.t || '').length > 90 ? m.t.slice(0, 88) + '…' : m.t || 'Décision de campagne', sub: 'Boucle de campagne' + (m.name ? ' · ' + m.name : '') + ' · ' + endT }));
+    convs().map(c => ({ c, m: c.msgs.find(x => x.replies && x.answered == null && (!x.date || E.diffDays(x.date, S().date) < 75)) })).filter(z => z.m).slice(0, 3).forEach(({ c, m }) => { const tx = m.text || m.t || ''; L.push({ rank: 2, due: '9999', a: 'data-thread="' + esc(c.name) + '"', t: tx.length > 90 ? tx.slice(0, 88) + '…' : tx, sub: 'Message · ' + c.name }); });
+    if (!L.length) return ''; L.sort((x, y) => x.rank - y.rank || (x.due < y.due ? -1 : 1));
+    return '<div class="card flc"><h3>À trancher <span class="muted">' + L.length + '</span></h3>' + L.slice(0, 6).map(it => '<button class="flit' + (it.urg ? ' urg' : '') + '" ' + it.a + '><span class="grow"><b>' + esc(gz(it.t)) + '</b><span class="muted small">' + esc(it.sub) + '</span></span><span class="chev">›</span></button>').join('') + (L.length > 6 ? '<p class="muted small" style="margin:8px 0 0">Et ' + (L.length - 6) + ' autre' + (L.length > 7 ? 's' : '') + ' à la suite.</p>' : '') + '<p class="muted small" style="margin:8px 0 0">Sans réponse à temps, la décision se fait sans vous, et ça se voit.</p></div>';
+  }
+  async function ofFlow(id) {
+    const d = OF.pending().find(x => x.id === id); if (!d) return; E.estimate(); const before = X.snap();
+    const v = await choice(d.who ? 'Note de ' + d.who : 'Dossier', '<p>' + esc(d.t) + '</p><p class="muted small">Sans décision d’ici la fin du tour, votre équipe tranche à votre place ou le dossier est classé.</p>', d.opts.map((o, i) => { const ok = OF.optOk(o); const a = o.d ? OF.adjOf(o.d) : null; return { l: o.l + (a ? ' (' + a.name + ')' : ''), sub: [o.h ? o.h + ' h' : '', o.cost ? E.eur(o.cost) : '', ok === true ? '' : ok].filter(Boolean).join(' · '), v: i }; }).concat([{ l: 'Décider plus tard', cls: 'ghost', v: 'later' }]));
+    if (v == null || v === 'later') { render(); return; } const r = OF.decide(id, v); if (!r.ok) { toast(r.msg); render(); return; }
+    E.estimate(); render(); result('Dossier traité', r.msg, before); if (r.act) await runAction(r.act);
   }
   async function flFlow(id) {
     if (typeof FL === 'undefined') return; const it = FL.pending().find(x => x.id === id); if (!it) return;
@@ -948,6 +980,9 @@
     $app.querySelectorAll('[data-gnext]').forEach(b => b.onclick = () => { GV.guideNext(); render(); });
     $app.querySelectorAll('[data-gskip]').forEach(b => b.onclick = () => { GV.guideNext(true); render(); });
     $app.querySelectorAll('[data-fl]').forEach(b => b.onclick = () => flFlow(b.dataset.fl));
+    $app.querySelectorAll('[data-ofo]').forEach(b => b.onclick = () => ofFlow(b.dataset.ofo));
+    $app.querySelectorAll('.flc [data-thread]').forEach(b => b.onclick = () => openThread(b.dataset.thread));
+    $app.querySelectorAll('[data-tile]').forEach(b => b.onclick = () => tileFlow(b.dataset.tile));
     $app.querySelectorAll('[data-coachack]').forEach(b => b.onclick = () => { S().coachAck = true; render(); });
     $app.querySelectorAll('[data-coachoff]').forEach(b => b.onclick = () => { S().coachOff = true; GV.guideNext(true); render(); });
     $app.querySelectorAll('details[data-more]').forEach(d => d.ontoggle = () => { S().homeMore = d.open; });
@@ -1607,7 +1642,7 @@
     if (S().mp) { if (btn) { btn.disabled = true; btn.querySelector('b').textContent = 'Synchronisation…'; } let g = null; try { g = await MP.gate(); } catch (e) { g = null; }
       if (g && g.wait) { render(); await info(g.busy ? 'Calcul en cours' : g.inv ? 'Commission d’investiture' : 'Rendez-vous électoral', g.busy ? '<p>Un autre joueur calcule en ce moment le résultat. Réessayez dans quelques secondes.</p>' : g.inv ? '<p><b>' + esc(g.el.label) + '</b> : plusieurs joueurs de votre parti visent l’investiture. La commission tranchera quand tous seront arrivés à cette date, au vu de votre poids au parti, de votre notoriété et de votre relation avec la fédération.</p>' : '<p><b>' + esc(g.el.label) + (g.round === 2 ? ' · second tour' : '') + '</b> : vous affrontez d’autres joueurs. Le scrutin aura lieu quand tous y seront arrivés.</p><p>En retard : ' + g.late.map(esc).join(', ') + '.</p><p class="muted small">Vous pouvez encore agir sur ce tour. Revenez plus tard : la partie se synchronise toute seule.</p>', 'Compris'); return; } }
     const before = X.snap(); const from = S().date; const nNews = S().news.length ? S().news[0].id : null;
-    E.endTurn(); render(); await runQueue();
+    E.endTurn(); render(); UI.inEnd = true; try { await runQueue(); } finally { UI.inEnd = false; }
     if (S().mp && MP.on()) { const fz = MP.force(); for (const f of fz) await info('Candidature d’office', '<p>Dans une partie multijoueur, tout le monde se présente. Vous voilà candidat·e : <b>' + esc(f.el.label) + '</b>' + (f.vs.length ? ', face à ' + esc(f.vs.join(', ')) : '') + '.</p><p>' + esc(f.msg || '') + '</p>', 'En campagne'); }
     E.estimate(); Store.save(); render();
     await bilan(before, from, nNews); render();
@@ -1623,9 +1658,18 @@
     if ((s.turnStaff || []).length) h += '<div class="eyebrow" style="margin-top:12px">Votre équipe</div>' + s.turnStaff.map(t => '<div class="small" style="margin-top:3px">' + esc(t) + '</div>').join('');
     if ((s.turnRival || []).length) h += '<div class="eyebrow" style="margin-top:12px">Vos adversaires</div>' + s.turnRival.map(t => '<div class="small" style="margin-top:3px">' + esc(t) + '</div>').join('');
     if (fresh.length) h += '<div class="eyebrow" style="margin-top:12px">On parle de vous</div>' + fresh.map(n => '<div class="small" style="margin-top:3px"><b>' + esc(n.media) + '</b> · ' + esc(n.title) + '</div>').join('');
-    // Bilan repliable : un bandeau discret, le détail sur demande
     document.querySelectorAll('.bilanbar').forEach(x => x.remove());
-    const top = ds.filter(d => !/Argent|Abonnés|Militants/.test(d.l)).sort((a, b) => (b.l === 'Score estimé') - (a.l === 'Score estimé') || Math.abs(b.d) - Math.abs(a.d)).slice(0, 3);
+    const top = ds.filter(d => !/Argent|Abonnés|Militants/.test(d.l)).sort((a, b) => (b.l === 'Score estimé') - (a.l === 'Score estimé') || Math.abs(b.d) - Math.abs(a.d)).slice(0, 4);
+    { // une seule fenêtre : trois faits marquants et ce qui a bougé, le reste replié
+      const gz = t => genderize(t, p.g); const infos = UI.turnInfos || []; UI.turnInfos = [];
+      const facts = infos.map(q => ({ t: q.title, x: q.text, hot: 1 })).concat(typeof FL !== 'undefined' ? FL.F().echo.filter(e => e.date > from && e.date <= s.date).map(e => ({ x: e.t })) : [], fresh.map(n => ({ t: n.media, x: n.title })), (s.turnRival || []).slice(0, 2).map(t => ({ x: t })));
+      let m0 = '<div class="eyebrow">Du ' + E.fmtDate(from) + ' au ' + E.fmtDate(s.date) + '</div>';
+      if (es && es.rank) { const d0 = before.est != null ? es.pct - before.est : null; m0 += '<div class="row" style="align-items:baseline;gap:10px;margin-top:8px"><span class="big num">' + E.pct(es.pct) + '</span><span class="small">' + esc(es.label) + ' · ' + es.rank + '<sup>' + (es.rank === 1 ? (p.g === 'F' ? 're' : 'er') : 'e') + '</sup> sur ' + es.n + (d0 != null && Math.abs(d0) >= 0.1 ? ' · <span class="num ' + (d0 > 0 ? 'up' : 'down') + '">' + (d0 > 0 ? '+' : '−') + Math.abs(d0).toFixed(1).replace('.', ',') + ' pt</span>' : '') + '</span></div>'; }
+      if (facts.length) m0 += '<div class="eyebrow" style="margin-top:12px">Faits marquants</div><ul class="pm">' + facts.slice(0, 3).map(f => '<li>' + (f.t ? '<b>' + esc(gz(f.t)) + '</b> · ' : '') + esc(gz(f.x)) + '</li>').join('') + '</ul>';
+      m0 += '<div class="eyebrow" style="margin-top:12px">Ce qui a bougé</div>' + chipsHTML(top.filter(d => d.l !== 'Score estimé'));
+      m0 += '<details style="margin-top:12px"><summary class="small" style="cursor:pointer;color:var(--accent);font-weight:600">Tout le détail du mois</summary>' + h + (facts.length > 3 ? '<div class="eyebrow" style="margin-top:12px">Autres nouvelles</div>' + facts.slice(3).map(f => '<div class="small" style="margin-top:3px">' + (f.t ? '<b>' + esc(gz(f.t)) + '</b> · ' : '') + esc(gz(f.x)) + '</div>').join('') : '') + '</details>';
+      await info('Le mois écoulé', m0, 'Continuer'); return;
+    }
     const bar = document.createElement('div'); bar.className = 'bilanbar';
     bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(78px + env(safe-area-inset-bottom));z-index:40;width:min(560px,94vw);background:var(--raise);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:8px 10px;box-shadow:0 8px 24px rgba(0,0,0,.4);display:flex;gap:8px;align-items:center';
     bar.innerHTML = '<div class="small" style="flex:1"><b>Bilan du tour</b>' + (es && es.rank ? ' · ' + esc(es.label) + ' : <span class="num">' + E.pct(es.pct) + '</span> (' + es.rank + (es.rank === 1 ? '<sup>' + (p.g === 'F' ? 're' : 'er') + '</sup>' : '<sup>e</sup>') + ')' : '') + (top.length ? '<br><span class="muted">' + top.map(d => esc(d.l + ' ' + d.t)).join(' · ') + '</span>' : '') + '</div><button class="btn" data-bdet>Détail</button><button class="btn ghost" data-bx aria-label="Fermer">×</button>';
@@ -1652,7 +1696,7 @@
         else if (q.kind === 'section') { const v = await choice('Élection du secrétaire de section', '<p>Le poste de secrétaire de la section locale est remis en jeu. Vous présentez-vous contre le sortant ?</p>', [{ l: 'Me présenter', v: true }, { l: 'Laisser passer mon tour', v: false }]); await info('Section', '<p>' + esc(X.resolveSection(v)) + '</p>'); }
         else if (q.kind === 'offer') { const x = s.pnj[q.pnj]; if (q.type === 'soutien') { const v = await choice('Proposition de soutien', '<p>' + esc(x.name) + ' (' + esc(genderize(x.mandat || ROLE_L[x.role], x.g)) + ') propose de vous soutenir publiquement.</p>', [{ l: 'Accepter', v: true }, { l: 'Décliner', v: false }]); toast(X.resolveOffer(q, v)); } else { const v = await choice('Une enveloppe', '<p>' + esc(x.name) + ' (' + esc(genderize(x.mandat || 'notable', x.g)) + ') vous propose « un coup de main » de <b>' + E.eur(q.amount) + '</b> en liquide, sans reçu. Il attendra un retour.</p>', [{ l: 'Accepter l’enveloppe', ill: 'Financement illégal, voire corruption s’il attend une contrepartie : prison, amende, jusqu’à 3 ans d’inéligibilité', v: true }, { l: 'Refuser', v: false }]); toast(X.resolveOffer(q, v)); } }
         else if (q.kind === 'vote') { const v = await choice(q.ctx, '<p><b>' + esc(q.text) + '</b></p>' + (q.line ? '<p class="muted">Consigne de votre groupe : ' + q.line + '.</p>' : ''), [{ l: 'Voter pour', v: 'pour' }, { l: 'Voter contre', v: 'contre' }, { l: 'S’abstenir', v: 'abstention' }]); E.resolveVote(q, v); }
-        else if (q.kind === 'info') await info(q.title, '<p>' + esc(q.text) + '</p>');
+        else if (q.kind === 'info') { if (UI.inEnd) (UI.turnInfos = UI.turnInfos || []).push(q); else await info(q.title, '<p>' + esc(q.text) + '</p>'); }
         else if (q.kind === 'mpPrim') { const lab = q.type === 'mun' ? 'Premier·e adjoint·e si sa liste gagne' : q.type === 'dep' ? 'Son binôme : élu·e avec lui ou elle' : 'Son ou sa suppléant·e'; const v = await choice('Primaire perdue', '<p>Les adhérents ont départagé les candidat·e·s pour les ' + esc(q.label.toLowerCase()) + ' : <b>' + esc(q.res) + '</b>.</p><p>' + esc(q.winnerName) + ' portera les couleurs du parti. Que faites-vous ?</p>', [{ l: 'Me rallier : ' + lab, sub: 'Vous faites campagne ensemble', v: 'ally' }, { l: 'Partir en dissidence', sub: 'Vous l’affrontez quand même, sans l’étiquette', v: 'diss' }]); if (v === 'ally') { P().rallied = Object.assign({}, P().rallied, { [q.el]: 'H_' + q.winner }); E.addStd(3); toast('Vous vous ralliez à ' + q.winnerName + '.'); } }
         else if (q.kind === 'cumul') { const c = E.cumulConflict(); if (c) { const v = await choice('Non-cumul des mandats', '<p>' + esc(c.why) + '</p><p class="muted small">La loi vous laisse 30 jours pour choisir. Sans réponse, ' + (c.kind === 'exec' ? 'votre fonction exécutive locale prend fin' : 'le mandat le plus ancien prend fin') + '.</p>', c.opts.map(t => ({ l: 'Renoncer à : ' + E.cumulLabel(t), v: t })).concat([{ l: 'Décider plus tard', sub: 'Avant le ' + E.fmtDate(P().cumul ? P().cumul.due : S().date), v: null }])); if (v) await info('Non-cumul', '<p>' + esc(E.resolveCumul(v)) + '</p>'); } }
         else if (q.kind === 'budget') await budgetFlow();
@@ -1840,7 +1884,7 @@
       h += '<div class="kpis" style="margin-top:8px">' + kpi('Cohésion de la majorité', r0(m.cohesion ?? 70) + ' %', m.cohesion ?? 70, (m.cohesion ?? 70) < 45 ? 'var(--bad)' : 'var(--good)') + '</div>' + (() => { const used = m.projets.filter(x => x.date.slice(0, 4) === S().date.slice(0, 4)).reduce((a, x) => a + x.cost, 0); const left = Math.max(0, m.invest - used); const parts = [{ v: used, color: 'var(--accent)', l: 'Engagé ' + E.eur(used) }, { v: left, color: '#b9c3dd', l: 'Disponible ' + E.eur(left) }]; return '<div class="budg">' + VZ.donut(parts, 92, '<b class="num">' + Math.round(used / Math.max(1, m.invest) * 100) + ' %</b><span>engagé</span>') + '<div><b>Investissement ' + S().date.slice(0, 4) + '</b><div class="muted small">Enveloppe ' + E.eur(m.invest) + '</div>' + VZ.legend(parts) + '</div></div>'; })() +
         (adj.length ? '<details style="margin-top:10px"><summary class="small"><b>' + adj.length + ' adjoint·e·s</b>' + (weak.length ? ' · <span style="color:var(--warn)">' + weak.length + ' en froid</span>' : ' · majorité soudée') + '</summary>' + adj.map(a => '<div class="small" style="margin-top:3px"><b>' + esc(a.name) + '</b> <span class="muted">· ' + esc(OF.DELEG[a.deleg]) + ' · compétence ' + a.comp + '</span>' + (a.loy < 40 ? ' <span class="chip red">loyauté ' + r0(a.loy) + '</span>' : '') + '</div>').join('') + '</details>' + (weak.length ? '<p class="small" style="color:var(--warn);margin:6px 0 0">Confiez-leur des dossiers de leur délégation : un·e adjoint·e qu’on court-circuite finit par partir.</p>' : '') : ''); }
     h += '<div class="row" style="gap:6px;margin-top:10px"><button class="btn sm" data-go="agir:mandat">Tableau de bord du mandat</button>' + (typeof HQ !== 'undefined' && HQ.posts().length ? '<button class="btn sm ghost" data-go="agir:mandat">Cabinet</button>' : '') + '</div></div>';
-    return h + '<div style="margin-top:12px">' + parapheur(true) + '</div>' + (OF.isMaire() ? '<div style="margin-top:12px">' + pjCard() + '</div>' : '') + (OF.isDep() ? '<div style="margin-top:12px">' + hemiCard() + '</div>' : '');
+    return h + (OF.isMaire() ? '<div style="margin-top:12px">' + pjCard() + '</div>' : '') + (OF.isDep() ? '<div style="margin-top:12px">' + hemiCard() + '</div>' : '');
   }
   // Projets du mandat : engagements de campagne à lancer, chantiers en cours, réalisations
   const PJ_ST = { etude: 'Étude', subv: 'Financement', subvok: 'Financement', ao: 'Appel d’offres', travaux: 'Travaux', fini: 'Inauguré' };
@@ -1909,13 +1953,14 @@
   }
   function phaseMode() { const cc = G.S && campCtx(); const camp = !!(cc && cc.cand); const man = G.S && P().mandats.length > 0; return camp ? (man ? 'both' : 'camp') : man ? 'mandat' : 'libre'; }
   const NAV = {
-    bureau: { get l() { return G.S && phaseMode() === 'mandat' ? 'Bureau' : 'QG'; }, subs: null },
-    agir: { get l() { const m = G.S ? phaseMode() : 'libre'; return m === 'camp' || m === 'both' ? 'Campagne' : m === 'mandat' ? 'Mandat' : 'Agir'; },
-      subs: () => { const m = phaseMode(); const C = [['c_actions', 'Actions'], ['programme', 'Programme'], ['c_adv', 'Adversaires'], ['c_equipe', 'Équipe'], ['c_terrain', 'Carte']];
-        if (m === 'camp') return C; if (m === 'both') return C.concat([['mandat', P().mandats.length > 1 ? 'Mandats' : 'Mandat']]);
-        const ce = campCtx() ? [['c_actions', '🗳 ' + campCtx().el.label.replace(/ \d{4}.*/, '')]] : [];
-        if (m === 'mandat') return ce.concat([['mandat', 'Dossiers'], ['vie', 'Vie politique'], ['programme', 'Programme']]);
-        return ce.concat([['vie', 'Vie politique'], ['programme', 'Programme']]); } },
+    bureau: { l: 'Accueil', subs: null },
+    agir: { l: 'Agir',
+      subs: () => { const m = phaseMode(); const camp = m === 'camp' || m === 'both'; const L = [[camp ? 'c_actions' : 'vie', 'Actions']];
+        if (m === 'both' || m === 'mandat') L.push(['mandat', 'Mandat']);
+        L.push(['programme', 'Programme']);
+        if (camp) L.push(['c_adv', 'Adversaires'], ['c_equipe', 'Équipe'], ['c_terrain', 'Carte']);
+        else if (campCtx()) L.push(['c_actions', 'Campagne']);
+        return L; } },
     msg: { l: 'Messages', subs: () => (typeof HQ !== 'undefined' && G.S && (HQ.hq().boucle.length || HQ.active()) ? [['boucle', 'Boucle']] : []).concat([['sms', 'SMS'], ['presse', 'Presse'], ['x', 'X']]) },
     plus: { l: 'Plus', subs: () => (G.S && G.S.mp ? [['joueurs', 'Joueurs']] : []).concat([['parti', 'Parti'], ['opinion', 'Opinion'], ['carnet', 'Carnet']], ['camp', 'both'].includes(phaseMode()) ? [] : [['equipe', 'Collaborateurs']]) }
   };

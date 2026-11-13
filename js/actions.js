@@ -343,11 +343,11 @@ window.X = (function () {
   function mairieEmprunt() { const m = P().mairie; const amt = Math.round(m.invest * 0.5); m.dette += amt; m.invest += amt; return 'Emprunt de ' + eur(amt) + ' : dette ' + eur(m.dette) + '.'; }
 
   /* ---------- mesure des effets ---------- */
-  function snap() { const p = P(); return { nc: p.noto.commune, nci: p.noto.circo, nn: p.noto.nat, pop: E.popularity(), cred: p.cred, std: p.std, mil: p.militants, cash: p.cash + (p.cand && p.cand.compte ? p.cand.compte.recettes - p.cand.compte.depenses : 0), fol: p.followers, img: Object.assign({}, p.image), est: S().est ? S().est.pct : null }; }
+  function snap() { const p = P(); try { if (!E.silence || !E.silence()) E.estimate(); } catch (e) { } return { nc: p.noto.commune, nci: p.noto.circo, nd: p.noto.dept, nn: p.noto.nat, pop: E.popularity(), cred: p.cred, std: p.std, mil: p.militants, cash: p.cash + (p.cand && p.cand.compte ? p.cand.compte.recettes - p.cand.compte.depenses : 0), fol: p.followers, img: Object.assign({}, p.image), est: S().est ? S().est.pct : null }; }
   function deltas(a, b) {
     const out = []; const add = (l, d, dec, unit) => { if (Math.abs(d) >= (dec ? 0.05 : 0.5)) out.push({ l, d, t: (d > 0 ? '+' : '−') + (dec ? Math.abs(d).toFixed(1).replace('.', ',') : Math.round(Math.abs(d)).toLocaleString('fr-FR')) + (unit || '') }); };
-    add('Notoriété locale', b.nc - a.nc, 1); add('Notoriété circo', b.nci - a.nci, 1); add('Notoriété nationale', b.nn - a.nn, 1); add('Popularité', b.pop - a.pop, 1); add('Crédibilité', b.cred - a.cred, 1); add('Poids au parti', b.std - a.std, 1); add('Militants', b.mil - a.mil); add('Abonnés X', b.fol - a.fol); add('Argent', b.cash - a.cash, false, ' €');
-    D.SEGS.forEach(g => { const d = (b.img[g.id] || 0) - (a.img[g.id] || 0); if (Math.abs(d) >= 0.8) out.push({ l: 'Image ' + g.name.toLowerCase(), d, t: (d > 0 ? '+' : '−') + Math.abs(d).toFixed(1).replace('.', ',') }); });
+    const sc = (E.indicators() || {}).scope || 'commune'; const nk = { commune: 'nc', circo: 'nci', dept: 'nd', nat: 'nn' }[sc] || 'nc'; add('Notoriété', b[nk] - a[nk], 1); add('Image', b.pop - a.pop, 1); add('Crédibilité', b.cred - a.cred, 1); add('Poids au parti', b.std - a.std, 1); add('Militants', b.mil - a.mil); add('Argent', b.cash - a.cash, false, ' €');
+    D.SEGS.map(g => ({ g, d: (b.img[g.id] || 0) - (a.img[g.id] || 0) })).filter(x => Math.abs(x.d) >= 0.8).sort((x, y) => Math.abs(y.d) - Math.abs(x.d)).slice(0, 2).forEach(({ g, d }) => out.push({ l: 'Image ' + g.name.toLowerCase(), d, t: (d > 0 ? '+' : '−') + Math.abs(d).toFixed(1).replace('.', ',') }));
     if (a.est != null && b.est != null) add('Score estimé', b.est - a.est, 1, ' pt');
     return out;
   }

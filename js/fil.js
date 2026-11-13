@@ -62,7 +62,7 @@ const FL = (() => {
 
   /* ---------- la boîte « À trancher » ---------- */
   function mkItem(k, o) { return Object.assign({ id: E.uid('fl'), k, date: S().date, due: add(S().date, o.urgent ? 10 : 31), from: '', t: '', body: '', opts: [], dflt: null }, o); }
-  function push(it) { const f = F(); f.inbox.unshift(it); if (it.urgent) S().queue.push({ kind: 'fl', id: it.id }); return it; }
+  function push(it) { const f = F(); if (it.urgent && f.inbox.some(x => x.urgent && x.done == null && x.date === S().date)) it.urgent = 0; f.inbox.unshift(it); if (it.urgent) S().queue.push({ kind: 'fl', id: it.id }); return it; }
   const pending = () => F().inbox.filter(x => x.done == null);
   function optOk(o) { const p = P(); if (o.h && p.hours < o.h) return 'Il vous faut ' + o.h + ' h libres.'; if (o.cash && o.cash < 0 && p.cash < -o.cash) return 'Pas assez d’argent.'; return true; }
   function decide(id, i) {
@@ -174,7 +174,7 @@ const FL = (() => {
         { l: 'Ne rien ajouter', res: 'Dossier clos.' }], close: out !== 'champs' || !!fl.pour } }
     ] }
   };
-  function arcStart() { const f = F(); const act = f.arcs.filter(a => !a.end); if (act.length >= (local() ? 2 : 1)) return; const used = new Set(f.arcs.map(a => a.k)); const L = Object.keys(ARCS).filter(k => !used.has(k) || f.arcs.filter(a => a.k === k && a.end && dd(a.end, S().date) > 720).length); if (!L.length) return; const k = E.pick(L.filter(k => ARCS[k].w() > 0.5).length ? L.filter(k => ARCS[k].w() > 0.5) : L); const a = { id: E.uid('arc'), k, step: 0, flags: {}, data: {}, start: S().date, next: null }; f.arcs.push(a); arcItem(a); }
+  function arcStart() { const f = F(); const act = f.arcs.filter(a => !a.end); if (act.length >= (local() ? 2 : 1)) return; const used = new Set(f.arcs.map(a => a.k)); const L = Object.keys(ARCS).filter(k => !used.has(k) || f.arcs.filter(a => a.k === k && a.end && dd(a.end, S().date) > 1100).length && !f.arcs.some(a => a.k === k && !a.end)); if (!L.length) return; const k = E.pick(L.filter(k => ARCS[k].w() > 0.5).length ? L.filter(k => ARCS[k].w() > 0.5) : L); const a = { id: E.uid('arc'), k, step: 0, flags: {}, data: {}, start: S().date, next: null }; f.arcs.push(a); arcItem(a); }
   function arcItem(a) { const A = ARCS[a.k]; const st = A.steps[a.step](a.flags, a.data); if (st.data) Object.assign(a.data, st.data); const it = mkItem('arc', { arc: a.id, from: st.from, t: A.t + ' · ' + (a.step + 1) + '/' + A.steps.length, body: st.body, opts: st.opts, dflt: st.dflt || { res: 'Vous laissez filer.' }, due: add(S().date, 45) }); if (st.close != null) it.close = st.close; push(it); }
   function arcStep(id, flag) { const a = F().arcs.find(x => x.id === id); if (!a) return; if (flag) { if (flag === 'flip') { a.flags.flip = 1; } else { ['pour', 'contre', 'concert', 'silence', 'mixte'].forEach(k => { if (['pour', 'contre', 'concert', 'silence', 'mixte'].includes(flag)) delete a.flags[k]; }); a.flags[flag] = 1; } }
     const A = ARCS[a.k]; const it = F().inbox.find(x => x.arc === id && x.t.endsWith((a.step + 1) + '/' + A.steps.length));
@@ -198,7 +198,7 @@ const FL = (() => {
     ['F', 'présidente d’association', 'RET', 'demande une salle pour son club de gym douce', 'une salle pour son club'],
     ['M', 'père de famille', 'PERI', 'signale une sortie d’école dangereuse, les voitures roulent trop vite', 'un ralentisseur devant l’école']
   ];
-  function dolItem() { const d = pick(DOL); const g = d[0]; const who = (g === 'F' ? 'Mme ' : 'M. ') + pick(D.LAST); const what = d[3]; const ok = d[4]; const il = g === 'F' ? 'Elle' : 'Il'; const el = local() || has('depute');
+  function dolItem() { const f0 = F(); const pool = DOL.filter(z => !(f0.seen['dol_' + z[3]] && dd(f0.seen['dol_' + z[3]], S().date) < 360)); const d = pick(pool.length ? pool : DOL); f0.seen['dol_' + d[3]] = S().date; const g = d[0]; const who = (g === 'F' ? 'Mme ' : 'M. ') + pick(D.LAST); const what = d[3]; const ok = d[4]; const il = g === 'F' ? 'Elle' : 'Il'; const el = local() || has('depute');
     return mkItem('dol', { from: who + ', ' + d[1], t: 'Doléance : ' + what.split(',')[0], body: who + ' vous ' + (R() < 0.5 ? 'écrit' : 'interpelle au marché') + ' : ' + what + '.', opts: el ? [
       { l: 'M’en occuper personnellement', sub: '1 h · plus de chances, et on saura que c’est vous', h: 1, prom: ['Régler le problème de ' + who, 2], later: [1, 'dol', { who, what: ok, g, seg: d[2], p: 0.75, big: 1 }], res: 'Vous avez pris le dossier en main. Réponse dans quelques semaines.' },
       { l: 'Confier à votre équipe ou aux services', sub: 'Sans heure, résultat moins sûr', later: [1, 'dol', { who, what: ok, g, seg: d[2], p: 0.5 }], res: 'Dossier transmis. On verra.' },
@@ -216,10 +216,10 @@ const FL = (() => {
     if (mo === 7) L.push(['Bal du 14 Juillet', 'Feu d’artifice et buvette des pompiers.', { POP: 1, PERI: 1 }]);
     if (mo === 9) L.push(['Forum des associations', 'Tous les clubs tiennent un stand au gymnase.', { PERI: 1, RET: 0.6, JUD: 0.6 }]);
     if (mo === 6) L.push(['Kermesse de l’école', 'Les parents tiennent les stands. On compte sur vous à la tombola.', { PERI: 1.5 }]);
-    L.push(['Assemblée générale de ' + pick(['l’association des commerçants', 'la société de chasse', 'l’amicale des donneurs de sang', 'du club de foot', 'du comité des fêtes', 'des Restos du cœur']), 'Rapport moral, rapport financier, verre de l’amitié.', { RET: 0.8, PERI: 0.6 }]);
+    L.push(['Assemblée générale ' + pick(['de l’association des commerçants', 'de la société de chasse', 'de l’amicale des donneurs de sang', 'du club de foot', 'du comité des fêtes', 'des Restos du cœur', 'de l’association de parents d’élèves', 'du club des aînés']), 'Rapport moral, rapport financier, verre de l’amitié.', { RET: 0.8, PERI: 0.6 }]);
     if (p.party !== 'NEW' && !vil()) L.push(['Réunion de section du parti', 'Ordre du jour : la désignation des candidats. Les absents ont toujours tort.', null, true]);
     if (!vil()) L.push(['Conseil de quartier ' + pick(['des Écoles', 'de la Gare', 'du Centre']), 'Une trentaine d’habitants, et beaucoup de questions sur la propreté.', { POP: 0.8, PERI: 0.6 }]);
-    const r = pick(L); const date = add(S().date, rint(5, 20));
+    const f = F(); const fr = L.filter(z => !(f.seen['rdv_' + z[0]] && dd(f.seen['rdv_' + z[0]], S().date) < 160)); const r = pick(fr.length ? fr : L); f.seen['rdv_' + r[0]] = S().date; const date = add(S().date, rint(5, 20));
     return mkItem('rdv', { from: 'Agenda', t: r[0] + ' · ' + E.fmtDate(date), body: r[1], due: date, opts: [
       { l: 'Y aller et prendre la parole', sub: '3 h', h: 3, fx: r[3] ? { std: 2.5 } : { img: r[2], noto: 0.6 }, res: r[3] ? 'Intervention remarquée. On vous compte parmi ceux qui pèsent.' : 'Présent·e, souriant·e, trois mots justes. On vous a vu·e.' },
       { l: 'Passer en coup de vent', sub: '1 h', h: 1, fx: r[3] ? { std: 0.8 } : { noto: 0.2 }, res: 'Une poignée de main, et vous filez. Le minimum.' },
@@ -289,7 +289,7 @@ const FL = (() => {
   /* ---------- notables, dettes et services ---------- */
   const SERV = [['le patron de l’imprimerie', 'imprimer vos tracts à prix coûtant', { cash: 1500 }], ['le président du club de foot', 'vous laisser parler à la mi-temps devant 800 personnes', { noto: 1.2 }], ['un entrepreneur du BTP', 'vous prêter une salle et un buffet pour votre réunion', { noto: 0.8, cash: 800 }], ['la présidente de l’amicale des retraités', 'vous présenter à tout son réseau', { img: { RET: 2 } }], ['le curé de la paroisse', 'vous inviter à la fête paroissiale', { img: { RET: 1.2, RUR: 0.6 } }]];
   const ASKS = [['une place en crèche pour sa petite-fille, avant tout le monde', 'Favoritisme : un élu ne peut pas privilégier un proche dans une attribution'], ['un coup de pouce pour un permis de construire', 'Prise illégale d’intérêts ou trafic d’influence selon les cas : jusqu’à 5 ans de prison'], ['un emploi saisonnier pour son fils à la mairie', 'Favoritisme dans un recrutement public'], ['votre soutien public à sa liste au conseil des prud’hommes', null], ['une subvention pour son association', null]];
-  function servItem() { const s0 = pick(SERV); const g = R() < 0.5 ? 'F' : 'M'; const who = nm(g) + ', ' + s0[0]; return mkItem('serv', { from: who, t: 'Un service proposé', body: who.split(',')[0] + ' propose de ' + s0[1] + '. « Entre gens de bonne compagnie, on s’entraide. »', opts: [
+  function servItem() { const f0 = F(); const pool = SERV.filter(z => !(f0.seen['srv_' + z[0]] && dd(f0.seen['srv_' + z[0]], S().date) < 400)); const s0 = pick(pool.length ? pool : SERV); f0.seen['srv_' + s0[0]] = S().date; const g = R() < 0.5 ? 'F' : 'M'; const who = nm(g) + ', ' + s0[0]; return mkItem('serv', { from: who, t: 'Un service proposé', body: who.split(',')[0] + ' propose de ' + s0[1] + '. « Entre gens de bonne compagnie, on s’entraide. »', opts: [
       { l: 'Accepter avec plaisir', fx: s0[2], debt: [who, s0[1]], res: 'Service rendu. Vous savez qu’un jour, on viendra vous le rappeler.' },
       { l: 'Décliner poliment', fx: { cred: 0.5 }, res: 'Vous ne voulez rien devoir à personne. Prudent.' }], dflt: { res: 'L’offre est retirée.' } }); }
   function claimItem(d) { const a = pick(ASKS); return mkItem('claim', { debt: d.id, from: d.who, t: 'On vous rappelle un service', body: 'Il y a quelques mois, ' + d.who.split(',')[0] + ' a accepté de ' + d.why + '. Aujourd’hui, il ou elle demande ' + a[0] + '.', opts: [
@@ -330,18 +330,18 @@ const FL = (() => {
     f.prom.filter(pr => pr.ok == null && pr.due <= s.date).forEach(pr => closeProm(pr.id, false));
     f.arcs.filter(a => !a.end && a.next && a.next <= s.date).forEach(a => { a.next = null; arcItem(a); });
     f.inbox = f.inbox.filter(x => x.done == null || dd(x.when || x.date, s.date) < 120).slice(0, 40);
-    if (p.mandats.length === 0 && !p.cand && known() < 8 && s.turn < 3) return;
+    if (s.turn < 2) return;
     // 2. nouveaux sujets, sans dépasser quatre en attente
     let room = Math.max(0, 4 - pending().length); const tryAdd = (cond, mk) => { if (room <= 0 || !cond) return; const it = mk(); if (it) { push(it); room--; } };
     if (R() < 0.05 * k && (elu() || p.cand)) { const it = criseItem(); push(it); }
-    tryAdd(R() < 0.25 * k && known() > 12, polemItem);
+    tryAdd(R() < 0.25 * k && known() > 5, polemItem);
     if (!f.arcs.some(a => !a.end) || R() < 0.25 * k) tryAdd(R() < 0.45 * k && s.turn >= 2, () => { arcStart(); return null; });
-    tryAdd((local() || has('depute') || (p.cand && known() > 15)) && R() < 0.5 * k, dolItem);
+    tryAdd((local() || has('depute') || p.cand) ? R() < 0.5 * k : known() > 6 && R() < 0.3 * k, dolItem);
     tryAdd((local() || has('depute')) && R() < 0.12 * k, dolItem);
     tryAdd(R() < 0.4 * k && !(mayor() && typeof OF !== 'undefined'), rdvItem);
     tryAdd(local() && !mayor() && R() < 0.45 * k, voteItem);
     const due = f.debts.find(d => !d.asked && dd(d.date, s.date) > 60); if (due && R() < 0.35 * k) tryAdd(true, () => { due.asked = true; return claimItem(due); });
-    tryAdd(R() < 0.1 * k && (p.cand || elu()), servItem);
+    tryAdd(R() < (p.cand || elu() ? 0.1 : 0.07) * k, servItem);
     tryAdd(R() < 0.07 * k && known() > 18, portraitItem);
     tryAdd(R() < 0.12 * k && (p.staff || []).length, staffItem);
     planTick();
