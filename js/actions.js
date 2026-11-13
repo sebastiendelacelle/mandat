@@ -302,7 +302,7 @@ window.X = (function () {
   function resolveT2(q, maintain) {
     const el = S().elections.find(e => e.id === q.el); const r = el && el.races[q.key]; if (!r) return '';
     if (maintain) { E.log('Vous vous maintenez au second tour.', 'info'); return 'Vous vous maintenez.'; }
-    r.t2 = r.t2.filter(id => id !== 'PJ'); E.statement('Je me retire pour faire barrage.', 'institutions', { inst: -20 }, 0.4, 'désistement'); P().std = clamp(P().std + 3, 0, 100);
+    r.t2 = r.t2.filter(id => id !== 'PJ'); if (typeof MP !== 'undefined' && MP.on && MP.on()) MP.setWithdraw(q.el, q.key, null); E.statement('Je me retire pour faire barrage.', 'institutions', { inst: -20 }, 0.4, 'désistement'); P().std = clamp(P().std + 3, 0, 100);
     E.log('Vous vous désistez au second tour.', 'info'); return 'Vous vous retirez de la course.';
   }
   function resolveConsigne(q, targetId) {

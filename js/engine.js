@@ -511,6 +511,7 @@ window.E = (function () {
     const inc = ['maire', 'depute', 'leader'].includes(pn.role) ? 0.08 : 0; const es = s.est; const pjAhead = es && es.rows && es.rows.findIndex(r => r.pj) >= 0 && es.rows.findIndex(r => r.pj) < es.rows.findIndex(r => r.id === pn.id) ? 0.08 * prog : 0;
     return (0.12 + 0.15 * w + idHash(pn.id) * 0.08 + prog * (0.22 + 0.22 * w) + inc + pjAhead) * DF().rival;
   }
+  const pjOr = (c, extra) => S().p.cand && S().elections.some(e => e.id === S().p.cand.el) ? Object.assign(pjCand(), { bucket: c.bucket }, extra || {}) : Object.assign({}, c, { id: 'PJ', pj: true }, extra || {});
   function pjCand() {
     const p = S().p; const el = S().elections.find(e => e.id === p.cand.el);
     const scope = el.type === 'mun' ? 'commune' : el.type === 'pres' || el.type === 'euro' ? 'nat' : el.type === 'dep' ? 'commune' : el.type === 'reg' || el.type === 'sen' ? 'dept' : 'circo';
@@ -598,13 +599,13 @@ window.E = (function () {
   function computeShared(el, key, round, myUid) {
     const s = S(); let cands;
     if (round === 1) cands = buildCands(el, key);
-    else { const r1 = el.races[key]; const wd = typeof MP !== 'undefined' ? MP.withdrawn(el.id, key) : new Set(); cands = r1.t2.filter(id => !wd.has(id)).map(id => r1.cands.find(c => c.id === id)).filter(Boolean).map(c => c.pj ? Object.assign(pjCand(), { bucket: c.bucket, mom: (pjCand().mom || 0) + (typeof MP !== 'undefined' ? MP.endorseBonus(MP.uid()) : 0) }) : (c.human && typeof MP !== 'undefined' ? MP.freshCand(c) : c)); }
+    else { const r1 = el.races[key]; const wd = typeof MP !== 'undefined' ? MP.withdrawn(el.id, key) : new Set(); cands = r1.t2.filter(id => !wd.has(id)).map(id => r1.cands.find(c => c.id === id)).filter(Boolean).map(c => c.pj ? pjOr(c, { mom: (c.mom || 0) + (typeof MP !== 'undefined' ? MP.endorseBonus(MP.uid()) : 0) }) : (c.human && typeof MP !== 'undefined' ? MP.freshCand(c) : c)); }
     if (el.turnK == null) el.turnK = 1; const r = vote(key, cands, el.type, round === 1 ? 0.12 : 0.06, round, el.turnK); const me = 'H_' + myUid; const nid = id => id === 'PJ' ? me : id;
     const out = JSON.parse(JSON.stringify({ inscrits: r.inscrits, votants: r.votants, exprimes: r.exprimes, participation: r.participation, rows: r.rows, cands }));
-    out.rows.forEach(x => { x.id = nid(x.id); x.pj = false; }); out.cands.forEach(c => { if (c.id === 'PJ') c.human = true; c.id = nid(c.id); c.pj = false; });
+    out.rows.forEach(x => { x.id = nid(x.id); x.pj = false; }); out.cands.forEach(c => { if (c.id === 'PJ') c.human = true; c.id = nid(c.id); c.pj = false; if (c.pjList || c._pjList) { c.pjListOf = myUid; c.pjListK = c._pjList ? '_pjList' : 'pjList'; delete c.pjList; delete c._pjList; } });
     out.by = myUid; out.at = Date.now(); return out;
   }
-  function localize(sh, key) {
+  function localize(sh, key, el) {
     const s = S(); const me = 'H_' + (typeof MP !== 'undefined' ? MP.uid() : ''); const o = JSON.parse(JSON.stringify(sh)); const remap = {};
     const terr = key === 'nat' ? 'nat' : key.startsWith('mun:') ? key.slice(4) : key.startsWith('can:') ? 'can' + key.slice(4) : key;
     o.cands.forEach(c => {
@@ -614,7 +615,9 @@ window.E = (function () {
     });
     o.cands.forEach(c => { if (remap[c.id]) c.id = remap[c.id]; });
     o.rows.forEach(x => { if (remap[x.id]) x.id = remap[x.id]; if (x.id === me) { x.id = 'PJ'; x.pj = true; } });
-    const cands = o.cands.map(c => c.id === me ? Object.assign(pjCand(), { bucket: c.bucket }) : c);
+    const myU = me.slice(2); o.cands.forEach(c => { if (c.pjListOf != null) { if (c.pjListOf === myU) c[c.pjListK || 'pjList'] = true; delete c.pjListOf; delete c.pjListK; } });
+    const pc = s.p.cand; if (el && LIST_T.includes(el.type) && pc && pc.el === el.id && pc.mode === 'liste' && !o.cands.some(c => c.id === me || c.pjList)) { const mine = o.cands.find(c => !c.human && c.bucket && c.bucket.includes(s.p.party)) || o.cands.find(c => !c.human && c.party === s.p.party); if (mine) mine.pjList = true; }
+    const noCand = !(s.p.cand && el && s.p.cand.el === el.id); if (noCand) o.rows.forEach(x => { if (x.id === 'PJ') { x.id = me; x.pj = false; } }); const cands = o.cands.map(c => c.id === me ? (noCand ? c : pjOr(c)) : c);
     const r = { inscrits: o.inscrits, votants: o.votants, exprimes: o.exprimes, participation: o.participation, rows: o.rows, shared: true };
     return { r, cands };
   }
@@ -633,13 +636,13 @@ window.E = (function () {
       let r;
       const sh = typeof MP !== 'undefined' && MP.shared ? MP.shared(el.id, round, key) : null;
       if (round === 1) {
-        let cands; if (sh) { const L = localize(sh, key); r = L.r; cands = L.cands; } else { cands = buildCands(el, key); if (el.turnK == null) el.turnK = clamp(1 + gauss() * 0.06 + (el.type === 'pres' ? 0 : (S().national.mobil || 0) * 0.5), 0.85, 1.15); r = vote(key, cands, el.type, 0.12, 1, el.turnK); }
+        let cands; if (sh) { const L = localize(sh, key, el); r = L.r; cands = L.cands; } else { cands = buildCands(el, key); if (el.turnK == null) el.turnK = clamp(1 + gauss() * 0.06 + (el.type === 'pres' ? 0 : (S().national.mobil || 0) * 0.5), 0.85, 1.15); r = vote(key, cands, el.type, 0.12, 1, el.turnK); }
         r.cands = cands; el.races[key] = r;
         decideRace(el, key, r, 1);
       } else {
         const r1 = el.races[key]; if (r1.done) return;
-        if (sh) { const L = localize(sh, key); r = L.r; r.cands = L.cands; }
-        else { const cands = r1.t2.map(id => r1.cands.find(c => c.id === id)).filter(Boolean).map(c => c.pj ? Object.assign(pjCand(), { bucket: c.bucket }) : c); r = vote(key, cands, el.type, 0.06, 2, el.turnK); r.cands = cands; }
+        if (sh) { const L = localize(sh, key, el); r = L.r; r.cands = L.cands; }
+        else { const cands = r1.t2.map(id => r1.cands.find(c => c.id === id)).filter(Boolean).map(c => c.pj ? pjOr(c) : c); r = vote(key, cands, el.type, 0.06, 2, el.turnK); r.cands = cands; }
         r1.r2 = r; decideRace(el, key, r, 2);
       }
       out.races.push({ key, r: round === 1 ? el.races[key] : el.races[key].r2, name: unit(key).name });
@@ -754,12 +757,12 @@ window.E = (function () {
     const b = D.PARTIES[party]?.bloc || 'C';
     return { G: ['LFI', 'PCF', 'ECO', 'PS'], GE: ['PS', 'ECO', 'PCF'], C: ['HOR', 'REN', 'MODEM', 'LR'], D: ['LR', 'HOR', 'REN'], ED: ['RN', 'UDR'], DIV: ['REN', 'MODEM', 'HOR'] }[b];
   }
-  function dissolution(d1) {
-    const s = S(); const d2 = addDays(d1, 7);
+  function dissolution(d1, at) {
+    const s = S(); const d2 = addDays(d1, 7); if (s.elections.some(e => e.id === 'leg' + d1.slice(0, 4) + 'a')) return false;
     if (S().p.cand && s.elections.find(e => e.id === S().p.cand.el && e.type === 'leg' && e.status === 'futur')) S().p.cand = null;
     s.elections = s.elections.filter(e => e.type !== 'leg' || e.status !== 'futur' || diffDays(s.date, e.d1) > 365);
     s.elections.push({ id: 'leg' + d1.slice(0, 4) + 'a', type: 'leg', label: 'Législatives anticipées ' + d1.slice(0, 4), d1, d2, status: 'futur' });
-    s.national.lastDiss = s.date;
+    s.national.lastDiss = at || s.date; s.national.dissList = (s.national.dissList || []).concat([{ d1, at: at || s.date }]).slice(-3);
     log('Dissolution de l’Assemblée nationale : législatives anticipées le ' + fmtDate(d1) + '.', 'event');
     article('quotlib', 'Coup de tonnerre : le président dissout l’Assemblée nationale', 0, 'nat');
   }
@@ -1062,11 +1065,14 @@ window.E = (function () {
   }
   // actualité nationale déterministe : même graine (même partie multijoueur) = mêmes événements aux mêmes dates
   function hrand(seed, a, b) { let x = (seed ^ Math.imul(a + 1, 2654435761) ^ Math.imul(b + 7, 40503)) >>> 0; x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; x = Math.imul(x ^ (x >>> 15), 2246822507) >>> 0; x = Math.imul(x ^ (x >>> 13), 3266489909) >>> 0; return ((x ^ (x >>> 16)) >>> 0) / 4294967296; }
+  // multijoueur : la dissolution spontanée tombe la même semaine pour tous les joueurs (même graine)
+  function dissMP() { const s = S(); const wk = Math.floor(diffDays('2026-06-15', s.date) / 7); const from = s.dissWk == null ? wk - 1 : s.dissWk; s.dissWk = wk; for (let w = from + 1; w <= wk; w++) if (hrand(s.seed0 || 12345, w, 71) < 0.0011) return w; return null; }
   function rollEvents(days) {
     const s = S(); const seed = s.seed0 || 12345; const wk = Math.floor(diffDays('2026-06-15', s.date) / 7); if (s.evWeek == null) s.evWeek = wk - Math.max(1, Math.round(days / 7));
     const last = s.evLast = s.evLast || {};
     for (let w = s.evWeek + 1; w <= wk; w++) { const n = (hrand(seed, w, 1) < 0.15 ? 1 : 0) + (hrand(seed, w, 2) < 0.05 ? 1 : 0); const wd = addDays('2026-06-15', w * 7);
-      for (let i = 0; i < n; i++) { const pool = EVENTS.filter(e => evEligible(e, wd, w, last)); if (!pool.length) break; const e = pool[Math.floor(hrand(seed, w, 3 + i) * pool.length)]; last[e.id] = w; applyEvent(e); } }
+      const ym = wd.slice(0, 7); const cnt = s.evMonth = (s.evMonth && s.evMonth.ym === ym) ? s.evMonth : { ym, n: 0 };
+      for (let i = 0; i < n && cnt.n < 2; i++) { const pool = EVENTS.filter(e => evEligible(e, wd, w, last)); if (!pool.length) break; cnt.n++; const e = pool[Math.floor(hrand(seed, w, 3 + i) * pool.length)]; last[e.id] = w; applyEvent(e); } }
     s.evWeek = wk;
   }
   function applyEvent(e) {
@@ -1163,12 +1169,17 @@ window.E = (function () {
       else if (j.stage === 'proces') {
         const prob = clamp(0.3 + 0.1 * j.g - (hasStaff('juriste') ? 0.18 : 0), 0.05, 0.9);
         if (rnd() < prob) {
-          if (j.g >= 3 && rnd() < 0.65) { const yrs = rint(1, 5); const prov = rnd() < 0.5; p.inelig = addDays(S().date, 365 * yrs); j.verdict = 'Condamnation : ' + yrs + ' an(s) d’inéligibilité' + (prov ? ' avec exécution provisoire' : ''); if (prov) { p.mandats = []; p.mairie = null; p.cand = null; log('Exécution provisoire : vous perdez tous vos mandats.', 'bad'); } }
+          if (j.g >= 3 && rnd() < 0.65) { const yrs = rint(1, 5); const prov = rnd() < 0.5; j.verdict = 'Condamnation : ' + yrs + ' an(s) d’inéligibilité' + (prov ? ' avec exécution provisoire' : ', peine suspendue par votre appel'); if (prov) { p.inelig = addDays(S().date, 365 * yrs); p.mandats = []; p.mairie = null; if (p.cand && typeof MP !== 'undefined' && MP.on()) MP.setWithdraw(p.cand.el, p.cand.key, null); p.cand = null; log('Exécution provisoire : vous perdez tous vos mandats.', 'bad'); } else { j.appel = { yrs }; } }
           else { const am = rint(5, 30) * 1000; p.cash -= am; j.verdict = 'Condamnation : ' + eur(am) + ' d’amende et prison avec sursis'; }
           addImageAll(-4); article('revel', p.name + ' condamné·e', -0.9, 'pj');
         } else { j.verdict = 'Relaxe'; addImageAll(2); p.cred += 3; article('dauph', p.name + ' relaxé·e', 0.4, 'pj'); }
-        log('Jugement : ' + j.verdict + '.', j.verdict === 'Relaxe' ? 'good' : 'bad'); j.stage = 'clos';
-        S().queue.push({ kind: 'info', title: 'Jugement', text: j.verdict + '.' });
+        log('Jugement : ' + j.verdict + '.', j.verdict === 'Relaxe' ? 'good' : 'bad'); j.stage = j.appel ? 'appel' : 'clos'; if (j.appel) j.next = addDays(S().date, rint(240, 420));
+        S().queue.push({ kind: 'info', title: 'Jugement', text: j.verdict + '.' + (j.appel ? ' Vous restez éligible jusqu’à l’arrêt de la cour d’appel.' : '') });
+      }
+      else if (j.stage === 'appel') {
+        if (rnd() < 0.65 - (hasStaff('juriste') ? 0.15 : 0)) { const yrs = j.appel.yrs; p.inelig = addDays(S().date, 365 * yrs); j.verdict = 'Condamnation confirmée en appel : ' + yrs + ' an(s) d’inéligibilité'; const had = p.mandats.length; p.mandats = []; p.mairie = null; if (p.cand && typeof MP !== 'undefined' && MP.on()) MP.setWithdraw(p.cand.el, p.cand.key, null); p.cand = null; addImageAll(-2); article('revel', 'Peine confirmée en appel pour ' + p.name, -0.8, 'pj'); log(j.verdict + (had ? ' : vous êtes déchu·e de vos mandats.' : '.'), 'bad'); }
+        else { j.verdict = 'Relaxe en appel'; addImageAll(2.5); p.cred += 3; article('dauph', p.name + ' relaxé·e en appel', 0.4, 'pj'); log('La cour d’appel vous relaxe.', 'good'); }
+        j.stage = 'clos'; S().queue.push({ kind: 'info', title: 'Cour d’appel', text: j.verdict + '.' });
       }
     });
     // fact-checks différés
@@ -1231,7 +1242,8 @@ window.E = (function () {
     // mandats : séances
     mandateTick(days); if (typeof HQ !== 'undefined') HQ.tick(days); if (typeof OF !== 'undefined') OF.tick(days); if (typeof LN !== 'undefined') { try { LN.tick(days); } catch (e) { console.error(e); } }
     const legF = s.elections.find(e => e.type === 'leg' && e.status === 'futur');
-    if (legF && diffDays(s.date, legF.d1) > 400 && diffDays(s.national.lastDiss, s.date) > 365 && diffDays(s.national.lastLeg || '2024-07-07', s.date) > 365 && rnd() < 0.004 * f * (1 + Math.max(0, -(s.national.climate[s.national.gov[0]] || 0)) * 5)) { const d1 = addDays(s.date, 35); const dd = toD(d1); dd.setUTCDate(dd.getUTCDate() + (7 - dd.getUTCDay()) % 7); dissolution(fromD(dd)); s.queue.push({ kind: 'info', title: 'Dissolution', text: 'Le président dissout l’Assemblée nationale. Législatives anticipées le ' + fmtDate(fromD(dd)) + '.' }); }
+    const dW = s.mp ? dissMP() : null; // en multijoueur : semaine tirée de la graine commune, date du scrutin calée sur cette semaine
+    if (legF && diffDays(s.date, legF.d1) > 400 && diffDays(s.national.lastDiss, s.date) > 365 && diffDays(s.national.lastLeg || '2024-07-07', s.date) > 365 && (s.mp ? dW != null : rnd() < 0.004 * f * (1 + Math.max(0, -(s.national.climate[s.national.gov[0]] || 0)) * 5))) { let d1 = s.mp ? addDays('2026-06-15', dW * 7 + 35) : addDays(s.date, 35); if (d1 <= addDays(s.date, 7)) d1 = addDays(s.date, 14); const dd = toD(d1); dd.setUTCDate(dd.getUTCDate() + (7 - dd.getUTCDay()) % 7); if (dissolution(fromD(dd)) !== false) s.queue.push({ kind: 'info', title: 'Dissolution', text: 'Le président dissout l’Assemblée nationale. Législatives anticipées le ' + fmtDate(fromD(dd)) + '.' }); }
     // investiture automatique hors parti : rappel
     const ph = phase(); const up = nextElection(e => e.status === 'futur'); if (up && !p.cand && diffDays(s.date, up.d1) <= 200 && diffDays(s.date, up.d1) > 180 - days && (!p.inelig || p.inelig < s.date)) s.queue.push({ kind: 'info', title: up.label, text: 'L’échéance approche (' + fmtDate(up.d1) + '). Vous pouvez déclarer votre candidature depuis le tableau de bord.' });
     // rang au parti, section

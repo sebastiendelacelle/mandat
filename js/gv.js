@@ -124,7 +124,7 @@ const GV = (() => {
   }
   const PRIOS = [['ecoles', 'Écoles et petite enfance', { JUD: 3, POP: 1.5 }], ['securite', 'Sécurité et tranquillité', { RET: 3, PERI: 2 }], ['voirie', 'Voirie et transports', { PERI: 3, RUR: 2 }], ['culture', 'Sport, culture et associations', { POP: 2.5, JUD: 2 }], ['transition', 'Rénovation énergétique', { JUD: 2.5, CAD: 2 }]];
   function budgetSession(tf, prio, subv) {
-    const p = P(), m = p.mairie; const com = E.commune(); let msg = []; const coh = m.cohesion ?? 70;
+    const p = P(), m = p.mairie; if (!m) return 'Vous n’êtes plus aux commandes de la mairie : le budget sera voté sans vous.'; const com = E.commune(); let msg = []; const coh = m.cohesion ?? 70;
     const adopt = R() < 0.55 + coh / 200; if (!adopt) { E.addImageAll(-1.5); addBilan('Budget ' + S().date.slice(0, 4) + ' rejeté par le conseil', -10, 'budget'); m.cohesion = clamp(coh - 10, 20, 95); E.article('dauph', com.name + ' : le budget rejeté, camouflet pour ' + p.name, -0.5, 'pj'); return 'Votre majorité se fissure : le budget est rejeté. Le préfet réglera les comptes. Un camouflet.'; }
     if (tf < 0) { m.tf -= 1; m.budget *= 0.985; E.addImage('POP', 1.5); E.addImage('RET', 1.5); E.addImage('PERI', 1); addBilan('Baisse de la taxe foncière', 4, 'budget'); msg.push('Taxe foncière en baisse : les propriétaires apprécient, les marges se réduisent.'); }
     if (tf > 0) { m.tf += 1; m.budget *= 1.015; m.invest += 300000; E.addImage('POP', -1.5); E.addImage('RET', -2); addBilan('Hausse de la taxe foncière', -5, 'budget'); msg.push('Taxe foncière en hausse : impopulaire, mais vous dégagez de quoi investir.'); }

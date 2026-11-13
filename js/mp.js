@@ -33,8 +33,8 @@ const MP = (() => {
   async function find(gid) { try { return dget(await db.doc('mpgames/' + gid).get()); } catch (e) { return null; } }
   async function join(gid) {
     const ref = db.doc('mpgames/' + gid);
-    for (let i = 0; i < 6; i++) {
-      const l = await ref.acquire({ holder: me, ttlMs: 8000 });
+    for (let i = 0; i < 10; i++) {
+      const l = await ref.acquire({ holder: me, ttlMs: 4000 });
       if (l.acquired) { const g = dget(await ref.get()); if (!g) return null; const m = (g.members || []).slice(); if (!m.includes(me)) { if (m.length >= 8) throw new Error('full'); m.push(me); await ref.update({ members: m }); } await addIndex(gid, g.name); return Object.assign({}, g, { gid, members: m }); }
       await sleep(1200);
     }
@@ -49,7 +49,7 @@ const MP = (() => {
       game: s.mp.gid, name: p.name, g: p.g, party: p.party, movement: p.movement || null, communeId: p.communeId, circo: p.circo, rank: p.rank, date: s.date, half: s.half || 0,
       noto: { commune: Math.round(p.noto.commune), circo: Math.round(p.noto.circo), dept: Math.round(p.noto.dept), nat: Math.round(p.noto.nat) }, pop: Math.round(E.popularity()), cred: Math.round(p.cred), ax: p.ax,
       mandats: p.mandats.map(m => ({ type: m.type, label: m.label })), cand: p.cand ? { el: p.cand.el, key: p.cand.key, mode: p.cand.mode, invested: !!p.cand.invested, label: p.cand.label } : null, prof,
-      inv: s.mp.inv || null, invRes: s.mp.invRes || null, wait: s.mp.wait || null, endorse: s.mp.endorse || null, withdraw: s.mp.withdraw || null, est: s.est ? { el: s.est.el, pct: Math.round(s.est.pct * 10) / 10, rank: s.est.rank } : null,
+      inv: s.mp.inv || null, invRes: s.mp.invRes || null, wait: s.mp.wait || null, endorse: s.mp.endorse || null, withdraw: s.mp.withdraw || null, diss: (s.national.dissList || []).slice(-2), est: s.est ? { el: s.est.el, pct: Math.round(s.est.pct * 10) / 10, rank: s.est.rank } : null,
       headlines: s.news.filter(n => n.about === 'pj').slice(0, 3).map(n => ({ t: n.title, d: n.date, m: n.media })), at: Date.now()
     };
   }
@@ -85,6 +85,7 @@ const MP = (() => {
       x.mandat = nowM.length ? nowM.join(' · ') : h.rank + (h.party === 'NEW' ? ' · ' + (h.movement || 'mouvement') : '');
       if (x._m) nowM.filter(l => !prevM.includes(l)).forEach(l => { E.article('dauph', h.name + ' : ' + l, 0, null); E.log('Votre ami·e ' + h.name + ' devient ' + l + '.', 'info'); });
       x._m = nowM;
+      (h.diss || []).forEach(dz => { if (dz && dz.d1 > s.date && E.dissolution(dz.d1, dz.at) !== false) s.queue.push({ kind: 'info', title: 'Dissolution', text: 'Le président dissout l’Assemblée nationale. Législatives anticipées le ' + E.fmtDate(dz.d1) + '.' }); });
     }
   }
   function players() { return Object.entries(pubs).map(([uid, h]) => Object.assign({ uid }, h)); }
@@ -100,7 +101,7 @@ const MP = (() => {
   }
   function freshCand(c) { const uid = c.id.slice(2); const h = pubs[uid]; const o = h && h.prof ? Object.assign({}, h.prof, { id: c.id, pj: false, human: true, name: h.name, bucket: c.bucket }) : Object.assign({}, c); o.mom = (o.mom || 0) + endorseBonus(uid); return o; }
   function endorseBonus(uid) { const s = S(); if (!s || !s.mp) return 0; const all = Object.entries(pubs).filter(([u]) => u !== me).map(([, h]) => h).concat([{ endorse: s.mp.endorse }]); return all.filter(h => h.endorse && h.endorse.uid === uid).length * 0.06; }
-  function withdrawn(elId, key) { const out = new Set(); const s = S(); if (s.mp && s.mp.withdraw && s.mp.withdraw.el === elId && s.mp.withdraw.key === key) out.add('PJ'); for (const u in pubs) { const w = pubs[u].withdraw; if (w && w.el === elId && w.key === key) out.add(mirrorId(u)); } return out; }
+  function withdrawn(elId, key) { const out = new Set(); const s = S(); if (s.mp && s.mp.withdraw && s.mp.withdraw.el === elId && s.mp.withdraw.key === key) { out.add('PJ'); out.add(mirrorId(me)); } for (const u in pubs) { const w = pubs[u].withdraw; if (w && w.el === elId && w.key === key) out.add(mirrorId(u)); } return out; }
   function setEndorse(elId, key, uid) { S().mp.endorse = { el: elId, key, uid }; publish(); }
   function setWithdraw(elId, key, uid) { S().mp.withdraw = { el: elId, key, for: uid }; publish(); }
   function waitingForMe() { const s = S(), p = s.p; if (!p.cand) return []; return Object.entries(pubs).filter(([u, h]) => u !== me && h.wait && h.cand && h.cand.el === p.cand.el && h.cand.key === p.cand.key).map(([, h]) => h); }
@@ -125,10 +126,24 @@ const MP = (() => {
     const ig = await invGate(); if (ig) return ig;
     const due = E.peekDue(); if (!due.length) { if (s.mp.wait) { s.mp.wait = null; publish(); } return null; }
     for (const { el, round } of due) {
-      if (E.LIST_T.includes(el.type)) continue;
+      const humIn = Object.values(pubs).some(h => h.cand && h.cand.el === el.id) || !!(p.cand && p.cand.el === el.id);
       const keys = new Set(); Object.values(pubs).forEach(h => { if (h.cand && h.cand.el === el.id && h.cand.mode !== 'colistier') keys.add(h.cand.key); });
       if (p.cand && p.cand.el === el.id && p.cand.mode !== 'colistier') keys.add(p.cand.key);
       for (const key of keys) { const ck = gid + '|' + el.id + '|' + round + '|' + key; if (cache[ck]) continue; try { const v = dget(await db.doc(resPath(gid, el.id, round, key)).get()); if (v) cache[ck] = v; } catch (e) { } }
+      if (!keys.size && arena() && Object.keys(pubs).some(u => u !== me)) {
+        // élection sans candidat humain : un seul calcul, partagé par toute la partie (même vainqueur pour tous)
+        const key = E.electionUnit(el.type); const ck = gid + '|' + el.id + '|' + round + '|' + key; if (cache[ck]) continue;
+        const r1 = el.races && el.races[key]; if (round === 2 && (!r1 || r1.done || !r1.shared)) continue;
+        const ref = db.doc(resPath(gid, el.id, round, key));
+        for (let i = 0; i < 6 && !cache[ck]; i++) {
+          let v = dget(await ref.get()); if (v) { cache[ck] = v; break; }
+          const l = await ref.acquire({ holder: me, ttlMs: 15000 });
+          if (l.acquired) { v = dget(await ref.get()); if (v) { cache[ck] = v; break; } const st = s.rng; const res = E.computeShared(el, key, round, me); s.rng = st; res.game = gid; await ref.set(res); cache[ck] = res; break; }
+          await sleep(1500);
+        }
+        if (!cache[ck]) return { wait: true, el, round, busy: true, late: [] };
+        continue;
+      }
       const amCand = p.cand && p.cand.el === el.id && p.cand.mode !== 'colistier';
       if (!amCand) {
         // arène : un joueur non candidat (rallié, battu à la primaire, colistier) voit le même scrutin que les candidats humains
@@ -137,12 +152,13 @@ const MP = (() => {
           const ck = gid + '|' + el.id + '|' + round + '|' + key; if (cache[ck]) continue;
           const r1 = el.races && el.races[key]; if (round === 2 && (!r1 || r1.done || !r1.shared)) continue;
           const cs = Object.entries(pubs).filter(([u, h]) => u !== me && h.cand && h.cand.el === el.id && h.cand.key === key && h.cand.mode !== 'colistier' && (round === 1 || (r1.t2 || []).includes(mirrorId(u))));
-          if (!cs.length) continue;
           const tag = el.id + ':' + round; const d = E.nextDate(el);
           const late = cs.filter(([, h]) => !(h.date >= d || h.wait === tag));
           if (late.length) { s.mp.wait = tag; await publish(); return { wait: true, el, round, late: late.map(([, h]) => h.name + ' (au ' + E.fmtDate(h.date, true) + ')') }; }
           const ref = db.doc(resPath(gid, el.id, round, key));
-          for (let i = 0; i < 8 && !cache[ck]; i++) { const v = dget(await ref.get()); if (v) { cache[ck] = v; break; } await sleep(1500); }
+          for (let i = 0; i < 8 && !cache[ck]; i++) { let v = dget(await ref.get()); if (v) { cache[ck] = v; break; }
+            if (!cs.length) { const l = await ref.acquire({ holder: me, ttlMs: 15000 }); if (l.acquired) { v = dget(await ref.get()); if (v) { cache[ck] = v; break; } const st = s.rng; const res = E.computeShared(el, key, round, me); s.rng = st; res.game = gid; await ref.set(res); cache[ck] = res; break; } }
+            await sleep(1500); }
           if (!cache[ck]) return { wait: true, el, round, busy: true, late: [] };
         }
         continue;
@@ -152,7 +168,7 @@ const MP = (() => {
       const others = Object.entries(pubs).filter(([u, h]) => u !== me && h.cand && h.cand.el === el.id && h.cand.key === key && h.cand.mode !== 'colistier');
       let mustWait;
       if (round === 1) { if (!others.length && !(arena() && Object.keys(pubs).some(u => u !== me))) continue; mustWait = others; }
-      else { if (!r1 || !r1.shared) continue; const t2 = r1.t2 || []; const humT2 = others.filter(([u]) => t2.includes(mirrorId(u))); if (t2.includes('PJ')) mustWait = humT2; else if (humT2.length) continue; else mustWait = []; }
+      else { if (!r1 || !r1.shared) continue; const t2 = r1.t2 || []; const humT2 = others.filter(([u]) => t2.includes(mirrorId(u))); if (t2.includes('PJ') || humT2.length) mustWait = humT2; else mustWait = []; }
       const tag = el.id + ':' + round; const d = E.nextDate(el);
       const late = mustWait.filter(([, h]) => !(h.date >= d || h.wait === tag));
       if (late.length) { s.mp.wait = tag; await publish(); return { wait: true, el, round, late: late.map(([, h]) => h.name + ' (au ' + E.fmtDate(h.date, true) + ')') }; }
