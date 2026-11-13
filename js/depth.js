@@ -8,7 +8,7 @@ window.DP = (function () {
   const FIN_BY_BLOC = { local: { G: ['taxe', 'redeploiement'], GE: ['subventions', 'taxe', 'redeploiement'], C: ['redeploiement', 'subventions'], D: ['redeploiement', 'emprunt'], ED: ['redeploiement', 'aucun'], DIV: ['subventions', 'redeploiement'] }, national: { G: ['riches'], GE: ['riches', 'dette'], C: ['economies', 'dette'], D: ['economies'], ED: ['economies', 'dette', 'croissance'], DIV: ['economies', 'dette'] } };
   function genProp(x, lvl) {
     const pa = D.PARTIES[x.party].ax; const bloc = D.PARTIES[x.party].bloc; const have = new Set((x.prog || []).map(p => p.lev));
-    const NOVIL = ['pm', 'mediateurs', 'parking', 'hlm', 'velo']; const vil = lvl === 'local' && E.myPetite && E.myPetite(); const cands = L.LEVERS.filter(l => l.lvl === lvl && !have.has(l.id) && !(vil && NOVIL.includes(l.id))).map(l => { let dot = 0; for (const k in l.ax) dot += Math.sign(l.ax[k]) * pa[E.AXI[k]] / 100; return { l, dot }; }).filter(c => c.dot > 0.15).sort((a, b) => b.dot - a.dot);
+    const NOVIL = ['pm', 'mediateurs', 'parking', 'hlm', 'velo']; const vil = lvl === 'local' && E.myPetite && E.myPetite(); const pool0 = lvl === 'local' && L.leversFor ? L.leversFor('local', null, (E.commune() || { pop: 20000 }).pop) : L.LEVERS.filter(l => l.lvl === lvl); const cands = pool0.filter(l => !have.has(l.id) && !(vil && NOVIL.includes(l.id))).map(l => { let dot = 0; for (const k in l.ax) dot += Math.sign(l.ax[k]) * pa[E.AXI[k]] / 100; return { l, dot }; }).filter(c => c.dot > 0.15).sort((a, b) => b.dot - a.dot);
     if (!cands.length) return null; const lev = pick(cands.slice(0, 5)).l;
     let v = lev.def + Math.round((R() - 0.4) * (lev.max - lev.min) / 4 / lev.step) * lev.step; v = clamp(v, lev.min, lev.max); if (lev.id === 'retraite') v = pa[0] < 0 ? 62 : pa[0] > 40 ? 65 : 64; if (lev.id === 'tf') v = pa[0] > 0 ? -2 : 1;
     const fin = pick(FIN_BY_BLOC[lvl][bloc] || ['redeploiement']); const ev = L.evaluate(lev, v, fin, E.commune());
@@ -76,7 +76,17 @@ window.DP = (function () {
     p => (p.distance || 0) > 0.3 ? 'Vous prenez vos distances avec votre parti. Simple calcul électoral ?' : null,
     p => p.casseroles.some(c => c.out) ? 'On a beaucoup parlé de « ' + p.casseroles.find(c => c.out).label + ' ». Vous voulez vous en expliquer ?' : null,
     p => p.party === 'NEW' ? 'Sans parti, sans réseau : vous n’êtes pas un peu seul·e ?' : null,
-    p => p.fullTime ? 'Vous vivez de la politique. Vous comprenez encore les gens qui travaillent ?' : 'Vous avez un emploi à côté. Vous serez vraiment disponible ?'
+    p => p.fullTime ? 'Vous vivez de la politique. Vous comprenez encore les gens qui travaillent ?' : 'Vous avez un emploi à côté. Vous serez vraiment disponible ?',
+    p => (p.exParties || []).length ? 'Vous avez changé de parti. Qu’est-ce qui nous garantit que vous ne changerez pas encore ?' : null,
+    p => p.age && p.age < 31 ? 'Vous avez ' + p.age + ' ans. Ce n’est pas un peu tôt pour exercer de telles responsabilités ?' : null,
+    p => p.age && p.age > 66 ? 'Vous avez ' + p.age + ' ans. Ne faudrait-il pas laisser la place à une nouvelle génération ?' : null,
+    p => ({ avocat: 'Vous êtes avocat·e. Vous allez continuer à plaider pendant votre mandat ? Risque de conflit d’intérêts ?', enseignant: 'Vous êtes enseignant·e. Qui fera cours à vos élèves pendant la campagne ?', independant: 'Vous êtes commerçant·e ou artisan·e. Comment éviter le mélange des genres avec vos clients ?', agriculteur: 'Vous êtes agriculteur·rice. Vous défendrez les habitants ou la profession agricole ?', cadre: 'Vous venez de l’entreprise. Une collectivité, ce n’est pas une société : vous le savez ?', fonctionnaire: 'Vous êtes fonctionnaire territorial·e. Vous allez contrôler une administration dont vous venez ?', etudiant: 'Vous êtes encore étudiant·e. Qu’avez-vous à apprendre aux habitants ?', retraite: 'Vous êtes à la retraite. Pourquoi revenir maintenant ?', ouvrier: 'Vous êtes ouvrier·ère. Les dossiers techniques ne vont pas vous dépasser ?', salarie: 'Votre employeur vous laissera-t-il le temps d’exercer ce mandat ?' })[p.metier] || null,
+    p => p.mandats.some(m => (m.ind || 0) > 0) ? 'Combien touchez-vous d’indemnités par mois, et trouvez-vous ça normal ?' : null,
+    p => p.mandats.some(m => ['maire', 'adjoint'].includes(m.type)) ? 'Vous êtes déjà dans l’exécutif local. Quelle est la promesse que vous n’avez pas tenue ?' : null,
+    p => (p.accords || []).some(a => a.status === 'actif') ? 'Vous avez passé des accords avec d’autres candidats. Qu’avez-vous promis en échange ?' : null,
+    p => p.cash < 0 || (p.debt || 0) > 0 ? 'Votre campagne est-elle endettée ? Qui va payer ?' : null,
+    p => (p.followers || 0) > 2000 ? 'Vous êtes très présent·e sur les réseaux sociaux. La politique, ce n’est pas un concours de likes ?' : null,
+    p => p.party !== 'NEW' && S().national.gov.includes(p.party) ? 'Votre parti gouverne. Vous assumez tout son bilan ?' : (p.party !== 'NEW' ? 'Votre parti est dans l’opposition depuis longtemps. A-t-il encore une chance de gouverner ?' : null)
   ];
   // banque de questions adaptée à l’élection en jeu (ou au média, hors campagne)
   function bankKeyOf(dctx) {
@@ -296,6 +306,132 @@ window.DP = (function () {
       ['Y aller', p => { const r = E.rnd(); if (r < 0.65) { E.addImageAll(1.5); E.addNoto('commune', 2.5); return 'Salle comble, vous tenez la soirée.'; } E.addImageAll(-1.5); return 'Une partie de la salle vous chahute.'; }],
       ['Décliner', () => { E.addImage('POP', -1); return 'Votre chaise vide est remarquée.'; }]] }
   ];
+  /* ----- situations supplémentaires ----- */
+  const MO = () => +S().date.slice(5, 7); const cr = d => { P().cred = clamp(P().cred + d, 0, 100); };
+  const hrs = h => { P().hours = Math.max(0, P().hours - h); };
+  SIT.push(
+    { id: 'anciens', c: () => true, t: 'Le repas des anciens', d: 'Le club des aînés vous invite à son repas annuel. Deux cents convives, un micro, et beaucoup d’attentes.', o: [
+      ['Servir à table avec les bénévoles', () => { E.addImage('RET', 2.5); hrs(2); return 'Vous passez de table en table, l’assiette à la main. On en parlera au marché.'; }],
+      ['Faire un discours', () => { E.addNoto(X.scopeOf(), 1.5); E.addImage('RET', 1); return 'Un discours court et chaleureux. Applaudissements polis.'; }],
+      ['Décliner, l’agenda est plein', () => { E.addImage('RET', -1.2); return 'Votre absence est remarquée par ceux qui votent le plus.'; }]] },
+    { id: 'harcel', c: p => p.followers > 120, t: 'Une campagne de haine en ligne', d: 'Des dizaines de comptes vous insultent et menacent vos proches depuis trois jours.', o: [
+      ['Porter plainte et le dire publiquement', p => { p.cash -= 800; E.addImageAll(1); cr(1); E.article('dauph', p.name + ' porte plainte après une vague de menaces en ligne', 0.3, 'pj'); return 'Vague de soutiens, y compris chez vos adversaires.'; }],
+      ['Couper les réseaux quelques jours', p => { p.followers = Math.max(0, p.followers - E.rint(10, 60)); return 'Vous respirez. Le flot finit par se tarir.'; }],
+      ['Répondre avec ironie', p => { if (R() < 0.5) { E.addImage('JUD', 2); p.followers += E.rint(80, 400); return 'Votre réponse fait le tour des réseaux : les rieurs sont de votre côté.'; } E.addImageAll(-1); return 'L’ironie est mal prise, la meute redouble.'; }]] },
+    { id: 'deepfake', vil: false, c: () => true, t: 'Un faux enregistrement circule', d: 'Un audio généré par intelligence artificielle vous fait tenir des propos insultants sur les habitants d’un quartier.', o: [
+      ['Faire expertiser le trucage', p => { p.cash -= 1800; cr(2); E.addImageAll(0.6); E.article('info24', 'Faux audio : l’expertise innocente ' + p.name, 0.3, 'pj'); return 'L’expertise démontre le trucage. Vous passez pour la victime que vous êtes.'; }],
+      ['Démentir sobrement', () => { E.addImageAll(-0.8); return 'Le démenti limite les dégâts, mais le doute reste chez certains.'; }],
+      ['Ne rien dire', () => { E.addImageAll(-2); E.addImage('POP', -1.5); return 'L’audio continue de tourner dans les groupes de messagerie.'; }]] },
+    { id: 'agressmil', c: p => !!p.cand, t: 'Un militant agressé pendant le collage', d: 'Un de vos colleurs d’affiches a été frappé la nuit dernière. Il a deux côtes cassées.', o: [
+      ['Porter plainte et dénoncer la violence', p => { E.addNoto(X.scopeOf(), 2); E.addImageAll(0.8); p.militants += 2; return 'Rassemblement de soutien, la presse relaie. Vos militants serrent les rangs.'; }],
+      ['Appeler au calme', () => { cr(1); return 'Votre appel au calme est salué, y compris par vos adversaires.'; }],
+      ['Accuser le camp adverse', p => { if (R() < 0.4) { p.mom += 0.02; E.addImage('POP', 1); return 'L’enquête oriente vers des militants adverses. Le coup porte.'; } E.addImageAll(-2); cr(-2); return 'Aucune preuve. On vous reproche une récupération indécente.'; }]] },
+    { id: 'affiches', c: p => !!p.cand && E.phase().id !== 'hors', t: 'Vos affiches recouvertes chaque nuit', d: 'Sur les panneaux officiels, vos affiches disparaissent sous celles d’un concurrent.', o: [
+      ['Recoller la nuit avec les militants', p => { hrs(2); p.camp.terrain += 3; if (p.militants > 3 && R() < 0.3) { p.militants--; return 'Vos affiches tiennent, mais un militant épuisé jette l’éponge.'; } return 'Vos affiches tiennent. Les militants ont l’impression de mener une vraie campagne.'; }],
+      ['Faire constater par un huissier', p => { p.cash -= 500; cr(0.5); return 'Constat dressé. Un signalement est envoyé à la préfecture.'; }],
+      ['Laisser faire', () => { E.addNoto(X.scopeOf(), -1); return 'Votre visage disparaît des murs.'; }]] },
+    { id: 'pompiers', c: () => MO() === 12, t: 'La Sainte-Barbe des pompiers', d: 'La caserne vous invite à sa cérémonie. Les volontaires ont des choses à dire sur leurs conditions.', o: [
+      ['Y aller et écouter les volontaires', () => { E.addImage('RUR', 2); E.addImage('RET', 1); E.addImage('PERI', 1); hrs(2); return 'Vous repartez avec une liste de revendications, et beaucoup de sympathie.'; }],
+      ['Envoyer un message', () => 'Votre message est lu au micro. Personne ne le retiendra.'],
+      ['Décliner', () => { E.addImage('RUR', -1); return 'Les pompiers ont la mémoire longue.'; }]] },
+    { id: 'terrasse', c: p => !!p.mairie, t: 'La terrasse de la discorde', d: 'Un bar de la place demande d’agrandir sa terrasse jusqu’à minuit. Les riverains ont signé une pétition.', o: [
+      ['Accorder l’extension', () => { E.addImage('JUD', 1.5); E.addImage('CAD', 0.5); E.addImage('RET', -1.5); return 'La place s’anime. Les riverains vous écrivent des lettres recommandées.'; }],
+      ['Refuser', () => { E.addImage('RET', 1.5); E.addImage('JUD', -1); return 'Le gérant affiche votre refus en vitrine.'; }],
+      ['Une extension jusqu’à 22 h, à l’essai', () => { hrs(2); E.addImageAll(0.4); return 'Compromis accepté du bout des lèvres par tout le monde.'; }]] },
+    { id: 'expulsion', c: () => true, t: 'Une famille menacée d’expulsion', d: 'Une mère seule et ses deux enfants doivent quitter leur logement vendredi. Elle frappe à votre porte.', o: [
+      ['Intervenir auprès du bailleur', () => { E.addImage('POP', 2); hrs(2); return 'Le bailleur accorde un délai de trois mois. La famille ne l’oubliera pas.'; }],
+      ['L’orienter vers les services sociaux', () => 'Vous l’orientez vers le CCAS. C’est la procédure, sans plus.'],
+      ['Médiatiser son cas', p => { E.addNoto(X.scopeOf(), 1.5); if (R() < 0.35) { E.addImage('CAD', -1); cr(-1); return 'Le bailleur rappelle des loyers impayés depuis un an : on vous accuse d’instrumentaliser.'; } E.addImage('POP', 2.5); return 'L’article émeut, la préfecture trouve une solution.'; }]] },
+    { id: 'sexisme', c: p => p.party !== 'NEW', t: 'Des propos sexistes dans votre camp', d: 'En réunion publique, un élu de votre parti a lancé une remarque déplacée à une adjointe. La vidéo circule.', o: [
+      ['Le condamner publiquement', () => { cr(1.5); E.addImage('JUD', 2); E.addImage('CAD', 1); E.addStd(-2); return 'Votre réaction est saluée. Le concerné ne vous parle plus.'; }],
+      ['Lui en parler en privé', () => { E.addStd(1); if (R() < 0.35) { E.addImageAll(-1.5); return 'Votre silence public est relevé par la presse.'; } return 'Il présente des excuses. L’affaire retombe.'; }],
+      ['Minimiser : « une maladresse »', () => { E.addImage('JUD', -3); E.addImage('CAD', -1.5); E.addStd(1.5); return 'Votre réaction choque bien au-delà de votre camp.'; }]] },
+    { id: 'rondpoint', c: () => [1, 2, 3, 11].includes(MO()), t: 'Les agriculteurs bloquent le rond-point', d: 'Tracteurs, palettes et pneus : ils vous demandent de venir les écouter.', o: [
+      ['Y aller avec des croissants', () => { E.addImage('RUR', 3); E.addImage('PERI', 0.5); E.addImage('JUD', -0.5); hrs(2); return 'Une heure de discussion franche autour d’un brasero.'; }],
+      ['Un communiqué de soutien', () => { E.addImage('RUR', 0.8); return 'Soutien noté, mais on attendait votre présence.'; }],
+      ['Refuser de cautionner un blocage', () => { E.addImage('RUR', -2.5); E.addImage('CAD', 1); return 'Les agriculteurs vous le rendront dans les urnes.'; }]] },
+    { id: 'antenne', c: () => true, t: 'Une antenne-relais près de l’école', d: 'Des parents s’inquiètent d’un projet d’antenne 5G à cent mètres de l’école.', o: [
+      ['Soutenir les parents', () => { E.addImage('PERI', 1.5); E.addImage('RET', 1); cr(-1); return 'Les parents vous remercient. Les experts sanitaires froncent les sourcils.'; }],
+      ['Rappeler les avis scientifiques', () => { cr(1.5); E.addImage('PERI', -1); return 'Votre position est jugée sérieuse, mais un peu froide.'; }],
+      ['Organiser une réunion avec l’opérateur', () => { hrs(2); E.addImageAll(0.5); return 'L’opérateur accepte de déplacer l’antenne de deux cents mètres.'; }]] },
+    { id: 'aid', vil: false, c: () => true, t: 'Invitation à la fête de l’Aïd', d: 'Une association culturelle du quartier vous invite à la fête de fin du ramadan.', o: [
+      ['Y aller', () => { E.addImage('POP', 2); E.addImage('RET', -0.8); return 'Accueil chaleureux. Quelques commentaires acerbes sur les réseaux.'; }],
+      ['Envoyer un message de vœux', () => { E.addImage('POP', 0.5); return 'Votre message est apprécié.'; }],
+      ['Décliner', () => { E.addImage('POP', -1.2); return 'L’association en prend note.'; }]] },
+    { id: 'stagiaire', c: () => true, t: 'Un étudiant veut gérer vos réseaux', d: 'Un étudiant en communication propose de s’occuper gratuitement de vos réseaux sociaux.', o: [
+      ['Accepter', p => { p.followers += E.rint(60, 300); E.addImage('JUD', 1); if (R() < 0.18) { E.addImageAll(-1.5); return 'Une publication maladroite à 23 h vous vaut une polémique. Vous reprenez la main.'; } return 'Vos comptes reprennent vie, les jeunes vous suivent.'; }],
+      ['Refuser', () => 'Vous gardez la main sur ce qui sort en votre nom.']] },
+    { id: 'enveloppe', c: p => !!p.cand, t: 'Une enveloppe sans nom', d: 'Une enveloppe de 2 000 € en liquide a été glissée sous la porte de votre permanence. Aucun nom.', o: [
+      ['La remettre au commissariat', () => { cr(1.5); return 'Geste salué discrètement par votre mandataire financier.'; }],
+      ['La verser au compte de campagne', p => { p.cash += 2000; E.casserole('occulte', 'un don anonyme en espèces de 2 000 € (dons en liquide limités à 150 €)', 2, true, 0.05); return '2 000 € de plus. Et une irrégularité grave dans vos comptes.'; }],
+      ['La garder pour les petits frais', p => { p.cash += 2000; E.casserole('occulte', 'de l’argent liquide non déclaré dans la campagne', 2, true, 0.07); return 'Personne n’en saura rien. Peut-être.'; }]] },
+    { id: 'qecrite', c: p => p.mandats.some(m => m.type === 'depute'), t: 'Un maire vous sollicite', d: 'Le maire d’un village de la circonscription vous demande d’interpeller le gouvernement sur la fermeture de sa gare.', o: [
+      ['Déposer une question écrite', () => { E.addImage('RUR', 1.5); cr(0.5); hrs(1); return 'Question déposée. Le maire la diffuse dans son bulletin.'; }],
+      ['Organiser une réunion avec la SNCF', () => { E.addImage('RUR', 2.5); hrs(3); return 'La SNCF accepte un horaire supplémentaire. Petite victoire, grande reconnaissance.'; }],
+      ['Lui répondre que ce n’est pas prioritaire', () => { E.addImage('RUR', -1.5); return 'Le maire le fera savoir.'; }]] },
+    { id: 'ehpadvisite', c: () => true, t: 'Alerte sur un EHPAD', d: 'Une fille de résidente vous écrit : sa mère n’est levée qu’une fois par jour, faute de personnel.', o: [
+      ['Faire une visite inopinée', p => { E.addImage('RET', 2.5); E.addNoto(X.scopeOf(), 1.5); hrs(3); if (p.mandats.some(m => ['depute', 'senateur'].includes(m.type))) { cr(1); return 'Votre droit de visite de parlementaire fait trembler la direction.'; } return 'La direction vous reçoit, gênée. L’ARS est prévenue.'; }],
+      ['Saisir l’Agence régionale de santé', () => { cr(1); return 'L’ARS annonce une inspection.'; }],
+      ['Lui répondre que vous n’y pouvez rien', () => { E.addImage('RET', -1.5); return 'La lettre se retrouve sur un groupe local.'; }]] },
+    { id: 'plateau', vil: false, c: p => p.noto.dept > 25, t: 'Un plateau d’info en continu', d: 'Une chaîne nationale vous invite ce soir à 22 h face à un polémiste connu pour ses dérapages.', o: [
+      ['Accepter', p => { if (R() < 0.5 + (p.mediaTraining || 0) * 0.1 + (p.traits.sangfroid - 50) / 200) { E.addNoto('nat', 4); E.addImageAll(0.8); return 'Vous tenez tête au polémiste : l’extrait fait 400 000 vues.'; } E.addNoto('nat', 2); E.addImageAll(-1.8); return 'Piégé·e sur un chiffre, vous perdez pied en direct.'; }],
+      ['Refuser', () => 'Vous préférez la presse régionale. Prudent, mais discret.']] },
+    { id: 'conflit', vil: false, c: p => p.staff.length >= 2, t: 'Votre équipe se déchire', d: 'Deux de vos collaborateurs ne se parlent plus et se plaignent l’un de l’autre.', o: [
+      ['Trancher en faveur du plus ancien', p => { const st = p.staff.slice().sort((a, b) => (a.since || '') < (b.since || '') ? 1 : -1)[0]; if (st) st.loy -= 12; return 'L’autorité est rétablie. Le perdant rumine.'; }],
+      ['Prendre le temps d’une médiation', p => { hrs(2); p.staff.forEach(x => x.loy += 3); return 'Une soirée de mise à plat. L’équipe repart.'; }],
+      ['Laisser faire', p => { p.staff.forEach(x => x.loy -= 4); return 'L’ambiance se dégrade.'; }]] },
+    { id: 'fatigue', c: p => p.fullTime || p.mandats.length >= 2, t: 'Le corps dit stop', d: 'Votre médecin vous recommande une semaine de repos. Vous dormez quatre heures par nuit.', o: [
+      ['Prendre une semaine', p => { hrs(8); p.traits.sangfroid = clamp((p.traits.sangfroid ?? 50) + 4, 0, 100); return 'Une semaine loin de tout. Vous revenez plus lucide.'; }],
+      ['Continuer coûte que coûte', p => { if (R() < 0.35) { E.addImageAll(-2); return 'Épuisé·e, vous vous emportez en public. La vidéo circule.'; } return 'Vous tenez. Pour l’instant.'; }]] },
+    { id: 'famille', c: p => p.mandats.length > 0 || !!p.cand, t: 'Les reproches de la famille', d: 'À la maison, on vous reproche de n’être jamais là. Les week-ends sont tous pris.', o: [
+      ['Bloquer un week-end sur deux', () => { hrs(4); return 'Moins d’heures pour la politique, mais la paix à la maison.'; }],
+      ['Associer la famille à la campagne', () => { E.addImage('RET', 0.8); E.addImage('PERI', 0.8); return 'Les photos de famille au marché plaisent. Les enfants un peu moins.'; }],
+      ['Promettre que ça ira mieux après', () => 'Promesse de campagne. On verra.']] },
+    { id: 'rachat', vil: false, c: () => true, t: 'Le journal local change de mains', d: 'Le quotidien régional est racheté par un industriel proche de vos adversaires.', o: [
+      ['Dénoncer la concentration des médias', p => { cr(0.5); E.addImage('JUD', 1); const j = E.pnjList(x => x.role === 'journaliste' && x.territory === 'dauph')[0]; if (j) j.rel -= 5; return 'Votre tribune est reprise au niveau national. La rédaction locale apprécie moins.'; }],
+      ['Ne rien dire', () => 'Vous gardez de bonnes relations avec la nouvelle direction.']] },
+    { id: 'tract', c: p => !!p.cand && E.phase().id !== 'hors', t: 'Une erreur dans votre tract', d: 'Votre adversaire relève un chiffre faux dans votre tract : la dette de la commune y est doublée.', o: [
+      ['Corriger et reconnaître l’erreur', p => { p.cash -= 600; cr(0.5); return 'Vous réimprimez. L’erreur est oubliée en trois jours.'; }],
+      ['Maintenir', () => { cr(-2.5); return 'Votre adversaire en fait un argument : « même ses chiffres sont faux ».'; }],
+      ['Contre-attaquer sur ses propres erreurs', p => { if (R() < 0.45) { p.mom += 0.01; return 'Vous trouvez deux erreurs dans son programme. Match nul.'; } cr(-1.5); return 'La diversion ne prend pas.'; }]] },
+    { id: 'meres', vil: false, c: () => true, t: 'Le collectif des mères du quartier', d: 'Des mères de famille veulent vous parler de la sécurité de leurs enfants sur le chemin de l’école.', o: [
+      ['Les rencontrer chez l’une d’elles', () => { E.addImage('POP', 3); hrs(2); return 'Deux heures autour d’un thé. Vous repartez avec des idées précises.'; }],
+      ['Les recevoir dans un bureau', () => { E.addImage('POP', 1); return 'Rencontre utile, un peu protocolaire.'; }],
+      ['Leur conseiller d’écrire au commissariat', () => { E.addImage('POP', -1.5); return 'Elles se sentent éconduites.'; }]] },
+    { id: 'epandage', c: () => [3, 4, 5, 9, 10].includes(MO()), t: 'Épandage : agriculteur contre riverains', d: 'Des néo-ruraux accusent un céréalier d’épandre trop près de leurs maisons. Le ton monte.', o: [
+      ['Soutenir l’agriculteur', () => { E.addImage('RUR', 2.5); E.addImage('CAD', -1); return 'Le monde agricole apprécie. Les nouveaux habitants beaucoup moins.'; }],
+      ['Soutenir les riverains', () => { E.addImage('CAD', 1.5); E.addImage('PERI', 1); E.addImage('RUR', -2.5); return 'Les riverains vous remercient, la FDSEA vous classe parmi ses adversaires.'; }],
+      ['Proposer une charte de bon voisinage', () => { hrs(2); E.addImage('RUR', 1); E.addImage('PERI', 1); cr(0.5); return 'Réunion tendue, mais un accord : prévenir 48 h avant chaque épandage.'; }]] },
+    { id: 'prof', vil: false, c: () => [9, 10, 11, 12, 1, 2, 3, 4, 5, 6].includes(MO()), t: 'Un professeur agressé', d: 'Un enseignant a été frappé par un parent d’élève devant un collège.', o: [
+      ['Participer au rassemblement de soutien', () => { E.addImage('CAD', 1.5); E.addImage('JUD', 1); return 'Vous êtes au premier rang, aux côtés des enseignants.'; }],
+      ['Réclamer des agents aux abords des collèges', () => { E.addImage('RET', 2); E.addImage('PERI', 1); E.addImage('JUD', -1); return 'Votre demande divise, mais elle est entendue.'; }],
+      ['Un communiqué', () => 'Votre communiqué rejoint la pile des autres.']] },
+    { id: 'transfuge', c: p => !!p.cand && (S().rivals || []).length > 0, t: 'Un transfuge frappe à la porte', d: 'Un colistier d’un adversaire veut vous rejoindre, avec son carnet d’adresses, contre une bonne place.', o: [
+      ['L’accueillir', p => { p.mom += 0.02; const x = S().pnj[(S().rivals || [])[0]]; if (x) { x.mom -= 0.02; x.rel -= 10; } E.addStd(-1); return 'Prise de guerre médiatisée. Vos fidèles grincent un peu.'; }],
+      ['Refuser : pas de mercato', () => { cr(0.5); return 'Vous gardez votre équipe soudée.'; }]] },
+    { id: 'loupsit', c: p => { const c = E.commune(); return c.pop < 6000 || ['rural', 'bourg'].includes(c.type); }, t: 'Les brebis égorgées', d: 'Un éleveur vous montre les bêtes tuées par le loup la nuit dernière. Il est à bout.', o: [
+      ['Réclamer des tirs de défense', () => { E.addImage('RUR', 3); E.addImage('JUD', -1.5); return 'L’éleveur vous serre la main longuement.'; }],
+      ['Plaider pour mieux financer la protection des troupeaux', () => { E.addImage('RUR', 1); E.addImage('JUD', 0.5); return 'Une réponse jugée raisonnable, sans plus.'; }],
+      ['Rappeler que le loup est une espèce protégée', () => { E.addImage('JUD', 1.5); E.addImage('RUR', -3); return 'L’éleveur vous tourne le dos. La vallée le saura.'; }]] },
+    { id: 'factcheck', vil: false, c: p => p.stmts.length > 4, t: 'Épinglé·e par un service de vérification', d: 'Un média de vérification juge « trompeuse » une de vos affirmations récentes.', o: [
+      ['Reconnaître et préciser', () => { cr(1); return 'Votre honnêteté est notée. L’erreur est vite oubliée.'; }],
+      ['Contester, sources à l’appui', () => { if (R() < 0.5) { cr(1); return 'Vos sources tiennent : le média corrige son article.'; } cr(-2.5); return 'Vos sources ne tiennent pas. Double peine.'; }],
+      ['Ignorer', () => { cr(-1); return 'L’article reste en ligne, et vos adversaires le partagent.'; }]] },
+    { id: 'mouvement', c: p => p.party !== 'NEW' && p.std < 40, t: 'La tentation de l’indépendance', d: 'Des militants vous poussent à quitter le parti pour lancer une liste citoyenne locale.', o: [
+      ['Refuser fermement', () => { E.addStd(2); return 'Le parti apprécie votre loyauté.'; }],
+      ['Laisser planer le doute', p => { E.addStd(-2); p.mom += 0.01; return 'La presse locale s’en fait l’écho. Le parti s’inquiète.'; }]] },
+    { id: 'canicule_vol', c: () => [6, 7, 8].includes(MO()), t: 'Canicule : les aînés seuls chez eux', d: 'La chaleur est écrasante. Beaucoup de personnes âgées vivent seules, volets fermés.', o: [
+      ['Organiser des visites avec vos militants', p => { E.addImage('RET', 2.5); p.militants += 1; hrs(2); return 'Trois cents portes, des bouteilles d’eau, quelques situations urgentes signalées.'; }],
+      ['Relayer le numéro de la mairie', () => { E.addImage('RET', 0.5); return 'Un relais utile, discret.'; }]] },
+    { id: 'jeunesse', vil: false, c: () => true, t: 'Les jeunes du city-stade', d: 'Les jeunes du quartier vous interpellent : « Vous venez nous voir que pendant les élections. »', o: [
+      ['Rester jouer un match avec eux', p => { E.addImage('JUD', 1.5); E.addImage('POP', 2); hrs(1); return 'Vous perdez 10 à 3, mais la vidéo fait sourire tout le quartier.'; }],
+      ['Leur promettre une salle pour se réunir', () => { E.addImage('POP', 1); cr(-0.5); return 'Ils notent la promesse. Ils s’en souviendront, dans un sens ou dans l’autre.'; }],
+      ['Leur répondre que vous êtes là toute l’année', () => { E.addImage('POP', -1); return 'Ils haussent les épaules.'; }]] },
+    { id: 'chasse', c: p => { const c = E.commune(); return c.pop < 10000 && [9, 10, 11, 12, 1, 2].includes(MO()); }, t: 'L’assemblée générale des chasseurs', d: 'L’ACCA vous invite. Sujet brûlant : un randonneur blessé lors d’une battue dans le département.', o: [
+      ['Y aller et défendre la chasse encadrée', () => { E.addImage('RUR', 2.5); E.addImage('JUD', -1); return 'Les chasseurs vous applaudissent. Les randonneurs du Vercors un peu moins.'; }],
+      ['Y aller et plaider pour un dimanche sans chasse', () => { E.addImage('JUD', 1.5); E.addImage('CAD', 0.5); E.addImage('RUR', -2); return 'Silence glacial dans la salle.'; }],
+      ['Décliner', () => { E.addImage('RUR', -0.8); return 'Votre absence est commentée au bar du village.'; }]] }
+  );
   function situationTick(days) {
     const s = S(), p = P(); const pr = Math.min(0.85, 0.45 * days / 14 + 0.06); if (E.rnd() > pr) return;
     s.sitDone = s.sitDone || []; const vil = E.villageScope(); const pool = SIT.filter(x => x.c(p) && !(vil && x.vil === false) && !s.sitDone.slice(-8).includes(x.id)); if (!pool.length) return;

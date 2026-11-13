@@ -425,6 +425,7 @@ window.E = (function () {
     const s = S(), p = s.p; const el = s.elections.find(e => e.id === elId);
     if (p.inelig && p.inelig > s.date) return { ok: false, msg: 'Vous êtes inéligible jusqu’au ' + fmtDate(p.inelig) + '.' };
     if ((p.irrec || []).includes(elId)) return { ok: false, msg: 'Votre liste a été déclarée irrecevable pour cette élection.' };
+    if (p.mandats.some(m => m.type === 'president') && el && el.type !== 'pres') return { ok: false, msg: 'Président·e de la République, vous ne pouvez être candidat·e à aucun autre mandat.' };
     if ((p.rallied || {})[elId] && mode !== 'colistier') return { ok: false, msg: 'Vous vous êtes rangé·e derrière le candidat du parti pour cette élection.' };
     if (LIST_T.includes(el.type)) {
       const pos = listPos(el.type); p.cand = { el: elId, key: electionUnit(el.type), mode: 'liste', invested: true, label: p.party === 'NEW' ? 'DIV' : p.party, listPos: pos, compte: null, debates: 0 };
@@ -818,7 +819,7 @@ window.E = (function () {
       else log('Défaite aux départementales.', 'bad');
     }
     if (el.type === 'pres') {
-      if (won) { p.mandats.push({ type: 'president', label: 'Président·e de la République', since: s.date, ind: 15000, majority: true }); addNoto('nat', 60); s.queue.push({ kind: 'info', title: 'Élysée', text: 'Vous êtes élu·e président·e de la République. Le jeu continue : il vous faut maintenant une majorité, et tenir le pays.' }); }
+      if (won) { const left = p.mandats.filter(m => m.type !== 'president'); if (left.length) log('Élu·e à l’Élysée, vous abandonnez vos autres mandats : ' + left.map(m => m.label).join(', ') + '.', 'info'); p.mandats = p.mandats.filter(m => m.type === 'president'); if (p.mairie) p.mairie = null; p.mandats.push({ type: 'president', label: 'Président·e de la République', since: s.date, ind: 15000, majority: true }); addNoto('nat', 60); s.queue.push({ kind: 'info', title: 'Élysée', text: 'Vous êtes élu·e président·e de la République. Le jeu continue : il vous faut maintenant une majorité, et tenir le pays.' }); }
     }
     if (me && me.pct >= 12) p.std = clamp(p.std + 5, 0, 100);
     if (me) addNoto(el.type === 'pres' ? 'nat' : 'circo', me.pct / 4);
@@ -981,7 +982,7 @@ window.E = (function () {
     const s = S(), p = s.p; const x = s.pnj[q.pnj]; const nm = x.name; let msg = '';
     if (q.type === 'attaque') {
       if (choice === 'ignore') { addImageAll(-1.2); x.mom += 0.02; msg = 'Vous ignorez l’attaque. Une partie de l’opinion y voit un aveu.'; }
-      else if (choice === 'cinglant') { if (rnd() < 0.45 + (q.viral ? 0.12 : -0.05) + (q.akind === 'perso' ? 0.06 : q.akind === 'fond' ? -0.04 : 0) + (p.traits.sangfroid - 50) / 200 + p.mediaTraining * 0.08) { addImageAll(1.8); x.mom -= 0.03; x.rel -= 8; addNoto('circo', 2); msg = 'Votre réplique fait mouche et tourne en boucle.'; post(p.name, '@' + slug(p.name), 'Quand on n’a pas de bilan, on attaque. Moi, je travaille.', true, rint(200, 1500)); } else { addImageAll(-1.5); x.rel -= 10; msg = 'Votre réplique tombe à plat, on vous trouve agressif·ve.'; } }
+      else if (choice === 'cinglant') { if (rnd() < 0.45 + (q.viral ? 0.12 : -0.05) + (q.akind === 'perso' ? 0.06 : q.akind === 'fond' ? -0.04 : 0) + (p.traits.sangfroid - 50) / 200 + p.mediaTraining * 0.08) { addImageAll(1.8); x.mom -= 0.03; x.rel -= 8; addNoto('circo', 2); msg = 'Votre réplique fait mouche et tourne en boucle.'; post(p.name, '@' + slug(p.name), fresh('ripc', ['Quand on n’a pas de bilan, on attaque. Moi, je travaille.', 'Je laisse ' + nm + ' aux insultes. Je garde les propositions.', 'Chaque fois que ' + nm + ' parle de moi, c’est qu’il n’a rien à dire sur le fond.'.replace('il n’a', x.g === 'F' ? 'elle n’a' : 'il n’a'), 'Les habitants méritent un débat, pas des caricatures.', 'Je préfère les chantiers aux règlements de comptes.', 'Attaquer, c’est facile. Proposer, c’est un métier.', 'Belle punchline. Et sinon, votre programme ?', 'On me reproche beaucoup de choses. Jamais d’avoir menti aux électeurs.']), true, rint(200, 1500)); } else { addImageAll(-1.5); x.rel -= 10; msg = 'Votre réplique tombe à plat, on vous trouve agressif·ve.'; } }
       else if (choice === 'fond') { // efficace contre une critique de fond, inaudible face à un buzz, et s'use si on ne fait que ça
         const used = (p.fondN || 0); const k = Math.pow(0.65, used) * (q.akind === 'perso' ? 0.75 : q.akind === 'fond' ? 1.15 : 1); p.fondN = used + 1; p.fondAt = s.date;
         if (q.viral) { addImageAll(-0.6); x.mom += 0.015; msg = 'Votre réponse posée passe inaperçue : l’attaque a déjà fait le buzz, votre mise au point ne circule pas.'; }
