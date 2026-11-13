@@ -595,7 +595,7 @@ const HQ = (() => {
   }
   function cabCands(post) {
     const p = P(), h = hq(); const used = new Set(h.cab.map(c => c.name)); const L = [];
-    p.staff.filter(x => !used.has(x.name)).forEach(x => L.push({ name: x.name, g: x.g, comp: x.comp, loy: clamp(x.loy + 8, 0, 100), amb: x.amb || 50, from: 'campagne', note: (x.role === 'dircamp' ? 'Votre directeur·rice de campagne' : D.STAFF_ROLES[x.role].l) + ' · loyauté ' + Math.round(x.loy) }));
+    p.staff.filter(x => !used.has(x.name)).forEach(x => L.push({ name: x.name, g: x.g, comp: x.comp, loy: clamp(x.loy + 8, 0, 100), amb: x.amb || 50, from: 'campagne', note: (x.role === 'dircamp' ? 'Votre directeur·rice de campagne' : D.STAFF_ROLES[x.role].l) }));
     h.core.concat(h.alumni).filter(x => !used.has(x.name) && !L.some(y => y.name === x.name)).slice(0, 3).forEach(x => L.push({ name: x.name, g: x.g, comp: clamp(x.comp + 4, 0, 95), loy: clamp(x.loy + 10, 0, 100), amb: rint(30, 60), from: 'campagne', note: 'De l’équipe de campagne (' + (CORE_L[x.lane] || 'bénévole').toLowerCase() + ')' }));
     for (let i = 0; i < 2; i++) { const g = R() < 0.5 ? 'F' : 'M'; L.push({ name: nm(g), g, comp: rint(66, 92), loy: rint(38, 60), amb: rint(45, 90), from: 'ext', note: i ? 'Haut fonctionnaire territorial, carnet d’adresses solide' : 'Profil expérimenté venu d’un autre cabinet' }); }
     return L;
