@@ -525,6 +525,7 @@ const HQ = (() => {
     const s = S(), p = P(); if (!p.cand) return null; const u = E.unit(p.cand.key); const mix = u && u.mix ? u.mix : [1, 1, 1, 1, 1, 1]; const sal = s.national.salience || {}; const o = {};
     D.SEGS.forEach((g, i) => (SEG_TH[g.id] || []).forEach((t, j) => o[t] = (o[t] || 0) + mix[i] * [1, 0.7, 0.5][j]));
     for (const t in sal) o[t] = (o[t] || 0) + sal[t] * (lvl() === 'national' ? 1.4 : 0.7);
+    { const act = (s.pw && s.pw.act && s.pw.act[p.cand.key]) || {}; const mx = Math.max(1e-6, ...Object.values(o)); for (const t in act) o[t] = (o[t] || 0) + act[t] * mx; }
     let seed = 0; for (const ch of String(p.cand.key)) seed = (seed * 31 + ch.charCodeAt(0)) % 9973; Object.keys(o).forEach((t, i) => o[t] *= 0.85 + ((seed * (i + 7)) % 31) / 100);
     const L = Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, 5); const tot = L.reduce((a, x) => a + x[1], 0) || 1; return L.map(([t, w]) => ({ t, w: w / tot }));
   }

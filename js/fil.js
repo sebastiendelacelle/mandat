@@ -72,7 +72,7 @@ const FL = (() => {
     if (o.h) P().hours -= o.h; it.done = i; it.when = S().date;
     let res = o.res || ''; let f2 = o.fx;
     if (o.r) { const b = o.r.find(z => z.p == null || R() < z.p) || o.r[o.r.length - 1]; res = b.res; f2 = Object.assign({}, o.fx || {}, b.fx || {}); }
-    fx(f2, { item: it.t }); if (o.inv && P().mairie) P().mairie.invest -= o.inv; if (o.el && typeof EL !== 'undefined') { const r2 = EL.res(o.el, it); if (r2) res = (res ? res + ' ' : '') + r2; }
+    fx(f2, { item: it.t }); if (o.inv && P().mairie) P().mairie.invest -= o.inv; if (o.el && typeof EL !== 'undefined') { const r2 = EL.res(o.el, it); if (r2) res = (res ? res + ' ' : '') + r2; } if (o.pw && typeof PW !== 'undefined') { const r3 = PW.res(o.pw, it); if (r3) res = (res ? res + ' ' : '') + r3; }
     if (o.prom) o.prom2 = promise(o.prom[0], o.prom[1]);
     if (o.later) later(o.later[0], o.later[1], Object.assign({}, o.later[2] || {}, o.prom2 ? { prom: o.prom2 } : {}));
     if (o.debt) owe(o.debt[0], o.debt[1], o.debt[2]);
@@ -83,7 +83,7 @@ const FL = (() => {
     if (o.staff) staffRes(o.staff, it);
     it.res = res; return { ok: true, msg: res, act: o.act || null };
   }
-  function expire(it) { it.done = -1; it.when = S().date; const d = it.dflt || {}; fx(d.fx); if (d.el && typeof EL !== 'undefined') EL.res(d.el, it); if (it.arc) arcStep(it.arc, d.flag || 'silence'); if (it.debt && !d.keep) { const x = F().debts.find(y => y.id === it.debt); if (x) { x.paid = 0; x.closed = S().date; } later(rint(2, 6), 'revanche', { who: it.from }); } it.res = d.res || 'Sans réponse de votre part.'; if (d.res) F().echo.unshift({ date: S().date, t: it.t + ' : ' + d.res }); }
+  function expire(it) { it.done = -1; it.when = S().date; const d = it.dflt || {}; fx(d.fx); if (d.el && typeof EL !== 'undefined') EL.res(d.el, it); if (d.pw && typeof PW !== 'undefined') PW.res(d.pw, it); if (it.arc) arcStep(it.arc, d.flag || 'silence'); if (it.debt && !d.keep) { const x = F().debts.find(y => y.id === it.debt); if (x) { x.paid = 0; x.closed = S().date; } later(rint(2, 6), 'revanche', { who: it.from }); } it.res = d.res || 'Sans réponse de votre part.'; if (d.res) F().echo.unshift({ date: S().date, t: it.t + ' : ' + d.res }); }
 
   /* ---------- positions : mémoire et volte-face ---------- */
   function posMemo(topic, v, it) { const f = F(); const old = f.pos[topic]; if (old && old.v * v < 0) { const j = journo(); echo((j ? j.name : 'Le Dauphinois') + ' relève votre volte-face : vous disiez l’inverse le ' + E.fmtDate(old.date) + '.', { cred: -3, jrel: -1 }); } if (v) f.pos[topic] = { v, date: S().date, t: it.t }; }
@@ -327,7 +327,7 @@ const FL = (() => {
     if (!days || days < 1) return; const s = S(), p = s.p, f = F(); const k = Math.min(1.5, days / 30);
     // 1. échéances
     f.inbox.filter(x => x.done == null && x.due <= s.date).forEach(expire);
-    f.later.filter(x => x.at <= s.date).forEach(x => { try { (LATER[x.k] || (() => 0))(x.d); } catch (e) { console.error(e); } }); f.later = f.later.filter(x => x.at > s.date);
+    f.later.filter(x => x.at <= s.date).forEach(x => { try { (LATER[x.k] || (typeof PW !== 'undefined' && PW.LATER[x.k]) || (() => 0))(x.d); } catch (e) { console.error(e); } }); f.later = f.later.filter(x => x.at > s.date);
     f.prom.filter(pr => pr.ok == null && pr.due <= s.date).forEach(pr => closeProm(pr.id, false));
     f.arcs.filter(a => !a.end && a.next && a.next <= s.date).forEach(a => { a.next = null; arcItem(a); });
     f.inbox = f.inbox.filter(x => x.done == null || dd(x.when || x.date, s.date) < 120).slice(0, 40);
@@ -346,12 +346,13 @@ const FL = (() => {
     tryAdd(R() < 0.07 * k && known() > 18, portraitItem);
     tryAdd(R() < 0.12 * k && (p.staff || []).length, staffItem);
     if (typeof EL !== 'undefined') { try { EL.tick(k, tryAdd); } catch (e) { console.error(e); } }
+    if (typeof PW !== 'undefined') { try { PW.tick(k, tryAdd); } catch (e) { console.error(e); } }
     planTick(); stratTick(k);
   }
   /* ---------- exécution de la stratégie de campagne ---------- */
   function stratTick(k) { const p = P(); const st = p.cand && p.cand.strat; if (!st) return; const ph = E.phase().id; if (!['pre', 'campagne', 'entre2'].includes(ph)) return; const f = k * (ph === 'pre' ? 0.6 : 1); let t = '';
     if (st.s === 'terrain') { const key = p.cand.key; const zs = E.zonesFor ? E.zonesFor(key) : null; let n = 0; if (zs) { const ord = zs.slice().sort((a, b) => a.cover - b.cover); for (let i = 0; i < Math.min(2, ord.length); i++) { E.canvass(ord[i].id, 'staff'); n++; } } E.addNoto('commune', 0.6 * f); t = 'les militants ont quadrillé ' + n + ' secteur' + (n > 1 ? 's' : '') + ' peu couvert' + (n > 1 ? 's' : ''); }
-    else if (st.s === 'medias') { E.addNoto(nscope(), 1 * f); const ax = (D.THEMES[st.th] || {}).ax || {}; const v = P().ax || []; D.SEGS.forEach(g => { let a = 0; for (const kk in ax) a += ax[kk] * (g.ideal[E.AXI[kk]] || 0) * Math.sign(v[E.AXI[kk]] || 1); E.addImage(g.id, Math.max(-0.4, Math.min(0.8, a / 120)) * f); }); p.followers += Math.round(40 * f); t = 'passages presse et vidéos sur ' + ((D.THEMES[st.th] || {}).l || st.th).toLowerCase(); }
+    else if (st.s === 'medias') { E.addNoto(nscope(), 1 * f); const ax = (D.THEMES[st.th] || {}).ax || {}; const v = P().ax || []; D.SEGS.forEach(g => { let a = 0; for (const kk in ax) a += ax[kk] * (g.ideal[E.AXI[kk]] || 0) * Math.sign(v[E.AXI[kk]] || 1); E.addImage(g.id, Math.max(-0.4, Math.min(0.8, a / 120)) * f); }); p.followers += Math.round(40 * f); if (typeof PW !== 'undefined') PW.talk(st.th, 0.5); t = 'passages presse et vidéos sur ' + ((D.THEMES[st.th] || {}).l || st.th).toLowerCase(); }
     else if (st.s === 'notables') { if (p.party !== 'NEW') E.addStd(0.6 * f); E.addImage('RET', 0.6 * f); E.addImage('CAD', 0.4 * f); p.fedSup = clamp((p.fedSup || 0) + 0.5 * f, 0, 100); t = 'rencontres avec des élus, présidents d’association et chefs d’entreprise'; }
     if (st.al === 'alliance' && R() < 0.15 * k) { const r = rival(); if (r && (r.rel || 0) > -20) { r.rel = clamp((r.rel || 0) + 3, -100, 100); t += ' ; votre équipe sonde ' + r.name + ' pour un accord'; } }
     st.last = t; F().echo.unshift({ date: S().date, t: 'Campagne : ' + t + '.' }); }

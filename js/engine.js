@@ -518,8 +518,8 @@ window.E = (function () {
     const seniority = diffDays('2026-06-15', s.date) / 365 + ({ militant: 3, adjoint: 6, habitant: 0 }[s.start] ?? 2) - ((p.exParties || []).length ? 2 : 0);
     const uW = (el.type === 'leg' || el.type === 'dep') ? unit(el.type === 'leg' ? 'c' + p.circo : 'can:' + p.communeId) : null; const blocW = uW ? PIDS.filter(k => (D.PARTIES[k] || {}).bloc === (D.PARTIES[p.party] || {}).bloc).reduce((t, k) => t + (uW.base[k] || 0), 0) : 0; const safe = clamp((blocW - 20) / 20, 0, 1);
     const anc = el.type === 'leg' ? (strong ? 12 : locM.length ? -4 : -20) - safe * (strong ? 0 : 14) + Math.min(6, seniority * 1.2) - 6 : el.type === 'dep' ? (locM.length ? 6 : -10) + Math.min(5, seniority) - 4 : el.type === 'pres' ? (p.chef ? 0 : (p.prole || 0) >= 4 ? -10 : -45) : 0;
-    const parts = { poids: p.std * 0.55, noto: (p.noto[scope] || 0) * 0.35, fed: ((fed ? fed.rel : 0) + 100) / 10, role: (p.prole || 0) * 5 + (p.fedRole && el.type !== 'pres' ? 30 : 0) + (p.chef ? 80 : 0), ancrage: anc };
-    const me = parts.poids + parts.noto + parts.fed + parts.role + parts.ancrage; const riv = rival.std * 0.55 + rival.noto * 0.35 + 10 + (rival.mandat ? 18 : 0) + (rival.role === 'depute' && el.type === 'leg' ? 18 : 0) + (el.type === 'pres' && rival.role === 'leader' ? 25 : 0);
+    const parts = { poids: p.std * 0.55, noto: (p.noto[scope] || 0) * 0.35, fed: ((fed ? fed.rel : 0) + 100) / 10, role: (p.prole || 0) * 5 + (p.fedRole && el.type !== 'pres' ? 30 : 0) + (p.chef ? 80 : 0), ancrage: anc }; if ((p.invHook || {})[el.id]) parts.obliges = p.invHook[el.id];
+    const me = parts.poids + parts.noto + parts.fed + parts.role + parts.ancrage + (parts.obliges || 0); const riv = rival.std * 0.55 + rival.noto * 0.35 + 10 + (rival.mandat ? 18 : 0) + (rival.role === 'depute' && el.type === 'leg' ? 18 : 0) + (el.type === 'pres' && rival.role === 'leader' ? 25 : 0);
     return { me, riv, rival, parts, scope };
   }
   function invOdds(el) {
@@ -550,7 +550,8 @@ window.E = (function () {
     return { diff: (DIFF[S().diff || 'normal'] || DIFF.normal).bonus, bilan: typeof GV !== 'undefined' ? GV.bilanTerm(el.type) : 0, field: fieldEffect(p.cand.key), climK: 1 - 0.6 * (p.distance || 0), prog, sansEt, id: 'PJ', pj: true, name: p.name, party: lab, label: pet ? 'Liste ' + p.name.split(' ').slice(-1)[0] : lab === 'DIV' ? (p.movement || 'Divers') : D.PARTIES[lab].short, color: lab === 'DIV' ? '#8d939c' : D.PARTIES[lab].color, bucket, ax: p.ax, noto, image: p.image, cred: p.cred, camp, mom: p.mom };
   }
   function progEffect(lvl, type) {
-    const o = {}; (S().p.prog || []).forEach(m => { if (m.status === 'retiree') return; const fit = type && typeof L !== 'undefined' && L.inComp ? L.inComp(m, type) : m.level === lvl; const w = (m.phare ? 1 : 0.4) * (m.visib || 0) / 100 * (fit ? 1 : m.level === lvl ? 0.45 : 0.25) * (0.6 + (m.cred || 50) / 125) * (typeof HQ !== 'undefined' ? HQ.progK(m.level) : 1); if (m.segw) { for (const g in m.segw) o[g] = (o[g] || 0) + 0.035 * m.segw[g] * w; return; } (m.gagnants || []).forEach(g => o[g] = (o[g] || 0) + 0.1 * w); (m.perdants || []).forEach(g => o[g] = (o[g] || 0) - 0.06 * w); });
+    const o = {}; const enj = typeof PW !== 'undefined' && S().p.cand ? PW.enjW() : null; (S().p.prog || []).forEach(m => { if (m.status === 'retiree') return; const fit = type && typeof L !== 'undefined' && L.inComp ? L.inComp(m, type) : m.level === lvl; const w = (enj ? 0.75 + 1.6 * (enj[m.theme] || 0) : 1) * (m.phare ? 1 : 0.4) * (m.visib || 0) / 100 * (fit ? 1 : m.level === lvl ? 0.45 : 0.25) * (0.6 + (m.cred || 50) / 125) * (typeof HQ !== 'undefined' ? HQ.progK(m.level) : 1); if (m.segw) { for (const g in m.segw) o[g] = (o[g] || 0) + 0.035 * m.segw[g] * w; return; } (m.gagnants || []).forEach(g => o[g] = (o[g] || 0) + 0.1 * w); (m.perdants || []).forEach(g => o[g] = (o[g] || 0) - 0.06 * w); });
+    if (enj) { const ta = PW.talkAlign(); if (ta) D.SEG_IDS.forEach(g => o[g] = (o[g] || 0) + ta); }
     for (const k in o) o[k] = clamp(o[k], -0.3, 0.4); return o;
   }
   function pnjCand(pn, bucket, extraNoto) {
@@ -1448,7 +1449,7 @@ window.E = (function () {
     const p = S().p; if (rnd() > Math.min(1, days / 30)) return;
     if (typeof OF === 'undefined' && p.mandats.some(m => ['conseiller_municipal', 'adjoint', 'maire'].includes(m.type))) { const c = pick(COUNCIL); S().queue.push({ kind: 'vote', ctx: 'Conseil municipal', text: c[0], v: c[1], th: c[2] }); }
     if (typeof OF === 'undefined' && hasMandat('depute') && rnd() < 0.85) { if (typeof PL !== 'undefined') { const t = pick(PL.TXT); S().queue.push({ kind: 'vote', ctx: 'Assemblée nationale', text: t.l, v: t.v, th: t.th, line: PL.textLine(p.party, t) }); } else { const t = pick(TEXTES); const pa = p.party !== 'NEW' ? D.PARTIES[p.party].ax : null; let line = null; if (pa) { let d = 0; for (const k in t[1]) d += Math.sign(t[1][k]) * Math.sign(pa[AXI[k]]); line = d > 0 ? 'pour' : 'contre'; } S().queue.push({ kind: 'vote', ctx: 'Assemblée nationale', text: t[0], v: t[1], th: t[2], line }); } }
-    if (p.mairie) { const m = p.mairie; m.invest = Math.round(commune().pop * 320 * (1 + (m.tf - 38) / 40)); }
+    if (p.mairie) { const m = p.mairie; const bd = m.bud && m.bud[S().date.slice(0, 4)]; m.invest = bd ? bd.inv + (bd.extra || 0) : Math.round(commune().pop * 320 * (1 + (m.tf - 38) / 40)); }
   }
   function resolveVote(q, choice) {
     const p = S().p; p.votesLog = (p.votesLog || []).concat([{ date: S().date, ctx: q.ctx, th: q.th, line: q.line || null, choice }]).slice(-200); const sign = choice === 'pour' ? 1 : choice === 'contre' ? -1 : 0;

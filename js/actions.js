@@ -149,6 +149,7 @@ window.X = (function () {
     if (!pay(a)) return { ok: false, msg: 'Paiement impossible.' };
     P().hours -= a.h; const S0 = G.S; S0.cnt = S0.cnt || {}; S0.cnt[id] = (S0.cnt[id] || 0) + 1; S0.turnCnt = S0.turnCnt || {}; const nrep = S0.turnCnt[id] = (S0.turnCnt[id] || 0) + 1;
     let rk = [1, 1, 0.7, 0.5, 0.35, 0.25][Math.min(5, nrep)]; const pk = typeof HQ !== 'undefined' ? HQ.prepK() : 1; const pp = P(); const b0 = rk < 1 || pk < 1 ? JSON.stringify({ i: pp.image, n: pp.noto, c: pp.camp, z: S0.zones }) : null;
+    if (opts && opts.theme && typeof PW !== 'undefined') PW.talk(opts.theme);
     const msg = a.run(opts || {});
     if (b0) { const o = JSON.parse(b0); const sc = (cur, old) => { for (const k in cur) { if (typeof cur[k] === 'number' && typeof old[k] === 'number') cur[k] = old[k] + (cur[k] - old[k]) * rk; } }; sc(pp.image, o.i); sc(pp.noto, o.n); const rk0 = rk; rk = rk0 * pk; sc(pp.camp, o.c); for (const k in (S0.zones || {})) (S0.zones[k] || []).forEach((z, i) => { const oz = o.z && o.z[k] && o.z[k][i]; if (oz) z.cover = oz.cover + (z.cover - oz.cover) * rk; }); rk = rk0; }
     if (a.ill && typeof FL !== 'undefined' && rnd() < 0.6) FL.later(E.rint(3, 12), 'enquete', { t: a.l.toLowerCase() });
@@ -342,7 +343,7 @@ window.X = (function () {
     E.article('dauph', E.commune().name + ' : la municipalité lance « ' + pr.l + ' »', 0.2, 'pj'); return { ok: true, msg: pr.l + ' : ' + eur(cost) + ' engagés.' };
   }
   function mairieTaxe(delta) { const m = P().mairie; m.tf = clamp(m.tf + delta, 15, 60); E.addImage('RET', -2.5 * delta); E.addImage('PERI', -2.5 * delta); E.addImage('CAD', -1.5 * delta); E.statement(delta > 0 ? 'Hausse de la taxe foncière' : 'Baisse de la taxe foncière', 'fiscalite', { eco: delta > 0 ? -25 : 25 }, 0.5, 'mairie'); return 'Taux de taxe foncière : ' + m.tf + ' %.'; }
-  function mairieEmprunt() { const m = P().mairie; const amt = Math.round(m.invest * 0.5); m.dette += amt; m.invest += amt; return 'Emprunt de ' + eur(amt) + ' : dette ' + eur(m.dette) + '.'; }
+  function mairieEmprunt() { const m = P().mairie; const amt = Math.round(m.invest * 0.5); m.dette += amt; m.invest += amt; const bd = m.bud && m.bud[G.S.date.slice(0, 4)]; if (bd) bd.extra = (bd.extra || 0) + amt; return 'Emprunt de ' + eur(amt) + ' : dette ' + eur(m.dette) + '.'; }
 
   /* ---------- mesure des effets ---------- */
   function reseau() { const p = P(); return Math.round(Math.max(0, Math.min(100, (p.militants || 0) * 1.2 + Math.sqrt(p.followers || 0) * 0.7 + (p.fedSup || 0) * 0.12 + (p.natSup || 0) * 0.08 + (p.staff || []).length * 2))); }

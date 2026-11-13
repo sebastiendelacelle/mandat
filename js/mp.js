@@ -248,6 +248,7 @@ const MP = (() => {
       LF.sms(fid, 'Le débat est diffusé. Verdict du public : vous ' + (sc >= 55 ? 'l’emportez' : sc < 45 ? 'perdez' : 'faites jeu égal') + ' (' + Math.round(sc) + ' %).', null, { role: 'Joueur·se', human: v.from });
     } else if (v.kind === 'riposte') {
       LF.sms(fid, nm + ' riposte : « ' + v.text + ' »', null, { role: 'Joueur·se', human: v.from }); E.addImageAll(-0.3);
+    } else if (/^pacte/.test(v.kind || '') && typeof PW !== 'undefined') { PW.inbound(v, fid, nm);
     } else {
       LF.sms(fid, v.text, null, { role: 'Joueur·se', human: v.from });
     }

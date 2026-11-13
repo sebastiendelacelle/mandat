@@ -221,7 +221,7 @@ const EL = (() => {
       tryAdd(due('fronde', 150) && R() < 0.3 * k, () => { const it = frondeItem(); if (it) seen('fronde'); return it; });
       tryAdd(due('emp', 180) && R() < 0.25 * k, () => { seen('emp'); return dgsItem(); });
       tryAdd(pet() && due('vil', 90) && R() < 0.4 * k, () => { seen('vil'); return villageItem(); });
-      tryAdd([1, 2].includes(mo) && due('budgeq', 300), () => { seen('budgeq'); return budgetEqItem(); });
+      tryAdd(typeof PW === 'undefined' && [1, 2].includes(mo) && due('budgeq', 300), () => { seen('budgeq'); return budgetEqItem(); });
       tryAdd(due('asso', 120) && R() < 0.3 * k, () => { seen('asso'); return assoItem(); });
       tryAdd(!pet() && due('oppo', 150) && R() < 0.25 * k, () => { seen('oppo'); return oppoMaireItem(); });
       tryAdd(!pet() && due('bull', 120) && R() < 0.3 * k, () => { seen('bull'); return bulletinItem(); });

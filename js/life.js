@@ -30,6 +30,7 @@ window.LF = (function () {
     if (r.dossierOn) { p.dossiers.push({ id: E.uid('d'), on: r.dossierOn, label: r.dossier, g: 2, date: s.date }); if (R() < 0.3) E.casserole('recel', 'l’utilisation de documents obtenus illégalement', 2, true, 0.05); }
     else if (r.dossier && x) { p.dossiers.push({ id: E.uid('d'), on: x.id, label: r.dossier, g: 2, date: s.date }); if (R() < 0.3) E.casserole('recel', 'l’utilisation de documents obtenus illégalement', 2, true, 0.05); }
     if (r.quote && r.quote.txt) { E.statement(r.quote.txt, r.quote.th, r.quote.v, 0.5, 'citation presse'); E.article(r.quote.media || 'dauph', r.quote.title || (p.name + ' réagit'), 0.1, 'pj', '« ' + r.quote.txt + ' »'); }
+    if (r.pw && typeof PW !== 'undefined') { const t = PW.res(r.pw, m); if (t) r = Object.assign({}, r, { res: t }); }
     if (r.mpReply && m.human && typeof MP !== 'undefined') MP.send(m.human, r.mpReply === 'riposte' ? 'riposte' : 'msg', r.mpReply === 'riposte' ? 'Je ne laisserai pas passer ces attaques. Les électeurs jugeront sur les actes.' : 'Merci pour ton soutien, ça compte.');
     m.thread = (m.thread || []).concat([{ me: true, t: r.l }]); if (r.ans) m.thread.push({ me: false, t: r.ans });
     return r.res || 'Message envoyé.';
