@@ -60,7 +60,10 @@ const LV = (() => {
     const opts = [];
     let a;
     const brk = (p.promises || []).find(z => z.broken && !st.used.includes('pr' + z.id)); const bs = typeof GV !== 'undefined' ? GV.bilanScore() : 0; const inc = p.mandats.some(mm => ['maire', 'adjoint', 'depute', 'president', 'cd'].includes(mm.type));
-    if (brk) { st.used.push('pr' + brk.id); a = { theme: 'institutions', text: nm + ' : « Vous aviez promis ' + brk.what + '. On attend toujours. Pourquoi vous croire cette fois ? »', truth: true };
+    const ctrA = p.prog.find(m => m.status !== 'retiree' && m.contra && !st.used.includes('ctr' + m.id)); const ctrB = ctrA && p.prog.find(m => m.id === ctrA.contra && m.status !== 'retiree');
+    if (ctrA && ctrB && !brk) { st.used.push('ctr' + ctrA.id, 'ctr' + ctrB.id); a = { theme: ctrA.theme, text: nm + ' : « Vous proposez à la fois « ' + ctrA.resume + ' » et « ' + ctrB.resume + ' ». Lequel faut-il croire ? »', truth: true };
+      opts.push({ posture: 'Clarifier', texte: 'C’est juste, les deux ne vont pas ensemble. Ma priorité, c’est « ' + ctrA.resume + ' », et je retire l’autre.', q: 6, move: 'nuance', fc: { t: 'Vérification : les deux mesures vont en sens contraire.', ok: true }, retire: ctrB.id }, { posture: 'Tout assumer', texte: 'Il n’y a aucune contradiction : je défends les deux.', q: -5, move: 'bluff', lie: true, fc: { t: 'Vérification : les deux mesures vont en sens contraire.', ok: false } }); }
+    else if (brk) { st.used.push('pr' + brk.id); a = { theme: 'institutions', text: nm + ' : « Vous aviez promis ' + brk.what + '. On attend toujours. Pourquoi vous croire cette fois ? »', truth: true };
       opts.push({ posture: 'Reconnaître', texte: 'Je n’ai pas pu le faire à temps, je l’assume. Mais je l’ai inscrit au budget et je le ferai.', q: 5, move: 'nuance' }, { posture: 'Nier', texte: 'C’est en cours, les travaux commencent bientôt.', q: 0, move: 'bluff', lie: true }); }
     else if (inc && !st.used.includes('bilan')) { st.used.push('bilan'); const good = bs > 10; a = { theme: 'institutions', text: nm + ' : « Parlons de votre bilan. ' + (good ? 'Beaucoup d’annonces, peu de résultats concrets.' : 'Il est mauvais, et tout le monde le sait.') + ' »', truth: !good };
       opts.push({ posture: 'Défendre mon bilan', texte: good ? 'Mon bilan, les habitants le voient : ' + (P().bilan || []).filter(b => b.v > 0).slice(-2).map(b => b.l.toLowerCase()).join(', ') + '.' : 'Nous avons fait ce que nous pouvions dans un contexte difficile.', q: good ? 11 : -1, move: good ? 'chiffres' : 'esquive' }); }
@@ -140,10 +143,10 @@ const LV = (() => {
   function reac(d) { for (const [th, L] of REAC) if (d >= th) return E.fresh('reac' + th, L); return 'Silence.'; }
   function resolve(st, beat, o) {
     const p = P(); const m = MOVES[o.move] || MOVES.fond; const pr = predict(st, o);
-    let t = pr.t + E.gauss() * m.v; let slip = false;
+    let t = pr.t + E.gauss() * m.v * 0.6; let slip = false;
     if (['attaque', 'couper', 'punch'].includes(o.move) && st.tension > 70 && R() < (st.tension - 60) / 80) { t = -1.6; slip = true; }
     if (beat.kind === 'atk' && beat.truth && o.move === 'chiffres') t -= 0.5;
-    const segD = {}; SEGS.forEach(g => segD[g] = clamp(t * 4 * m.seg[g] + pr.d[g] - pr.t * 4 * m.seg[g] + (E.gauss() * 0.6), -9, 9));
+    const segD = {}; SEGS.forEach(g => segD[g] = clamp(t * 4 * m.seg[g] + pr.d[g] - pr.t * 4 * m.seg[g] + (E.gauss() * 0.4), -9, 9));
     let barD = clamp(SEGS.reduce((a, g) => a + st.aud[g] * segD[g], 0) * 0.85, -6, 6);
     SEGS.forEach(g => st.seg[g] = clamp(st.seg[g] + segD[g], -40, 40));
     st.tension = clamp(st.tension + m.tens + (beat.kind === 'atk' ? 6 : 0) + (slip ? 12 : 0), 0, 100);
@@ -153,9 +156,10 @@ const LV = (() => {
     if (o.move === 'couper') st.couper = (st.couper || 0) + 1;
     if (o.attack && typeof DP !== 'undefined' && DP.attackProp && t > 0.6) { try { DP.attackProp(o.attack.x, o.attack.pr, o.attack.angle || 'cout'); } catch (e) { } }
     if (o.edl && typeof HQ !== 'undefined') HQ.edlUse(o.edl);
+    if (o.retire) { const mm = p.prog.find(z => z.id === o.retire); if (mm) { mm.status = 'retiree'; delete mm.contra; p.prog.forEach(z => { if (z.contra === mm.id) delete z.contra; }); E.log('Vous retirez « ' + mm.resume + ' » de votre programme pour lever la contradiction.', 'info'); } }
     st.moves.push(o.move); if (o.ax || beat.kind === 'q') st.stmts.push({ text: o.texte, theme: beat.theme, axes: o.ax });
     st.feed.push({ me: true, t: o.texte });
-    const out = { segD, barD, reac: slip ? 'Dérapage : le ton monte, vous perdez vos nerfs.' : reac(barD), slip, opp: null };
+    const out = { segD, barD, reac: slip ? 'Dérapage : le ton monte, vous perdez vos nerfs.' : reac(barD), slip, opp: null, fact: o.fc || null, why: typeof DP !== 'undefined' && DP.whySeg ? DP.whySeg(segD, o) : '' };
     // l'adversaire (ou le journaliste) réagit
     if (!st.iv && !st.arena && st.oppX && beat.kind !== 'fin') {
       const x = st.oppX; const tr = x.traits || {}; const strength = (x.noto || 30) / 100 * 0.6 + ((tr.charisme ?? 50) - 50) / 150 + E.gauss() * 0.6 - (o.move === 'couper' ? 0.2 : 0);
@@ -205,7 +209,7 @@ const LV = (() => {
     const q = E.fresh('oq', ['Quelle est votre priorité pour ' + tl + ' ?', 'Concrètement, sur ' + tl + ', que changez-vous la première année ?', 'Beaucoup d’habitants nous parlent ' + deArt(tl) + '. Que leur répondez-vous ?', 'Sur ' + tl + ', qu’est-ce qui vous distingue de votre adversaire ?', 'Votre premier engagement sur ' + tl + ' ?']);
     const S1 = []; const line = () => x && typeof DP !== 'undefined' ? DP.oppLine(x, t, vil) : E.fresh('gen', ['Je crois à des solutions simples et concrètes.', 'Les habitants méritent mieux que ce qu’on leur propose.', 'Il faut du courage pour dire la vérité.']);
     S1.push({ k: 'claim', t: line() });
-    const pr = x && (x.prog || []).find(z => z.th === t); const weakFin = pr && ['aucun', 'dette', 'croissance'].includes(pr.fin);
+    const pr = x && (x.prog || []).find(z => z.th === t); const weakFin = pr && ['aucun', 'dette', 'croissance'].includes(pr.fin) && ((pr.cost || 0) > 0 || (pr.inv || 0) > 0);
     const r = R(); const tr = (x && x.traits) || {}; const loc0 = ['mun', 'dep', 'reg', 'sen'].includes(elTypeNow()) || (!elTypeNow() && isLocal());
     if ((tr.scrupules ?? 50) < 50 && r < 0.45) S1.push({ k: 'bluff', t: typeof TB !== 'undefined' ? E.fresh('bluff' + (loc0 ? 'l' : 'n'), TB.BLUFF[loc0 ? 'local' : 'national']) : E.fresh('bluff', ['Sous ma responsabilité, la délinquance a baissé de 40 %.', 'Ma mesure ne coûte rien, elle est autofinancée.', 'Tous les experts sont d’accord avec moi.', 'Le chômage a doublé ici en cinq ans.', 'Neuf habitants sur dix soutiennent mon projet.', 'Mon adversaire a voté contre toutes les baisses d’impôts.']) });
     else if (pr) S1.push(weakFin ? { k: 'weak', t: 'Pour « ' + pr.label + ' », le financement viendra ' + (pr.fin === 'dette' ? 'de l’emprunt, comme partout.' : pr.fin === 'aucun' ? 'tout seul : ça ne coûte presque rien.' : 'de la croissance que ça va créer.'), pr } : { k: 'strong', t: '« ' + pr.label + ' » : c’est chiffré, c’est financé, c’est prêt.' });

@@ -5,22 +5,66 @@ window.DP = (function () {
   const segN = g => (D.SEGS.find(x => x.id === g) || { name: g }).name.toLowerCase();
 
   /* ===== Programmes des adversaires ===== */
+  const weakF = pr => !!pr && ['aucun', 'dette', 'croissance'].includes(pr.fin) && ((pr.cost || 0) > 0 || (pr.inv || 0) > 0);
   const FIN_BY_BLOC = { local: { G: ['taxe', 'redeploiement'], GE: ['subventions', 'taxe', 'redeploiement'], C: ['redeploiement', 'subventions'], D: ['redeploiement', 'emprunt'], ED: ['redeploiement', 'aucun'], DIV: ['subventions', 'redeploiement'] }, national: { G: ['riches'], GE: ['riches', 'dette'], C: ['economies', 'dette'], D: ['economies'], ED: ['economies', 'dette', 'croissance'], DIV: ['economies', 'dette'] } };
-  function genProp(x, lvl) {
-    const pa = D.PARTIES[x.party].ax; const bloc = D.PARTIES[x.party].bloc; const have = new Set((x.prog || []).map(p => p.lev));
-    const NOVIL = ['pm', 'mediateurs', 'parking', 'hlm', 'velo']; const vil = lvl === 'local' && E.myPetite && E.myPetite(); const pool0 = lvl === 'local' && L.leversFor ? L.leversFor('local', null, (E.commune() || { pop: 20000 }).pop) : L.LEVERS.filter(l => l.lvl === lvl); const cands = pool0.filter(l => !have.has(l.id) && !(vil && NOVIL.includes(l.id))).map(l => { let dot = 0; for (const k in l.ax) dot += Math.sign(l.ax[k]) * pa[E.AXI[k]] / 100; return { l, dot }; }).filter(c => c.dot > 0.15).sort((a, b) => b.dot - a.dot);
-    if (!cands.length) return null; const lev = pick(cands.slice(0, 5)).l;
+  // Mesures emblématiques de chaque parti (choisies en priorité) et mesures qu’il ne proposerait jamais
+  const SIG = {
+    LFI: ['smic', 'retraite', 'isf', 'superprofits', 'loyers', 'regul', 'vert', 'rail', 'ric', 'cantine_soc', 'transco', 'medecins', 'hlm', 'bp', 'mediateurs', 'csdep', 'cantcol', 'ter', 'tarifjeunes', 'smiceu', 'ttf', 'pac', 'formation', 'jeunes', 'mutuelle'],
+    PCF: ['smic', 'retraite', 'isf', 'soignants', 'construire', 'prixagri', 'nucleaire', 'rail', 'medecins', 'hlm', 'mutuelle', 'cantine_soc', 'transco', 'csdep', 'apa', 'cantcol', 'ter', 'pac', 'smiceu', 'reindus', 'formation', 'aines', 'dgf'],
+    ECO: ['vert', 'renov', 'jets', 'rail', 'velo', 'bio', 'arbres', 'solaire', 'renovpub', 'terres', 'marche', 'voiesvertes', 'enr', 'ter', 'tarifjeunes', 'mfac', 'pac', 'eurodette', 'regul', 'loyers', 'aidemourir', 'eclairage', 'primeveh', 'agrijeunes'],
+    PS: ['construire', 'loyers', 'medreg', 'enseignants', 'salprofs', 'patrimoine', 'hlm', 'creches', 'ecoles', 'perisco', 'medecins', 'csdep', 'apa', 'college', 'ase', 'lycees', 'ter', 'defeur', 'ukraine', 'smiceu', 'aidemourir', 'mfac', 'garderie'],
+    REN: ['production', 'chargesbas', 'depenses', 'nucleaire', 'ptz', 'policiers', 'defeur', 'ukraine', 'achatfr', 'eurodette', 'reindus', 'formation', 'commerces', 'cam', 'proprete', 'internes', 'unanimite', 'mfac', 'reseaux', 'college'],
+    MODEM: ['proportionnelle', 'depenses', 'ptz', 'chargesbas', 'defeur', 'dgf', 'statut', 'ecoles', 'commerces', 'maison_sante', 'internes', 'reunions', 'medreg', 'unanimite', 'apa', 'agrijeunes'],
+    HOR: ['depenses', 'prisons', 'production', 'chargesbas', 'nucleaire', 'chomage', 'policiers', 'cam', 'pm', 'tf', 'college', 'rsa15', 'reindus', 'defeur', 'formation', 'statut', 'pompiers'],
+    LR: ['depenses', 'prisons', 'peines', 'policiers', 'chargesbas', 'heritage', 'titres', 'ame', 'chomage', 'uniforme', 'nucleaire', 'normes', 'pm', 'cam', 'tf', 'rsa15', 'route90', 'portiques', 'secugares', 'frontex', 'dgf', 'zan', 'pompiers', 'stations', 'parking'],
+    UDR: ['heritage', 'depenses', 'titres', 'ame', 'peines', 'prisons', 'tva', 'normes', 'nucleaire', 'thermique', 'pm', 'cam', 'tf', 'mna', 'route90', 'frontex', 'contrib', 'parking', 'zan'],
+    RN: ['tva', 'titres', 'ame', 'peines', 'prisons', 'retraite', 'nucleaire', 'mercosur', 'contrib', 'uniforme', 'ric', 'proportionnelle', 'pm', 'cam', 'tf', 'parking', 'mna', 'route90', 'portiques', 'secugares', 'frontex', 'normes', 'thermique', 'superprofits', 'policiers'],
+    REC: ['titres', 'ame', 'peines', 'prisons', 'heritage', 'depenses', 'nucleaire', 'uniforme', 'pm', 'cam', 'tf', 'mna', 'frontex', 'contrib', 'thermique', 'parking'],
+    DIV: ['ralentir', 'ecole_v', 'garderie', 'maison_sante', 'multiple', 'chemins', 'salle', 'reunions', 'proprete', 'eclairage', 'tf', 'commerces', 'parking', 'internes', 'aines', 'tad', 'voisins', 'dgf', 'statut', 'zan']
+  };
+  const RIGHT_BAN = ['bp', 'regul', 'cannabis', 'isf', 'loyers', 'vert', 'jets', 'eurodette', 'ttf', 'smiceu', 'unanimite', 'mediateurs', 'aidemourir'];
+  const BAN = {
+    LFI: ['nucleaire', 'titres', 'ame', 'peines', 'prisons', 'depenses', 'chomage', 'heritage', 'production', 'cam', 'pm', 'parking', 'chargesbas', 'defeur', 'thermique', 'route90', 'portiques', 'secugares', 'frontex', 'mna', 'tf', 'achatfr', 'rsa15', 'stations', 'zan', 'unanimite', 'eurodette'],
+    PCF: ['titres', 'ame', 'peines', 'depenses', 'chomage', 'heritage', 'production', 'tf', 'chargesbas', 'cannabis', 'frontex', 'mna', 'rsa15', 'achatfr', 'eurodette'],
+    ECO: ['nucleaire', 'titres', 'ame', 'peines', 'prisons', 'parking', 'thermique', 'heritage', 'production', 'chomage', 'route90', 'cam', 'stations', 'tva', 'zan', 'frontex', 'mna', 'normes', 'rsa15'],
+    PS: ['titres', 'ame', 'peines', 'chomage', 'depenses', 'heritage', 'production', 'thermique', 'mna', 'normes', 'frontex', 'tva', 'zan', 'route90'],
+    REN: ['cannabis', 'isf', 'retraite', 'smic', 'ric', 'tva', 'titres', 'ame', 'contrib', 'superprofits', 'mna', 'prixagri', 'ttf'],
+    MODEM: ['cannabis', 'isf', 'retraite', 'smic', 'ric', 'tva', 'titres', 'ame', 'contrib', 'mna', 'thermique'],
+    HOR: ['cannabis', 'isf', 'smic', 'retraite', 'superprofits', 'patrimoine', 'loyers', 'ric', 'ttf', 'smiceu', 'tva', 'regul', 'jets', 'bp'],
+    LR: RIGHT_BAN.concat(['smic', 'retraite', 'superprofits', 'patrimoine', 'medreg', 'ric', 'proportionnelle', 'construire', 'hlm', 'medecins', 'csdep']),
+    UDR: RIGHT_BAN.concat(['smic', 'retraite', 'construire', 'hlm', 'medecins', 'csdep', 'superprofits', 'patrimoine', 'defeur', 'ukraine', 'achatfr', 'mfac', 'velo']),
+    RN: RIGHT_BAN.concat(['defeur', 'ukraine', 'achatfr', 'mfac', 'velo', 'chomage', 'depenses', 'hlm', 'creches']),
+    REC: RIGHT_BAN.concat(['smic', 'retraite', 'construire', 'hlm', 'medecins', 'csdep', 'superprofits', 'patrimoine', 'defeur', 'ukraine', 'achatfr', 'mfac', 'velo', 'creches']),
+    DIV: ['cannabis', 'isf', 'regul', 'titres', 'ame', 'mna', 'ttf', 'eurodette']
+  };
+  // financement plausible : pas d’emprunt ni de subvention pour des dépenses courantes, rien à financer si la mesure ne coûte rien
+  function finFor(lev, v, bloc, lvl) { const c0 = lev.cost(v, (E.commune() || { pop: 20000 }).pop), i0 = lev.inv(v, (E.commune() || { pop: 20000 }).pop);
+    if (c0 <= 0 && i0 <= 0) return 'aucun';
+    let opts = (FIN_BY_BLOC[lvl][bloc] || ['redeploiement']).slice();
+    if (lvl === 'local') { if (c0 > i0 / 10) opts = opts.filter(f => f !== 'emprunt' && f !== 'subventions'); if (lev.scale && opts.includes('taxe') && bloc !== 'G') opts = opts.filter(f => f !== 'taxe'); if (!opts.length) opts = ['redeploiement']; }
+    return pick(opts); }
+  function genProp(x, lvl, t) {
+    const pa = D.PARTIES[x.party].ax; const bloc = D.PARTIES[x.party].bloc; const s = S(); const have = new Set((x.prog || []).map(p => p.lev));
+    const taken = new Set((s.rivals || []).flatMap(id => ((s.pnj[id] || {}).prog || []).map(p => p.lev)));
+    const NOVIL = ['pm', 'mediateurs', 'parking', 'hlm', 'velo']; const vil = lvl === 'local' && E.myPetite && E.myPetite(); const pop = (E.commune() || { pop: 20000 }).pop;
+    const ban = new Set(BAN[x.party] || []); const sig = SIG[x.party] || [];
+    const pool0 = (L.leversFor ? L.leversFor(lvl, null, pop, t) : L.LEVERS.filter(l => l.lvl === lvl)).filter(l => !have.has(l.id) && !ban.has(l.id) && !(vil && NOVIL.includes(l.id)));
+    const fresh = l => !taken.has(l.id) || R() < 0.25;
+    const sigPool = pool0.filter(l => sig.includes(l.id) && fresh(l));
+    const cands = pool0.filter(fresh).map(l => { let dot = 0; for (const k in l.ax) dot += Math.sign(l.ax[k]) * pa[E.AXI[k]] / 100; return { l, dot }; }).filter(c => c.dot > 0.25).sort((a, b) => b.dot - a.dot);
+    let lev = sigPool.length && (R() < 0.8 || !cands.length) ? pick(sigPool) : cands.length ? pick(cands.slice(0, 4)).l : null; if (!lev) return null;
     let v = lev.def + Math.round((R() - 0.4) * (lev.max - lev.min) / 4 / lev.step) * lev.step; v = clamp(v, lev.min, lev.max); if (lev.id === 'retraite') v = pa[0] < 0 ? 62 : pa[0] > 40 ? 65 : 64; if (lev.id === 'tf') v = pa[0] > 0 ? -2 : 1;
-    const fin = pick(FIN_BY_BLOC[lvl][bloc] || ['redeploiement']); const ev = L.evaluate(lev, v, fin, E.commune());
-    return { id: E.uid('rp'), lev: lev.id, lvl, v, fin, th: lev.th, label: ev.label, cost: ev.cost, inv: ev.inv, cred: clamp(ev.cred + (R() - 0.5) * 16, 15, 90), seg: ev.seg, gagnants: ev.gagnants, perdants: ev.perdants, vis: 35, hits: 0 };
+    const fin = finFor(lev, v, bloc, lev.lvl); const ev = L.evaluate(lev, v, fin, E.commune());
+    return { id: E.uid('rp'), lev: lev.id, lvl: lev.lvl, cp: lev.cp, v, fin, th: lev.th, label: ev.label, cost: ev.cost, inv: ev.inv, cred: clamp(ev.cred + (R() - 0.5) * 16, 15, 90), seg: ev.seg, gagnants: ev.gagnants, perdants: ev.perdants, vis: 35, hits: 0 };
   }
   function ensureProgs() {
-    const s = S(); const el = s.est ? s.elections.find(e => e.id === s.est.el) : null; const lvl = el && ['mun', 'dep', 'reg', 'sen'].includes(el.type) ? 'local' : 'national';
-    (s.rivals || []).forEach(id => { const x = s.pnj[id]; if (!x) return; x.prog = x.prog || []; if (!x.prog.some(p => p.lvl === lvl)) { for (let i = 0; i < 2; i++) { const pr = genProp(x, lvl); if (pr) x.prog.push(pr); } } });
+    const s = S(); const el = s.est ? s.elections.find(e => e.id === s.est.el) : null; const t = el ? el.type : null; const lvl = t && ['mun', 'dep', 'reg', 'sen'].includes(t) ? 'local' : 'national';
+    (s.rivals || []).forEach(id => { const x = s.pnj[id]; if (!x) return; x.prog = x.prog || []; const fits = x.prog.filter(p => (t ? (p.cp ? L.inComp(p.cp, t) : p.lvl === lvl) : p.lvl === lvl));
+      if (!fits.length) { for (let i = 0; i < 2; i++) { const pr = genProp(x, lvl, t); if (pr) x.prog.push(pr); } } });
   }
   function rivalProgEffect(x, type) {
     if (!x.prog || !x.prog.length) return null; const lvl = ['mun', 'dep', 'reg', 'sen'].includes(type) ? 'local' : 'national'; const o = {};
-    x.prog.forEach(p => { const w = (p.vis / 100) * (p.lvl === lvl ? 1 : 0.35) * (0.6 + p.cred / 125); for (const g in p.seg) o[g] = (o[g] || 0) + 0.03 * p.seg[g] * w; });
+    x.prog.forEach(p => { const w = (p.vis / 100) * ((p.cp ? L.inComp(p.cp, type) : p.lvl === lvl) ? 1 : 0.35) * (0.6 + p.cred / 125); for (const g in p.seg) o[g] = (o[g] || 0) + 0.03 * p.seg[g] * w; });
     for (const k in o) o[k] = clamp(o[k], -0.3, 0.35); return o;
   }
   const ANGLES = {
@@ -33,8 +77,9 @@ window.DP = (function () {
   function angleChance(x, pr, angle) {
     const p = P(); let c = 0.3 + (p.cred - 50) / 200 + (((p.expertise || {})[pr.th] || 0) * 0.05) + (E.hasStaff('plume') ? 0.06 : 0);
     const lvlT = X.curLevel();
-    if (angle === 'cout') c += (pr.cost > 0 ? 0.08 : -0.2) + (['aucun', 'dette', 'croissance'].includes(pr.fin) ? 0.25 : 0) + (pr.cred < 55 ? 0.15 : 0);
-    if (angle === 'faisa') c += (lvlT && lvlT !== pr.lvl ? 0.35 : 0) + (pr.inv > 0 ? 0.08 : 0) + (pr.cred < 45 ? 0.15 : -0.05);
+    if (angle === 'cout') c += (pr.cost > 0 ? 0.08 : -0.2) + (weakF(pr) ? 0.25 : 0) + (pr.cred < 55 ? 0.15 : 0);
+    const horsC = X.curType() ? (pr.cp ? !L.inComp(pr.cp, X.curType()) : lvlT !== pr.lvl) : false;
+    if (angle === 'faisa') c += (horsC ? 0.35 : 0) + (pr.inv > 0 ? 0.08 : 0) + (pr.cred < 45 ? 0.15 : -0.05);
     if (angle === 'perdants') c += Math.min(0.35, pr.perdants.length * 0.14) - (pr.perdants.length ? 0 : 0.25);
     if (angle === 'alter') { const mine = p.prog.filter(m => m.status !== 'retiree' && m.theme === pr.th).sort((a, b) => b.cred - a.cred)[0]; c += mine ? 0.15 + (mine.cred - pr.cred) / 120 : -0.3; }
     if (angle === 'ridicule') c += (p.traits.sangfroid - 50) / 200 + p.mediaTraining * 0.06 - 0.05;
@@ -76,17 +121,17 @@ window.DP = (function () {
     p => (p.distance || 0) > 0.3 ? 'Vous prenez vos distances avec votre parti. Simple calcul électoral ?' : null,
     p => p.casseroles.some(c => c.out) ? 'On a beaucoup parlé de « ' + p.casseroles.find(c => c.out).label + ' ». Vous voulez vous en expliquer ?' : null,
     p => p.party === 'NEW' ? 'Sans parti, sans réseau : vous n’êtes pas un peu seul·e ?' : null,
-    p => p.fullTime ? 'Vous vivez de la politique. Vous comprenez encore les gens qui travaillent ?' : 'Vous avez un emploi à côté. Vous serez vraiment disponible ?',
+    (p, t) => p.fullTime ? 'Vous vivez de la politique. Vous comprenez encore les gens qui travaillent ?' : ['retraite', 'etudiant'].includes(p.metier) ? null : ['leg', 'pres', 'euro'].includes(t) ? 'Si vous êtes élu·e, vous quitterez votre emploi ?' : 'Vous avez un emploi à côté. Vous serez vraiment disponible ?',
     p => (p.exParties || []).length ? 'Vous avez changé de parti. Qu’est-ce qui nous garantit que vous ne changerez pas encore ?' : null,
     p => p.age && p.age < 31 ? 'Vous avez ' + p.age + ' ans. Ce n’est pas un peu tôt pour exercer de telles responsabilités ?' : null,
     p => p.age && p.age > 66 ? 'Vous avez ' + p.age + ' ans. Ne faudrait-il pas laisser la place à une nouvelle génération ?' : null,
-    p => ({ avocat: 'Vous êtes avocat·e. Vous allez continuer à plaider pendant votre mandat ? Risque de conflit d’intérêts ?', enseignant: 'Vous êtes enseignant·e. Qui fera cours à vos élèves pendant la campagne ?', independant: 'Vous êtes commerçant·e ou artisan·e. Comment éviter le mélange des genres avec vos clients ?', agriculteur: 'Vous êtes agriculteur·rice. Vous défendrez les habitants ou la profession agricole ?', cadre: 'Vous venez de l’entreprise. Une collectivité, ce n’est pas une société : vous le savez ?', fonctionnaire: 'Vous êtes fonctionnaire territorial·e. Vous allez contrôler une administration dont vous venez ?', etudiant: 'Vous êtes encore étudiant·e. Qu’avez-vous à apprendre aux habitants ?', retraite: 'Vous êtes à la retraite. Pourquoi revenir maintenant ?', ouvrier: 'Vous êtes ouvrier·ère. Les dossiers techniques ne vont pas vous dépasser ?', salarie: 'Votre employeur vous laissera-t-il le temps d’exercer ce mandat ?' })[p.metier] || null,
+    (p, t) => ['leg', 'pres', 'euro'].includes(t) ? ({ cadre: 'Vous venez de l’entreprise. L’État, ce n’est pas une société : vous le savez ?', fonctionnaire: 'Vous êtes fonctionnaire. Vous croyez vraiment pouvoir réformer l’administration ?', avocat: 'Vous êtes avocat·e. Comment éviter les conflits d’intérêts au Parlement ?', agriculteur: 'Vous êtes agriculteur·rice. Vous défendrez l’intérêt général ou la profession agricole ?', enseignant: 'Vous êtes enseignant·e. Vous serez le porte-parole de votre corporation ?', independant: 'Vous êtes commerçant·e ou artisan·e. Vous connaissez les dossiers nationaux ?', etudiant: 'Vous êtes encore étudiant·e. Qu’avez-vous à apprendre aux électeurs ?', retraite: 'Vous êtes à la retraite. Pourquoi revenir maintenant ?', ouvrier: 'Vous êtes ouvrier·ère. Les dossiers techniques ne vont pas vous dépasser ?', salarie: 'Si vous êtes élu·e, vous quitterez votre poste ?' })[p.metier] || null : ({ avocat: 'Vous êtes avocat·e. Vous allez continuer à plaider pendant votre mandat ? Risque de conflit d’intérêts ?', enseignant: 'Vous êtes enseignant·e. Qui fera cours à vos élèves pendant la campagne ?', independant: 'Vous êtes commerçant·e ou artisan·e. Comment éviter le mélange des genres avec vos clients ?', agriculteur: 'Vous êtes agriculteur·rice. Vous défendrez les habitants ou la profession agricole ?', cadre: 'Vous venez de l’entreprise. Une collectivité, ce n’est pas une société : vous le savez ?', fonctionnaire: 'Vous êtes fonctionnaire territorial·e. Vous allez contrôler une administration dont vous venez ?', etudiant: 'Vous êtes encore étudiant·e. Qu’avez-vous à apprendre aux habitants ?', retraite: 'Vous êtes à la retraite. Pourquoi revenir maintenant ?', ouvrier: 'Vous êtes ouvrier·ère. Les dossiers techniques ne vont pas vous dépasser ?', salarie: 'Votre employeur vous laissera-t-il le temps d’exercer ce mandat ?' })[p.metier] || null,
     p => p.mandats.some(m => (m.ind || 0) > 0) ? 'Combien touchez-vous d’indemnités par mois, et trouvez-vous ça normal ?' : null,
     p => p.mandats.some(m => ['maire', 'adjoint'].includes(m.type)) ? 'Vous êtes déjà dans l’exécutif local. Quelle est la promesse que vous n’avez pas tenue ?' : null,
     p => (p.accords || []).some(a => a.status === 'actif') ? 'Vous avez passé des accords avec d’autres candidats. Qu’avez-vous promis en échange ?' : null,
     p => p.cash < 0 || (p.debt || 0) > 0 ? 'Votre campagne est-elle endettée ? Qui va payer ?' : null,
     p => (p.followers || 0) > 2000 ? 'Vous êtes très présent·e sur les réseaux sociaux. La politique, ce n’est pas un concours de likes ?' : null,
-    p => p.party !== 'NEW' && S().national.gov.includes(p.party) ? 'Votre parti gouverne. Vous assumez tout son bilan ?' : (p.party !== 'NEW' ? 'Votre parti est dans l’opposition depuis longtemps. A-t-il encore une chance de gouverner ?' : null)
+    p => p.party === 'NEW' || p.party === 'DIV' ? null : S().national.gov.includes(p.party) ? 'Votre parti gouverne. Vous assumez tout son bilan ?' : 'Votre parti n’est pas au gouvernement. Que feriez-vous différemment, concrètement ?'
   ];
   // banque de questions adaptée à l’élection en jeu (ou au média, hors campagne)
   function bankKeyOf(dctx) {
@@ -106,99 +151,185 @@ window.DP = (function () {
   function stanceOpts(vec, th, base) { // propositions génériques à partir d’une direction
     return base;
   }
+  /* ---- cohérence, pertinence et vérification des faits ---- */
+  const gz = t => { const g = (P() || {}).g; return String(t).replace(/([A-Za-zÀ-ÿ]+)·([a-zà-ÿ]+)/g, (m, b, x) => g !== 'F' ? b : x === 'ère' ? b.replace(/ier$/, 'ière') : x === 'rice' ? b.replace(/eur$/, 'rice') : b + x); };
+  const hasPL = () => typeof PL !== 'undefined';
+  const isNatBk = bk => bk === 'nat' || bk === 'euro';
+  const BLOC_OPP = { G: 'ED', GE: 'ED', C: 'G', D: 'G', ED: 'G', DIV: 'G' };
+  const SIDE_OPP = { g: 'd', c: 'g', d: 'g', loc: 'g' };
+  const eurOf = (v, lvl) => lvl === 'national' ? (Math.abs(v) / 1e9).toFixed(1).replace('.', ',') + ' Md€' : E.eur(Math.abs(v));
+  const DEP_PUB = 1700e9; // dépenses publiques totales, ordre de grandeur
+  // mesure pertinente pour une question précise (mots-clés par levier), sinon seulement même thème
+  const REL = { pm: /polic|sécur|cambriol|peur|délinqu|incivil|armer/i, cam: /caméra|vidéo|cambriol|délinqu|sécur/i, mediateurs: /jeune|quartier|prévention|peur|soir/i, ecoles: /école|classe|fournaise|cour/i, ecole_v: /école|classe/i, bio: /cantine|bio|repas/i, creches: /crèche|enfant|garde|famille/i, velo: /vélo|cycl|voiture|circul/i, parking: /stationnement|voiture|commerce|centre/i, hlm: /logement|loyer|couple|construire|SRU|social/i, logcom: /logement|loyer|couple/i, medecins: /médecin|santé|ophtalm|généraliste/i, maison_sante: /médecin|santé/i, internes: /médecin|santé|interne/i, tf: /impôt|fiscal|taxe|économi|budget/i, commerces: /commerce|centre-ville|boutique|vide/i, multiple: /commerce|épicerie|village|vide/i, bp: /abstention|référendum|démocratie|particip|consult|décision/i, reunions: /abstention|démocratie|particip|écout/i, arbres: /canicule|chaleur|fournaise|bitume|climat/i, renovpub: /énergie|chaleur|climat|facture/i, solaire: /énergie|solaire|climat/i, eclairage: /énergie|lumière|éclairage|nuit/i, ralentir: /vitesse|voiture|km\/h|traversée|route|accident/i, voisins: /cambriol|sécur|voisin/i, proprete: /propre|déchet|dépôt|incivil/i, transco: /car|bus|scolaire|transport/i, tad: /car|bus|navette|isol|transport/i, chemins: /route|chemin|voirie/i, cantine_soc: /cantine|repas|famille|modeste/i, mutuelle: /santé|mutuelle|soins/i, jeunes: /jeune|soir|quartier/i, aines: /âgé|isol|aîné|canicule/i, garderie: /garderie|parent|école|périscolaire/i, perisco: /périscolaire|parent|école/i, primeveh: /voiture|véhicule|pollution|ZFE/i, marche: /producteur|agricult|marché|local/i, terres: /terre|agricol|bétonn|zone commerciale/i, installation: /agricult|jeune|ferme/i, assos: /association|bénévol/i, salle: /salle|fête|association/i };
+  function relevance(m, qtext, th) { if (!m || m.theme !== th) return 0; const r = m.lever && REL[m.lever]; return !r ? 1 : r.test(qtext) ? 2 : 1; }
+  // position de référence du joueur : son parti (table réelle) ou, sans parti, ses propres axes
+  function supOf(o, party, key) {
+    if (!hasPL()) return null; const p = P(); const realP = party && party !== 'NEW' && party !== 'DIV';
+    if (key) { let s = null; if (key.ev) s = PL.evSup(party, key.ev, key.i); else if (key.quiz != null) s = PL.quizSup(party, key.quiz); else if (key.valq) s = PL.valqSup(party, key.valq[0], key.valq[1]); if (s != null && key.neg) s = 4 - s; if (s != null && key.half) s = Math.round((s + 2) / 2); if (s != null) return s; }
+    if (!o.ax) return null; return realP ? PL.axisSup(party, o.ax) : PL.axisSup(null, o.ax, p.ax);
+  }
+  // contradiction avec une mesure de son propre programme sur le même thème
+  function progClash(o, th) { if (!o.ax) return null; const v = E.vecFrom(o.ax); return P().prog.filter(m => m.status !== 'retiree' && m.theme === th && m.axes).find(m => { const w = E.vecFrom(m.axes); let d = 0; for (let i = 0; i < 6; i++) d += v[i] * w[i]; return d < -600; }) || null; }
+  function finalize(q) {
+    const p = P(); const realP = p.party !== 'NEW' && p.party !== 'DIV';
+    q.opts.forEach(o => {
+      if (o.pos) { const s = supOf(o, p.party, o.key); if (s != null) { o.sup = s; o.q = (o.q || 0) + (s - 2) * 4; o.coh = realP ? PL.supLabel(s) : (s >= 3 ? 'cohérent avec vos positions' : s <= 1 ? 'contraire à vos positions' : ''); } }
+      const cl = o.pos ? progClash(o, q.theme) : null; if (cl) { o.q = (o.q || 0) - 5; o.clash = cl.resume; o.coh = (o.coh ? o.coh + ' · ' : '') + 'contredit votre programme'; }
+      o.texte = gz(o.texte);
+    });
+    q.question = gz(q.question); return q;
+  }
+  function fcProg(m) {
+    const lvl = m.level || 'local'; const loc = lvl === 'local' ? L.local(E.commune()) : null;
+    let t = 'Vérification : « ' + m.resume + ' » coûte environ ' + (m.cout ? eurOf(m.cout, lvl) + ' par an' : 'peu en fonctionnement') + (m.inv ? ', plus ' + eurOf(m.inv, lvl) + ' d’investissement' : '');
+    if (loc && m.cout > 0) t += ' (' + (m.cout / loc.budget * 100).toFixed(1).replace('.', ',') + ' % du budget de fonctionnement)';
+    t += '. Financement : ' + (m.finL ? m.finL.toLowerCase() : 'non précisé') + '. Crédibilité estimée : ' + Math.round(m.cred || 50) + '/100.';
+    return { t, ok: (m.cred || 50) >= 55 && !!m.finL && m.fin !== 'aucun' };
+  }
+  function fcRival(pr) {
+    if (pr.cost < 0) return { t: 'Repère : ' + eurOf(pr.cost, pr.lvl) + ' d’économies représentent ' + (pr.lvl === 'national' ? 'environ ' + (Math.abs(pr.cost) / DEP_PUB * 100).toFixed(1).replace('.', ',') + ' % des dépenses publiques (≈ 1 700 Md€ par an)' : 'une part du budget communal') + '. Aucun poste précis n’est cité.', ok: true };
+    const weak = weakF(pr); const lv0 = L.LEVERS.find(z => z.id === pr.lev); const f = { l: L.finLabel(lv0 || { lvl: pr.lvl }, pr.fin) || 'aucun' };
+    return { t: 'Vérification : « ' + pr.label + ' » coûte environ ' + eurOf(pr.cost, pr.lvl) + ' par an' + (pr.inv ? ' plus ' + eurOf(pr.inv, pr.lvl) + ' d’investissement' : '') + '. Financement annoncé : ' + (f ? f.l.toLowerCase() : 'aucun') + '.', ok: weak };
+  }
+  function defLine(x, pr) { // un adversaire défend sa propre mesure
+    const lv0 = L.LEVERS.find(z => z.id === pr.lev); const f = { l: L.finLabel(lv0 || { lvl: pr.lvl }, pr.fin) }; const g = (pr.gagnants || []).slice(0, 1).map(segN)[0];
+    if (pr.cost < 0) return '« ' + pr.label + ' » : c’est le courage de dire qu’on ne peut plus dépenser sans compter.';
+    if (!pr.cost && !pr.inv) return '« ' + pr.label + ' » ne coûte presque rien et change la vie des gens.';
+    return '« ' + pr.label + ' » : ' + eurOf(pr.cost || pr.inv, pr.lvl) + (pr.cost ? ' par an' : '') + (f && pr.fin !== 'aucun' ? ', financés par ' + f.l.charAt(0).toLowerCase() + f.l.slice(1) : '') + (g ? ', et les ' + g + ' en seront les premiers gagnants' : '') + '.';
+  }
+  // ligne d’un parti sur un thème, au niveau du scrutin
+  function partyLine(party, th, bk, side) {
+    if (bk === 'euro' && th === 'securite') th = 'europe';
+    const nat = isNatBk(bk); if (hasPL()) { const l = nat ? PL.natLine(party, th) : PL.locLine(party, th); if (l) return l; }
+    const bloc = (D.PARTIES[party] || {}).bloc || 'DIV';
+    if (nat && typeof TB !== 'undefined') { const NL = TB.natLine(bloc, th); if (NL) return pick(NL); }
+    const T = TH_LINES[th]; if (T) { let Ls = T[side || SIDE[bloc] || 'c'] || T.c; if (['dep', 'reg', 'sen'].includes(bk)) { const f = Ls.filter(l => !NOLOC.test(l)); if (f.length) Ls = f; } return pick(Ls); }
+    return null;
+  }
+  function oppositeLine(party, th, bk) { const bloc = (D.PARTIES[party] || {}).bloc || 'DIV'; const ob = BLOC_OPP[bloc] || 'G'; const op = { G: 'LFI', ED: 'RN', GE: 'ECO', C: 'REN', D: 'LR' }[ob] || 'LFI'; const nat = isNatBk(bk);
+    if (nat) return partyLine(op, th, bk); const T = TH_LINES[th]; const side = SIDE_OPP[SIDE[bloc] || 'c'] || 'g'; return T ? pick(T[side] || T.c) : partyLine(op, th, bk); }
+  const THS = { economie: 'l’emploi', pouvoir_achat: 'le pouvoir d’achat', securite: 'la sécurité', immigration: 'l’immigration', ecologie: 'l’écologie', sante: 'la santé', education: 'l’école', logement: 'le logement', transports: 'les transports', institutions: 'la démocratie', europe: 'l’Europe', agriculture: 'l’agriculture', industrie: 'l’industrie', fiscalite: 'les impôts', societe: 'les questions de société' };
+  const QTH = { eco: 'economie', social: 'pouvoir_achat', societe: 'societe', securite: 'securite', immig: 'immigration', europe: 'europe', ecologie: 'ecologie', institutions: 'institutions' };
+  const EUN = [{ th: 'europe', l: 'Budget de l’Union européenne', v: 'environ 190 Md€ par an, soit près de 1 % du revenu national brut européen', s: 'Cadre financier pluriannuel 2021-2027' }, { th: 'europe', l: 'Contribution nette de la France au budget européen', v: 'de l’ordre de 10 Md€ par an', s: 'Cour des comptes ; Commission européenne' }, { th: 'agriculture', l: 'Part de la politique agricole commune', v: 'environ un tiers du budget européen', s: 'Commission européenne' }, { th: 'economie', l: 'Chômage dans la zone euro', v: 'environ 6 %', s: 'Eurostat, 2025' }, { th: 'institutions', l: 'Députés européens élus en France', v: '81 sur 720', s: 'Parlement européen, 2024' }];
+
   function fallbackQuestion(dctx, round, used) {
-    const p = P(), s = S(); const order = dctx._ang || (dctx._ang = angles(dctx)); const opps = rivalsOf(dctx);
+    const p = P(), s = S(); const order = dctx._ang || (dctx._ang = angles(dctx)); const opps = rivalsOf(dctx); const bk = bankKeyOf(dctx); const natL = isNatBk(bk);
+    const party = p.party; const elT = (dctx && dctx.elType) || X.curType();
     for (let tries = 0; tries < order.length * 2; tries++) {
       const ang = order[(round + tries) % order.length]; let q = null;
       if (ang === 'programme') {
         const ms = dctx.focusM ? [dctx.focusM] : p.prog.filter(m => m.status !== 'retiree').sort((a, b) => (b.phare - a.phare) || b.visib - a.visib);
-        const VK = ['cost', 'losers', 'delay', 'why']; const m = ms.find(z => VK.some(k => qKey('pg' + z.id + k))); if (m) { const variants = [
-          ['cost', 'Votre proposition « ' + m.resume + ' »' + (m.cout ? ' coûterait ' + (m.level === 'national' ? (m.cout / 1e9).toFixed(1).replace('.', ',') + ' Md€' : E.eur(m.cout)) + ' par an' : '') + '. Où trouvez-vous l’argent ?'],
-          ['losers', '« ' + m.resume + ' » : qui seront les perdants, et que leur dites-vous ?'],
-          ['delay', 'Combien de temps pour mettre en œuvre « ' + m.resume + ' », et comment mesurera-t-on le résultat ?'],
-          ['why', 'Pourquoi faire de « ' + m.resume + ' » une priorité, plutôt que tout le reste ?']];
-          const v = variants.find(x => qKey('pg' + m.id + x[0]));
-          const rp = opps.flatMap(x => (x.prog || []).map(pr => ({ x, pr }))).find(z => z.pr.th === m.theme);
-          q = { key: 'pg' + m.id + v[0], theme: m.theme, question: v[1], opts: [
-            { posture: 'Chiffres', texte: (m.finL ? 'C’est financé : ' + m.finL.toLowerCase() + '. ' : 'Le financement est prévu, poste par poste. ') + (m.ind ? m.ind + '.' : ''), q: m.finL && m.fin !== 'aucun' ? 12 : -6, ax: m.axes },
-            { posture: 'Assumer', texte: 'Oui, ' + (m.perdants && m.perdants.length ? 'les ' + m.perdants.map(segN).join(' et les ') + ' feront un effort' : 'il y aura des efforts') + ', mais l’intérêt général le commande.', q: 4, ax: m.axes, risk: 'perdants' },
-            rp ? { posture: 'Contre-attaque', texte: 'Et ' + rp.x.name + ', avec « ' + rp.pr.label + ' » ? ' + (['aucun', 'dette', 'croissance'].includes(rp.pr.fin) ? 'Pas un euro de financement.' : 'Personne n’y croit.'), q: ['aucun', 'dette', 'croissance'].includes(rp.pr.fin) ? 10 : 2, attack: { x: rp.x.id, pr: rp.pr.id } } : null,
-            { posture: 'Émotion', texte: 'J’ai rencontré des familles qui attendent ça depuis des années. Je ne les laisserai pas tomber.', q: 3, emo: true },
-            { posture: 'Esquive', texte: 'Le vrai sujet, c’est la méthode : je réunirai tout le monde autour de la table.', q: -4 }].filter(Boolean) };
+        const offM = elT && L.inComp ? ms.find(z => !L.inComp(z, elT) && qKey('pgc' + z.id)) : null;
+        if (offM) { q = { key: 'pgc' + offM.id, theme: offM.theme, question: '« ' + offM.resume + ' » relève de ' + L.whoDecides(offM) + '. Pourquoi la mettre en avant dans cette élection ?', opts: [
+          { posture: 'Reconnaître', texte: 'Vous avez raison : ce n’est pas la compétence de ce mandat. Je la porterai par d’autres moyens, et je me concentre ici sur ce que je peux faire.', q: 8, move: 'nuance', fc: { t: 'Vérification : « ' + offM.resume + ' » relève de ' + L.whoDecides(offM) + '.', ok: true } },
+          { posture: 'Assumer', texte: 'C’est un combat qui dépasse ce mandat, et je le mènerai quand même.', q: -1, move: 'assumer' },
+          { posture: 'Bluff', texte: 'Si, si : c’est tout à fait dans nos compétences.', q: -8, lie: true, move: 'bluff', fc: { t: 'Vérification : c’est faux, la mesure relève de ' + L.whoDecides(offM) + '.', ok: false } },
+          { posture: 'Esquive', texte: 'L’important, c’est la direction que l’on donne.', q: -9, move: 'esquive' }] }; }
+        const VK = ['cost', 'losers', 'delay', 'why']; const m = q ? null : ms.find(z => VK.some(k => qKey('pg' + z.id + k)));
+        if (m) { const lvl = m.level || 'local'; const k = VK.find(x => qKey('pg' + m.id + x)); const rp = opps.flatMap(x => (x.prog || []).map(pr => ({ x, pr }))).find(z => z.pr.th === m.theme);
+          const counter = rp ? { posture: 'Contre-attaque', texte: 'Et ' + rp.x.name + ', avec « ' + rp.pr.label + ' » ? ' + (weakF(rp.pr) ? 'Pas un euro de financement.' : 'On attend toujours le détail.'), q: weakF(rp.pr) ? 9 : 1, attack: { x: rp.x.id, pr: rp.pr.id }, move: 'attaque' } : null;
+          const pers = (m.perdants || []).map(segN);
+          if (k === 'cost') { const fc = fcProg(m); q = { key: 'pg' + m.id + k, theme: m.theme, question: m.cout < 0 ? 'Votre proposition « ' + m.resume + ' » rapporterait ' + eurOf(m.cout, lvl) + ' par an selon vous. Ce chiffre est-il crédible ?' : 'Votre proposition « ' + m.resume + ' »' + (m.cout ? ' coûterait ' + eurOf(m.cout, lvl) + ' par an' : '') + '. Où trouvez-vous l’argent ?', opts: [
+            m.finL && m.fin !== 'aucun' ? { posture: 'Chiffres', texte: 'C’est financé : ' + m.finL.toLowerCase() + '.' + (m.ind ? ' ' + m.ind + '.' : ''), q: fc.ok ? 12 : 4, move: 'chiffres', fc } : { posture: 'Chiffres', texte: 'Le financement sera précisé dans le budget, poste par poste.', q: -6, move: 'bluff', lie: true, fc },
+            { posture: 'Assumer', texte: 'Oui, cela a un coût' + (pers.length ? ', et les ' + pers.join(' et les ') + ' feront un effort' : '') + '. Ne rien faire coûterait plus cher.', q: 4, move: 'assumer' },
+            counter, { posture: 'Esquive', texte: 'Le vrai sujet, c’est la méthode : je réunirai tout le monde autour de la table.', q: -10, move: 'esquive' }].filter(Boolean) }; }
+          else if (k === 'losers') q = { key: 'pg' + m.id + k, theme: m.theme, question: '« ' + m.resume + ' » : qui seront les perdants, et que leur dites-vous ?', opts: [
+            pers.length ? { posture: 'Nommer les perdants', texte: 'Les ' + pers.join(' et les ') + ' y perdront un peu. Je le dis franchement, et je prévois un accompagnement.', q: 10, move: 'nuance' } : { posture: 'Nommer les perdants', texte: 'Personne ne sera vraiment perdant : c’est une mesure d’intérêt général.', q: 6, move: 'fond' },
+            pers.length ? { posture: 'Nier', texte: 'Il n’y aura aucun perdant.', q: -4, move: 'bluff', lie: true, fc: { t: 'Vérification : cette mesure pèse d’abord sur les ' + pers.join(' et les ') + '.', ok: false } } : null,
+            { posture: 'Émotion', texte: 'Les perdants, aujourd’hui, ce sont les familles qui attendent cette mesure.', q: 3, emo: true, move: 'emotion' }, counter,
+            { posture: 'Esquive', texte: 'Ce n’est pas comme ça qu’il faut poser le problème.', q: -10, move: 'esquive' }].filter(Boolean) };
+          else if (k === 'delay') q = { key: 'pg' + m.id + k, theme: m.theme, question: 'Combien de temps pour mettre en œuvre « ' + m.resume + ' », et comment mesurera-t-on le résultat ?', opts: [
+            { posture: 'Calendrier', texte: (lvl === 'national' ? 'Un texte déposé dans les six premiers mois, ' : 'Une délibération dans les six premiers mois, ') + 'et un indicateur public : ' + (m.ind ? m.ind.charAt(0).toLowerCase() + m.ind.slice(1) : 'le nombre de bénéficiaires, publié chaque année') + '.', q: m.ind ? 11 : 6, move: 'chiffres' },
+            { posture: 'Promesse', texte: 'Dès la première semaine. Vous verrez la différence immédiatement.', q: -3, move: 'bluff', lie: true, fc: { t: 'Vérification : une telle mesure demande en pratique plusieurs mois (vote, budget, recrutements ou marchés publics).', ok: false } },
+            { posture: 'Nuance', texte: 'Il faudra un ou deux ans pour en voir les effets. Je préfère le dire maintenant.', q: 7, move: 'nuance' },
+            { posture: 'Esquive', texte: 'Le temps qu’il faudra, mais nous irons jusqu’au bout.', q: -8, move: 'esquive' }] };
+          else q = { key: 'pg' + m.id + k, theme: m.theme, question: 'Pourquoi faire de « ' + m.resume + ' » une priorité, plutôt que tout le reste ?', opts: [
+            { posture: 'Priorité', texte: 'Parce que c’est la première préoccupation des habitants que je rencontre sur ' + (THS[m.theme] || 'ce sujet') + ', et que ' + (m.cout ? 'c’est chiffré' : 'cela ne coûte presque rien') + '.', q: 8, move: 'fond' },
+            { posture: 'Émotion', texte: 'J’ai rencontré des familles qui attendent ça depuis des années. Je ne les laisserai pas tomber.', q: 4, emo: true, move: 'emotion' }, counter,
+            { posture: 'Esquive', texte: 'Tout est prioritaire, et nous ferons tout.', q: -10, move: 'esquive' }].filter(Boolean) };
         }
       }
       if (ang === 'adversaire' && opps.length) {
         const all = opps.flatMap(x => (x.prog || []).map(pr => ({ x, pr }))); const z = all.find(t => qKey('adv' + t.pr.id)) || null;
-        if (z) { const weak = ['aucun', 'dette', 'croissance'].includes(z.pr.fin);
-          q = { key: 'adv' + z.pr.id, theme: z.pr.th, question: z.x.name + ' propose « ' + z.pr.label + ' ». Bonne ou mauvaise idée ?', opp: z.x.name + ' : « C’est la seule proposition sérieuse de ce débat. »', opts: [
-            { posture: 'Attaque : coût', texte: 'Elle coûte ' + (z.pr.lvl === 'national' ? (z.pr.cost / 1e9).toFixed(1).replace('.', ',') + ' Md€' : E.eur(z.pr.cost)) + ' par an' + (weak ? ' et personne ne sait qui paiera.' : '. Mon adversaire oublie de dire que ce sont les contribuables.'), q: weak ? 14 : 3, attack: { x: z.x.id, pr: z.pr.id, angle: 'cout' } },
-            { posture: 'Attaque : perdants', texte: z.pr.perdants.length ? 'Elle sacrifie les ' + z.pr.perdants.map(segN).join(' et les ') + '. Je ne l’accepterai pas.' : 'Elle ne règle rien pour ceux qui en ont le plus besoin.', q: z.pr.perdants.length ? 9 : 0, attack: { x: z.x.id, pr: z.pr.id, angle: 'perdants' } },
-            { posture: 'Faisabilité', texte: X.curLevel() && X.curLevel() !== z.pr.lvl ? 'Ce n’est même pas de la compétence de ce mandat. C’est un tract, pas un programme.' : 'Sur le papier, pourquoi pas. Dans la réalité, c’est intenable.', q: X.curLevel() && X.curLevel() !== z.pr.lvl ? 13 : 2, attack: { x: z.x.id, pr: z.pr.id, angle: 'faisa' } },
-            { posture: 'Nuance', texte: 'L’intention est bonne, je le reconnais. Mais ma proposition va plus loin, et elle est financée.', q: 6, rel: 4 },
-            { posture: 'Punchline', texte: pick(['C’est le Père Noël en campagne électorale.', 'Une promesse, ça n’engage que ceux qui y croient.', 'On a déjà vu ce film, et la fin est toujours la même.']), q: E.rint(-8, 14), punch: true, attack: { x: z.x.id, pr: z.pr.id, angle: 'ridicule' } }] };
+        if (z) { const weak = weakF(z.pr); const sav = z.pr.cost < 0; const hors = X.curType() ? (z.pr.cp ? !L.inComp(z.pr.cp, X.curType()) : X.curLevel() !== z.pr.lvl) : false; const fc = fcRival(z.pr);
+          q = { key: 'adv' + z.pr.id, theme: z.pr.th, question: z.x.name + ' propose « ' + z.pr.label + ' ». Bonne ou mauvaise idée ?', oppN: z.x.name, opp: z.x.name + ' : ' + defLine(z.x, z.pr), opts: [
+            sav ? { posture: 'Attaque : où couper ?', texte: eurOf(z.pr.cost, z.pr.lvl) + ' d’économies : sur quoi ? Les hôpitaux, les écoles, les retraites ? Personne ne le dit.', q: 9, attack: { x: z.x.id, pr: z.pr.id, angle: 'cout' }, fc, move: 'attaque' } : { posture: 'Attaque : coût', texte: 'Elle coûte ' + eurOf(z.pr.cost, z.pr.lvl) + ' par an' + (weak ? ' et personne ne sait qui paiera.' : '. Et ce sont les contribuables qui paieront.'), q: weak ? 13 : 2, attack: { x: z.x.id, pr: z.pr.id, angle: 'cout' }, fc, move: 'chiffres' },
+            { posture: 'Attaque : perdants', texte: z.pr.perdants.length ? 'Elle sacrifie les ' + z.pr.perdants.map(segN).join(' et les ') + '. Je ne l’accepterai pas.' : 'Elle ne règle rien pour ceux qui en ont le plus besoin.', q: z.pr.perdants.length ? 8 : -1, attack: { x: z.x.id, pr: z.pr.id, angle: 'perdants' }, move: 'attaque' },
+            { posture: 'Faisabilité', texte: hors ? 'Ce n’est même pas la compétence de ce mandat. C’est un tract, pas un programme.' : 'Sur le papier, pourquoi pas. Dans la réalité, les délais et les moyens ne suivront pas.', q: hors ? 13 : 1, attack: { x: z.x.id, pr: z.pr.id, angle: 'faisa' }, move: 'chiffres', fc: hors ? { t: 'Vérification : « ' + z.pr.label + ' » relève de ' + L.whoDecides(z.pr.cp || (z.pr.lvl === 'national' ? ['etat'] : ['com'])) + ', pas du mandat en jeu.', ok: true } : null },
+            { posture: 'Nuance', texte: 'L’intention est bonne, je le reconnais. Mais ma proposition va plus loin, et elle est financée.', q: 5, rel: 4, move: 'nuance' },
+            { posture: 'Punchline', texte: pick(['C’est le Père Noël en campagne électorale.', 'Une promesse, ça n’engage que ceux qui y croient.', 'On a déjà vu ce film, et la fin est toujours la même.']), q: E.rint(-6, 12), punch: true, attack: { x: z.x.id, pr: z.pr.id, angle: 'ridicule' }, move: 'punch' }] };
         }
       }
       if (ang === 'contradiction') {
         const st = p.stmts.filter(x => x.v && E.diffDays(x.date, s.date) > 20 && ['programme', 'post X', 'meeting', 'tribune', 'citation presse', 'mairie', 'QAG'].includes(x.src) && x.text.length >= 35).find(x => qKey('ct' + x.date + x.theme));
         if (st) q = { key: 'ct' + st.date + st.theme, theme: st.theme, question: 'Le ' + E.fmtDate(st.date) + ', vous déclariez : « ' + st.text.slice(0, 140) + ' ». Vous le maintenez ?', opts: [
-          { posture: 'Assumer', texte: 'Je le maintiens, mot pour mot. La constance, c’est ma marque.', q: 10, ax: null },
-          { posture: 'Évolution', texte: 'J’ai évolué, parce que la situation a changé. C’est ça, être responsable.', q: 2 },
-          { posture: 'Nier', texte: 'Ce n’est pas ce que j’ai dit, mes propos ont été déformés.', q: 5, lie: true },
-          { posture: 'Contre-attaque', texte: 'Venant de mes adversaires, qui ont changé d’avis dix fois, la question est savoureuse.', q: 4 },
-          { posture: 'Humour', texte: 'Vous avez de bonnes archives ! Oui, et je pourrais même vous le chanter.', q: E.rint(-4, 10), punch: true }] };
+          { posture: 'Assumer', texte: 'Je le maintiens, mot pour mot. La constance, c’est ma marque.', q: 10, move: 'assumer' },
+          { posture: 'Évolution', texte: 'J’ai évolué, parce que la situation a changé. Je l’explique : les faits ne sont plus les mêmes.', q: 3, move: 'nuance' },
+          { posture: 'Nier', texte: 'Ce n’est pas ce que j’ai dit, mes propos ont été déformés.', q: -2, lie: true, move: 'bluff', fc: { t: 'Vérification : la citation est exacte et datée.', ok: false } },
+          { posture: 'Contre-attaque', texte: 'Venant de mes adversaires, qui ont changé d’avis dix fois, la question est savoureuse.', q: 2, move: 'attaque' }] };
       }
       if (ang === 'local') {
-        const bk = bankKeyOf(dctx); const BQ = (typeof TB !== 'undefined' && TB.Q[bk]) || LOCALQ; const natL = bk === 'nat' || bk === 'euro'; const pre = 'lc' + (BQ === LOCALQ ? '' : bk);
+        const BQ = (typeof TB !== 'undefined' && TB.Q[bk]) || LOCALQ; const pre = 'lc' + (BQ === LOCALQ ? '' : bk);
         const thU = dctx._thU || (dctx._thU = []); const ths = Object.keys(BQ).map(t => [t, (s.national.salience[t] || 0) * 0.8 + R() - (thU.includes(t) ? 3 : 0)]).sort((a, b) => b[1] - a[1]).map(x => x[0]);
-        for (const th of ths) { const order = BQ[th].map((_, i) => i).sort(() => R() - 0.5); const qi = order.find(i => qKey(pre + th + i)); if (qi != null) { const mine = p.prog.find(m => m.theme === th && m.status !== 'retiree' && (m.level || 'local') === (natL ? 'national' : 'local')); const ax = D.THEMES[th].ax; const k0 = Object.keys(ax)[0]; const sg = Math.sign(p.ax[E.AXI[k0]] || 1) * Math.sign(ax[k0]);
-          thU.push(th); q = { key: pre + th + qi, theme: th, question: BQ[th][qi], opts: [
-            mine ? { posture: 'Proposition', texte: 'Je propose « ' + mine.resume + ' »' + (mine.finL ? ', financé par ' + mine.finL.toLowerCase() : '') + '.', q: 12, ax: mine.axes } : { posture: 'Proposition', texte: 'J’ai un plan précis, je le présenterai dans les prochains jours.', q: -3 },
-            { posture: sg > 0 ? 'Fermeté' : 'Solidarité', texte: sg > 0 ? 'Il faut de l’ordre, des règles claires et les faire respecter.' : 'Il faut des moyens publics et ne laisser personne au bord du chemin.', q: 5, ax: { [k0]: 35 * sg * Math.sign(ax[k0]) } },
-            { posture: 'Terrain', texte: natL ? 'Je le vois chaque semaine sur le terrain : les gens n’en peuvent plus, et ils attendent des actes.' : bk === 'dep' ? 'Je connais ce dossier : je l’ai vu dans chaque commune du canton.' : bk === 'reg' ? 'Je l’entends dans toutes les vallées du département.' : 'Je connais ce problème : j’ai fait du porte-à-porte dans ce quartier la semaine dernière.', q: Math.min(12, p.camp.terrain / 10 + 2) },
-            { posture: 'Attaque', texte: 'Ceux qui sont aux responsabilités depuis des années n’ont rien fait. Les habitants le savent.', q: 4 },
-            { posture: 'Esquive', texte: 'C’est un sujet complexe, qui mérite mieux qu’une formule.', q: -5 }] }; break; } }
+        for (const th of ths) { const ordr = BQ[th].map((_, i) => i).sort(() => R() - 0.5); const qi = ordr.find(i => qKey(pre + th + i)); if (qi == null) continue; const qtext = BQ[th][qi];
+          const cands = p.prog.filter(m => m.status !== 'retiree' && (m.level || 'local') === (natL ? 'national' : 'local') && (!elT || !L.inComp || L.inComp(m, elT))).map(m => [m, relevance(m, qtext, th)]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]); const mine = cands[0];
+          const pl = party !== 'NEW' && party !== 'DIV' ? partyLine(party, th, bk) : null; const ctr = oppositeLine(party === 'NEW' || party === 'DIV' ? 'REN' : party, th, bk);
+          const thL = THS[th] || 'ce sujet';
+          thU.push(th); q = { key: pre + th + qi, theme: th, question: qtext, opts: [
+            mine ? (mine[1] === 2 ? { posture: 'Proposition', texte: 'Je propose « ' + mine[0].resume + ' »' + (mine[0].finL ? ', financé par ' + mine[0].finL.toLowerCase() : '') + '.', q: 12, ax: mine[0].axes, pos: true, move: 'chiffres', fc: mine[0].cout ? fcProg(mine[0]) : null }
+              : { posture: 'Proposition', texte: 'Sur ' + thL + ', mon programme prévoit « ' + mine[0].resume + ' ». Ce n’est pas toute la réponse, mais c’est concret.', q: 1, ax: mine[0].axes, pos: true, move: 'fond' })
+              : { posture: 'Proposition', texte: 'Je n’ai pas encore de mesure chiffrée sur ce point. Je la présenterai avant le vote.', q: -4, move: 'nuance' },
+            pl ? { posture: 'Ligne du parti', texte: pl, q: 2, pos: true, key: { line: true }, sup0: 4, move: 'assumer' } : null,
+            ctr && ctr !== pl ? { posture: 'Contre-pied', texte: ctr, q: 2, pos: true, sup0: 0, move: 'assumer' } : null,
+            { posture: 'Terrain', texte: natL ? 'Je le vois chaque semaine sur le terrain : les gens attendent des actes, pas des slogans.' : bk === 'dep' ? 'Je connais ce dossier : je l’ai vu dans chaque commune du canton.' : bk === 'reg' ? 'Je l’entends dans toutes les vallées du département.' : 'Je connais ce problème : j’ai fait du porte-à-porte dans ce quartier la semaine dernière.', q: Math.min(10, p.camp.terrain / 10 + 1), move: 'emotion' },
+            { posture: 'Esquive', texte: 'C’est un sujet complexe, qui mérite mieux qu’une formule.', q: -10, move: 'esquive' }].filter(Boolean) }; break; }
       }
       if (ang === 'national') {
         const evs = (s.recentEv || []).filter(e => qKey('nt' + e.id)); const rec = (dctx.natHook && qKey('nt' + dctx.natHook.id)) ? dctx.natHook : evs[0];
         const e = rec ? E.evById(rec.id, rec.custom) : null;
-        if (e && e.ch) { const gov = s.national.gov.includes(p.party);
-          q = { key: 'nt' + rec.id, theme: e.th, question: 'Actualité nationale : « ' + e.t + ' ». Votre position, et qu’est-ce que ça change ici ?', opts: e.ch.map(c => ({ posture: 'Position', texte: c.txt + ' Ici, dans l’Isère, cela touche directement les familles et les entreprises.', q: 6, ax: c.v })).concat([
-            { posture: gov ? 'Défendre le gouvernement' : 'Charger le gouvernement', texte: gov ? 'Le gouvernement prend ses responsabilités, et je le soutiens.' : 'Encore une décision prise à Paris contre les territoires.', q: gov ? (s.national.approval > 40 ? 6 : -4) : (s.national.approval < 35 ? 9 : 3) },
-            { posture: 'Recentrer', texte: 'Je préfère parler de ce qui relève de nous, ici et maintenant.', q: -2 }]) };
+        if (e && e.ch) { const gov = s.national.gov.includes(party); const cx = hasPL() ? PL.ctxOf(e.id) : null; const here = !['pres', 'euro'].includes(elT) && e.scope !== 'int';
+          q = { key: 'nt' + rec.id, theme: e.th, question: 'Actualité ' + (e.scope === 'int' ? 'internationale' : 'nationale') + ' : « ' + e.t + ' ». Votre position' + (here ? ', et qu’est-ce que ça change ici ?' : ' ?'), opts: e.ch.map((c, i) => ({ posture: 'Position', texte: c.txt + (here ? pick([' Et ici, chez nous, les familles le vivent déjà.', ' Ici aussi, on en voit les effets.', '']) : ''), q: 6, ax: c.v, pos: true, key: { ev: e.id, i }, move: 'assumer', fc: cx ? { t: 'Repère : ' + (cx.fx || cx.c) + (cx.s ? ' (' + cx.s + ')' : ''), ok: true } : null })).concat([
+            { posture: gov ? 'Défendre le gouvernement' : 'Charger le gouvernement', texte: gov ? 'Le gouvernement prend ses responsabilités, et je le soutiens.' : 'Encore une décision prise à Paris, loin des réalités.', q: gov ? (s.national.approval > 40 ? 6 : -2) : (s.national.approval < 35 ? 8 : 3), move: gov ? 'assumer' : 'attaque' },
+            { posture: 'Recentrer', texte: 'Je préfère parler de ce qui relève de ce mandat, ici et maintenant.', q: here ? -3 : -6, move: 'esquive' }]) };
         }
       }
       if (ang === 'valeurs') {
-        const bkv = bankKeyOf(dctx); const VP = typeof TB === 'undefined' ? null : bkv === 'mun' || bkv === 'vil' ? TB.VALQ.mun : bkv === 'dep' ? TB.VALQ.dep : null; const skipV = typeof TB !== 'undefined' && (bkv === 'reg' || bkv === 'sen');
-        const POOL = VP || D.QUIZ_POOL; const vpre = VP ? 'vl' + bkv : 'vl';
-        const qi = skipV ? null : POOL.map((_, i) => i).sort(() => R() - 0.5).find(i => qKey(vpre + i)); if (qi != null) { const qq = POOL[qi]; const pos = {}; const neg = {}; for (const k in qq.w) { pos[k] = qq.w[k]; neg[k] = -qq.w[k]; }
-          const th = qq.th ? qq.th : Object.keys(qq.w)[0] === 'souv' ? 'immigration' : Object.keys(qq.w)[0] === 'aut' ? 'securite' : Object.keys(qq.w)[0] === 'ecol' ? 'ecologie' : Object.keys(qq.w)[0] === 'inst' ? 'institutions' : Object.keys(qq.w)[0] === 'eco' ? 'economie' : 'societe';
+        const VP = typeof TB === 'undefined' ? null : bk === 'mun' || bk === 'vil' ? TB.VALQ.mun : bk === 'dep' ? TB.VALQ.dep : null; const skipV = typeof TB !== 'undefined' && (bk === 'reg' || bk === 'sen');
+        const POOL = VP || D.QUIZ_POOL; const vpre = VP ? 'vl' + bk : 'vl'; const okQ = i => VP || bk !== 'euro' || ['europe', 'ecologie', 'immig'].includes(POOL[i].t);
+        const qi = skipV ? null : POOL.map((_, i) => i).sort(() => R() - 0.5).find(i => okQ(i) && qKey(vpre + i)); if (qi != null) { const qq = POOL[qi]; const pos = {}; const neg = {}; for (const k in qq.w) { pos[k] = qq.w[k]; neg[k] = -qq.w[k]; }
+          const th = qq.th ? qq.th : QTH[qq.t] || 'societe'; const key = VP ? { valq: [bk === 'vil' ? 'mun' : bk, qi] } : { quiz: qi };
+          const ctx = VP ? (hasPL() ? (PL.VQ_CTX[bk === 'vil' ? 'mun' : bk] || [])[qi] : '') : qq.ctx; const fc = ctx ? { t: 'Repère : ' + ctx, ok: true } : null;
           q = { key: vpre + qi, theme: th, question: 'Question directe : « ' + qq.q + ' » Oui ou non ?', opts: [
-            { posture: 'Oui', texte: 'Oui, clairement. Et je l’assume devant tous les électeurs.', q: 6, ax: pos },
-            { posture: 'Non', texte: 'Non. Et je ne changerai pas d’avis pour plaire.', q: 6, ax: neg },
-            { posture: 'Oui, mais', texte: 'Sur le principe oui, mais avec des garde-fous stricts.', q: 3, ax: Object.fromEntries(Object.entries(pos).map(([k, v]) => [k, v / 2])) },
-            { posture: 'Esquive', texte: 'Ce n’est pas l’enjeu de cette élection.', q: -6 },
-            { posture: 'Retourner', texte: 'Posez plutôt la question à mon adversaire, qui n’ose jamais répondre.', q: 2 }] }; }
+            { posture: 'Oui', texte: 'Oui, clairement. Et je l’assume devant tous les électeurs.', q: 5, ax: pos, pos: true, key, move: 'assumer', fc },
+            { posture: 'Non', texte: 'Non. Et je ne changerai pas d’avis pour plaire.', q: 5, ax: neg, pos: true, key: Object.assign({ neg: true }, key), move: 'assumer', fc },
+            { posture: 'Oui, mais', texte: 'Sur le principe oui, mais avec des garde-fous stricts.', q: 3, ax: Object.fromEntries(Object.entries(pos).map(([k, v]) => [k, v / 2])), pos: true, key: Object.assign({ half: true }, key), move: 'nuance' },
+            { posture: 'Esquive', texte: 'Ce n’est pas l’enjeu de cette élection.', q: -10, move: 'esquive' },
+            { posture: 'Retourner', texte: 'Posez plutôt la question à mon adversaire, qui n’ose jamais répondre.', q: 0, move: 'attaque' }] }; }
       }
       if (ang === 'personnel') {
-        const fs = PERSOQ.map((f, i) => [i, f(p)]).filter(([i, t]) => t && qKey('ps' + i)); if (fs.length) { const [i, t] = pick(fs);
+        const fs = PERSOQ.map((f, i) => [i, f(p, elT)]).filter(([i, t]) => t && qKey('ps' + i)); if (fs.length) { const [i, t] = pick(fs);
           q = { key: 'ps' + i, theme: 'institutions', question: t, opts: [
-            { posture: 'Sincérité', texte: 'Je vais vous répondre franchement, sans langue de bois : je comprends la question, et voici ma réponse.', q: 7 + (p.traits.scrupules - 50) / 10 },
-            { posture: 'Parcours', texte: 'Mon parcours parle pour moi : ' + D.METIERS.find(m => m.id === p.metier).label.toLowerCase() + ', engagé·e sur le terrain depuis des années.', q: 5 },
-            { posture: 'Contre-attaque', texte: 'Ceux qui me posent cette question devraient regarder leur propre bilan.', q: 2 },
-            { posture: 'Agacement', texte: 'C’est une question indigne, je ne répondrai pas.', q: -6 }] }; }
+            { posture: 'Sincérité', texte: 'Je vais vous répondre franchement : la question est légitime. Voici ce que je ferai, et je m’y engage publiquement.', q: 6 + (p.traits.scrupules - 50) / 10, move: 'nuance' },
+            { posture: 'Parcours', texte: 'Mon parcours parle pour moi : ' + D.METIERS.find(m => m.id === p.metier).label.toLowerCase() + ', engagé·e sur le terrain depuis des années.', q: 5, move: 'fond' },
+            { posture: 'Contre-attaque', texte: 'Ceux qui me posent cette question devraient regarder leur propre bilan.', q: 1, move: 'attaque' },
+            { posture: 'Agacement', texte: 'C’est une question indigne, je ne répondrai pas.', q: -9, move: 'esquive' }] }; }
       }
       if (ang === 'chiffres') {
-        const bkc = bankKeyOf(dctx); if (['dep', 'reg', 'sen'].includes(bkc)) continue;
-        const n = L.NAT.find(x => qKey('ch' + x.l)); const loc = L.local(E.commune()); const lr = loc.rows.find(r => qKey('chl' + r[1]));
+        if (['dep', 'reg', 'sen'].includes(bk)) continue;
+        const pool = bk === 'euro' ? EUN : L.NAT; const n = pool.find(x => qKey('ch' + x.l)); const loc = L.local(E.commune()); const lr = loc.rows.find(r => qKey('chl' + r[1]));
         const useLoc = X.curLevel() === 'local' && lr; const lab = useLoc ? lr[1] + ' : ' + lr[2] : n ? n.l + ' : ' + n.v : null;
-        if (lab) { const th = useLoc ? lr[0] : n.th; const mine = p.prog.find(m => m.theme === th && m.status !== 'retiree');
+        if (lab) { const th = useLoc ? lr[0] : n.th; const mine = p.prog.find(m => m.theme === th && m.status !== 'retiree' && (m.level || 'local') === (useLoc ? 'local' : 'national'));
+          const fc = !useLoc && n.s ? { t: 'Source : ' + n.s + '.', ok: true } : null;
+          const rv = mine ? relevance(mine, lab, th) : 0;
           q = { key: useLoc ? 'chl' + lr[1] : 'ch' + n.l, theme: th, question: 'Un chiffre : ' + lab + '. Que faites-vous avec ça ?', opts: [
-            mine ? { posture: 'Proposition', texte: 'C’est exactement pour ça que je propose « ' + mine.resume + ' ».', q: 12, ax: mine.axes } : { posture: 'Proposition', texte: 'Il faut un plan, et je le mettrai sur la table.', q: -2 },
-            { posture: 'Relativiser', texte: 'Ce chiffre ne dit pas tout : il cache des réalités très différentes selon les quartiers.', q: 3 },
-            { posture: 'Dramatiser', texte: 'Ce chiffre est un scandale. Et personne n’en parle.', q: 5, emo: true },
-            { posture: 'Accuser', texte: 'C’est le bilan de ceux qui gouvernent. Il faut que ça change.', q: 4 }] }; }
+            mine ? { posture: 'Proposition', texte: (rv === 2 ? 'C’est exactement pour ça que je propose « ' : 'C’est l’une des raisons pour lesquelles je propose « ') + mine.resume + ' ».', q: rv === 2 ? 11 : 3, ax: mine.axes, pos: true, move: 'chiffres', fc } : { posture: 'Proposition', texte: 'Il faut un plan, et je le mettrai sur la table.', q: -3, move: 'nuance' },
+            { posture: 'Relativiser', texte: useLoc ? 'Ce chiffre ne dit pas tout : il cache des réalités très différentes selon les quartiers.' : 'Ce chiffre ne dit pas tout : il cache des écarts énormes entre territoires.', q: 3, move: 'nuance', fc },
+            { posture: 'Dramatiser', texte: 'Ce chiffre est un scandale. Et personne n’en parle.', q: 3, emo: true, move: 'emotion' },
+            { posture: 'Accuser', texte: 'C’est le bilan de ceux qui gouvernent. Il faut que ça change.', q: s.national.gov.includes(party) ? -6 : 4, move: 'attaque' }] }; }
       }
-      if (q) { remember(q.key); q.angle = ang; const op = opps[0]; q.adversaires = q.opp ? [{ nom: (op || {}).name || 'Adversaire', replique: q.opp.split(' : ').slice(1).join(' : ') || q.opp }] : opps.slice(0, 2).map(x => ({ nom: x.name, replique: oppLine(x, q.theme) })); q.propositions = q.opts.map(o => Object.assign({}, o)); return q; }
+      if (q) { remember(q.key); q.angle = ang; q.opts.forEach(o => { if (o.sup0 != null && o.key && o.key.line) { o.key = null; } }); q.opts.forEach(o => { if (o.sup0 != null) { o.pos = false; const realP = party !== 'NEW' && party !== 'DIV'; if (realP) { o.sup = o.sup0; o.q += (o.sup0 - 2) * 4; o.coh = PL.supLabel(o.sup0); } } });
+        finalize(q); const op = opps[0];
+        q.adversaires = q.opp ? [{ nom: q.oppN || (op || {}).name || 'Adversaire', replique: q.opp.split(' : ').slice(1).join(' : ') || q.opp }] : opps.slice(0, 2).map(x => ({ nom: x.name, replique: oppLine(x, q.theme) })); q.propositions = q.opts.map(o => Object.assign({}, o)); return q; }
     }
     return null;
   }
@@ -234,21 +365,33 @@ window.DP = (function () {
   function oppLine(x, th, villageMode) { const side = villageMode ? 'loc' : SIDE[D.PARTIES[x.party].bloc] || 'c';
     const mine = (x.prog || []).find(pr => pr.th === th);
     if (mine && R() < 0.5) return E.fresh('opp' + x.id, ['Ma proposition est claire : ' + lc(mine.label) + '.', 'Ce que je propose : ' + lc(mine.label) + '. C’est concret.', 'Avec « ' + mine.label + ' », on change la vie des gens.']);
-    const bk = bankKeyOf(null); const bloc = D.PARTIES[x.party].bloc;
-    if (!villageMode && typeof TB !== 'undefined' && (bk === 'nat' || bk === 'euro')) { const NL = TB.natLine(bloc, th); if (NL) return E.fresh('oppn' + x.id + th, NL); }
+    const bk = bankKeyOf(null); const bloc = D.PARTIES[x.party].bloc; if (bk === 'euro' && th === 'securite') th = 'europe';
+    if (!villageMode && hasPL()) { const l = isNatBk(bk) ? PL.natLine(x.party, th) : PL.locLine(x.party, th); if (l && R() < 0.75) return l; }
+    if (!villageMode && typeof TB !== 'undefined' && isNatBk(bk)) { const NL = TB.natLine(bloc, th); if (NL) return E.fresh('oppn' + x.id + th, NL); }
     const T = TH_LINES[th]; if (T) { let Ls = T[side] || T.c; if (!villageMode && ['dep', 'reg', 'sen'].includes(bk)) { const f = Ls.filter(l => !NOLOC.test(l)); Ls = f.length ? f : (typeof TB !== 'undefined' && TB.natLine(bloc, th)) || Ls; } return E.fresh('oppt' + x.id + th, Ls); }
-    const L = OPPL[D.PARTIES[x.party].bloc] || OPPL.C; return E.fresh('oppl' + x.id, L);
+    const L0 = OPPL[D.PARTIES[x.party].bloc] || OPPL.C; return E.fresh('oppl' + x.id, L0);
+  }
+  // pourquoi les électorats ont réagi ainsi (une ligne)
+  function whySeg(seg, o) {
+    const v = o && o.ax ? E.vecFrom(o.ax) : null; const fit = g => v ? E.alignment(v, D.SEGS.find(z => z.id === g).ideal) : 0;
+    const ids = Object.keys(seg).sort((a, b) => seg[b] - seg[a]); const up = ids.filter(g => seg[g] > 0.6)[0], dn = ids.slice().reverse().filter(g => seg[g] < -0.6)[0];
+    const mv = o ? (o.move || '') : ''; const nm = g => segN(g);
+    const rU = g => fit(g) > 0.2 ? 'votre position rejoint leurs attentes' : mv === 'chiffres' ? 'ils apprécient la précision' : mv === 'emotion' || o.emo ? 'ils sont sensibles à l’émotion' : mv === 'punch' ? 'la formule leur plaît' : 'la réponse les convainc';
+    const rD = g => fit(g) < -0.2 ? 'votre position heurte leurs attentes' : mv === 'esquive' ? 'ils n’aiment pas l’esquive' : mv === 'punch' || mv === 'attaque' ? 'le ton les agace' : mv === 'bluff' ? 'ils doutent de vos chiffres' : 'ils restent sceptiques';
+    const out = []; if (up) out.push('▲ ' + D.SEGS.find(z => z.id === up).name + ' : ' + rU(up)); if (dn) out.push('▼ ' + D.SEGS.find(z => z.id === dn).name + ' : ' + rD(dn));
+    if (o && o.sup != null && o.sup <= 1 && P().party !== 'NEW' && P().party !== 'DIV') out.push('Votre parti n’apprécie pas cette prise de position.');
+    return out.join(' · ');
   }
   function fallbackJudge(dctx, q, reply, chosen) {
-    const p = P(); const o = chosen || {}; let sc = 48 + (o.q || 0) + p.mediaTraining * 3 + (p.traits.sangfroid - 50) / 8 + (E.rnd() * 16 - 8); if (!chosen) sc += Math.min(12, reply.length / 25) - 2;
+    const p = P(); const o = chosen || {}; let sc = 48 + (o.q || 0) * 1.25 + p.mediaTraining * 3 + (p.traits.sangfroid - 50) / 8 + (E.rnd() * 6 - 3); if (!chosen) sc += Math.min(12, reply.length / 25) - 2;
     const seg = {}; const v = E.vecFrom(o.ax || {}); D.SEGS.forEach(g => seg[g.id] = Math.round(E.alignment(v, g.ideal) * 9 + (sc - 50) / 8 + (o.emo && ['RET', 'POP'].includes(g.id) ? 2 : 0)));
     let lie = !!o.lie; if (o.lie && q.angle === 'contradiction') sc += 4;
     const gaffe = sc < 22 || (o.punch && E.rnd() < 0.15);
-    return { score: clamp(Math.round(sc), 5, 95), segments: seg, axes: o.ax || {}, mensonge: lie, affirmation: lie ? reply : null, punchline: o.punch && sc > 60 ? reply : (sc > 78 ? reply.split(/[.!?]/)[0] : null), gaffe, commentaire: sc > 68 ? pick(['Réponse percutante, l’adversaire accuse le coup.', 'Coup gagnant : le public réagit.', 'Précis et incisif.']) : sc > 48 ? pick(['Réponse solide, sans plus.', 'Correct, mais attendu.', 'Ça tient la route.']) : pick(['Réponse confuse, ça flotte.', 'L’adversaire a marqué un point.', 'Trop défensif.']), reaction: { nom: (dctx.opponents[0] || {}).name || 'Adversaire', texte: sc > 60 ? pick(['Facile à dire quand on n’a jamais été aux responsabilités.', 'Des mots, toujours des mots.', 'Vous esquivez la vraie question.']) : pick(['Vous voyez bien que ça ne tient pas.', 'Même vos amis n’y croient pas.', 'Les électeurs jugeront.']) } };
+    return { fact: o.fc || null, why: whySeg(seg, o), coh: o.coh || '', score: clamp(Math.round(sc), 5, 95), segments: seg, axes: o.ax || {}, mensonge: lie, affirmation: lie ? reply : null, punchline: o.punch && sc > 60 ? reply : (sc > 78 ? reply.split(/[.!?]/)[0] : null), gaffe, commentaire: sc > 68 ? pick(['Réponse percutante, l’adversaire accuse le coup.', 'Coup gagnant : le public réagit.', 'Précis et incisif.']) : sc > 48 ? pick(['Réponse solide, sans plus.', 'Correct, mais attendu.', 'Ça tient la route.']) : pick(['Réponse confuse, ça flotte.', 'L’adversaire a marqué un point.', 'Trop défensif.']), reaction: { nom: (dctx.opponents[0] || {}).name || 'Adversaire', texte: sc > 60 ? pick(['Facile à dire quand on n’a jamais été aux responsabilités.', 'Des mots, toujours des mots.', 'Vous esquivez la vraie question.']) : pick(['Vous voyez bien que ça ne tient pas.', 'Même vos amis n’y croient pas.', 'Les électeurs jugeront.']) } };
   }
   const RIPOSTES = [
     { id: 'chiffre', l: 'Insister, chiffres à l’appui', f: () => (P().cred - 45) / 3 + (((P().expertise || {})) ? 2 : 0) },
-    { id: 'attaque', l: 'Attaquer sa proposition', f: (q, x) => { const pr = x && (x.prog || [])[0]; return pr ? (['aucun', 'dette', 'croissance'].includes(pr.fin) ? 9 : 3) + (pr.cred < 50 ? 4 : -2) : -3; } },
+    { id: 'attaque', l: 'Attaquer sa proposition', f: (q, x) => { const pr = x && (x.prog || [])[0]; return pr ? (weakF(pr) ? 9 : 3) + (pr.cred < 50 ? 4 : -2) : -3; } },
     { id: 'calme', l: 'Rester calme et laisser couler', f: () => 1 + (P().traits.sangfroid - 50) / 20 },
     { id: 'punch', l: 'Une formule qui claque', f: () => E.rint(-10, 14) + P().mediaTraining * 2 }
   ];
@@ -439,5 +582,5 @@ window.DP = (function () {
   }
   function situationResolve(id, idx) { const x = SIT.find(z => z.id === id); const msg = x.o[idx][1](P()); E.log(x.t + ' — ' + msg, 'event'); return msg; }
 
-  return { TH_LINES, oppLine, ensureProgs, rivalProgEffect, genProp, ANGLES, angleChance, attackProp, fallbackQuestion, fallbackJudge, RIPOSTES, SIT, situationTick, situationResolve, remember };
+  return { whySeg, partyLine, gz, TH_LINES, oppLine, ensureProgs, rivalProgEffect, genProp, ANGLES, angleChance, attackProp, fallbackQuestion, fallbackJudge, RIPOSTES, SIT, situationTick, situationResolve, remember };
 })();

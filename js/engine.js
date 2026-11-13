@@ -20,8 +20,8 @@ window.E = (function () {
   const addDays = (s, n) => { const d = toD(s); d.setUTCDate(d.getUTCDate() + n); return fromD(d); };
   const diffDays = (a, b) => Math.round((toD(b) - toD(a)) / 86400000);
   const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
-  function fmtDate(s, short) { const d = toD(s); return (short ? '' : d.getUTCDate() + ' ') + MOIS[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); }
-  const eur = n => (Math.round(n)).toLocaleString('fr-FR') + ' €';
+  function fmtDate(s, short) { const d = toD(s); return (short ? '' : (d.getUTCDate() === 1 ? '1er' : d.getUTCDate()) + ' ') + MOIS[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); }
+  const eur = n => { const a = Math.abs(n); return a >= 1e9 ? (n / 1e9).toFixed(1).replace('.', ',') + ' Md€' : a >= 1e7 ? Math.round(n / 1e6).toLocaleString('fr-FR') + ' M€' : (Math.round(n)).toLocaleString('fr-FR') + ' €'; };
   const pct = n => (Math.round(n * 10) / 10).toLocaleString('fr-FR') + ' %';
   function lse(arr) { const m = Math.max(...arr); return m + Math.log(arr.reduce((a, v) => a + Math.exp(v - m), 0)); }
   const THART = { economie: 'l’économie et l’emploi', pouvoir_achat: 'le pouvoir d’achat', securite: 'la sécurité', immigration: 'l’immigration', ecologie: 'l’écologie', sante: 'la santé', education: 'l’éducation', logement: 'le logement', transports: 'les transports', institutions: 'les institutions', europe: 'l’Europe', agriculture: 'l’agriculture', industrie: 'l’industrie', fiscalite: 'la fiscalité', societe: 'les questions de société' };
@@ -93,12 +93,16 @@ window.E = (function () {
   /* ---------- modèle de vote ---------- */
   const TMUL = { pres: 1.22, leg: 0.95, dep: 0.62, mun: 0.95, reg: 0.62, euro: 0.85, sen: 1.6 };
   const NOTO_K = { mun: 0.85, dep: 0.8, leg: 0.85, pres: 0.6, reg: 0.3, euro: 0.35, sen: 0.6 };
+  // effet personnel maximal (campagne, image, programme…) : le poids du parti domine dans les scrutins nationaux
+  const PERS_CAP = { mun: 1.4, dep: 0.8, reg: 0.4, leg: 0.6, pres: 0.35, euro: 0.3, sen: 0.5 };
   function personal(c, si, w, type) {
     const ideal = D.SEGS[si].ideal;
     const dev = wdist(c.ax, ideal, w) - wdist(bucketAx(c.bucket), ideal, w);
     const aware = 0.3 + 0.7 * clamp(c.noto, 0, 100) / 100;
     const img = c.image ? (c.image[D.SEG_IDS[si]] || 0) : (c.img || 0);
-    return -0.03 * (c.sansEt ? 0.25 : 1) * dev + (NOTO_K[type] || 0.6) * Math.log(aware / 0.65) + 0.6 * img / 100 + 0.5 * ((c.cred ?? 50) - 50) / 50 + (c.camp || 0) + (c.mom || 0) + (c.prog ? (c.prog[D.SEG_IDS[si]] || 0) : 0) + (c.field ? (c.field[D.SEG_IDS[si]] || 0) : 0) + (c.diff || 0) + (c.bilan || 0);
+    let extra = 0.6 * img / 100 + 0.5 * ((c.cred ?? 50) - 50) / 50 + (c.camp || 0) + (c.mom || 0) + (c.prog ? (c.prog[D.SEG_IDS[si]] || 0) : 0) + (c.field ? (c.field[D.SEG_IDS[si]] || 0) : 0) + (c.diff || 0) + (c.bilan || 0);
+    if (c.pj) { const cap = PERS_CAP[type] || 0.6; extra = clamp(extra, -cap * 1.5, cap); }
+    return -0.03 * (c.sansEt ? 0.25 : 1) * dev + (NOTO_K[type] || 0.6) * Math.log(aware / 0.65) + extra;
   }
   function pjTerms(c, key, type) {
     const u = unit(key); const w = axW(); const T = { ideo: 0, noto: 0, image: 0, cred: 0, camp: 0, mom: 0, prog: 0, field: 0 }; let tot = 0;
@@ -123,6 +127,22 @@ window.E = (function () {
     if (n.gov.includes(c.party)) t += -((50 - (n.approval ?? 35)) / 100) * 0.45 * (['mun', 'dep', 'reg'].includes(type) ? 1.3 : type === 'euro' ? 1.5 : type === 'sen' ? 0.5 : 1) * k;
     return t;
   }
+  // Plafond réaliste du score du joueur au 1er tour : implantation du parti, notoriété, mandats détenus
+  function scoreCap(c, type, u) {
+    if (type === 'mun') { if (u.pop < 20000) return null; } const p = S().p; const noto = clamp(c.noto || 0, 0, 100);
+    const base = (c.bucket || [c.party]).reduce((a, k) => a + (u.base[k] || 0), 0); const isNew = p.party === 'NEW' || c.party === 'DIV' && p.party === 'NEW';
+    const loc = p.mandats.filter(m => ['maire', 'cd', 'cr', 'adjoint', 'senateur', 'depute', 'meuro'].includes(m.type)).length; const inc = { leg: 'depute', dep: 'cd', reg: 'cr', euro: 'meuro', sen: 'senateur', pres: 'president', mun: 'maire' }[type];
+    const isInc = p.mandats.some(m => m.type === inc); const lead = (p.prole || 0) >= 4 || p.chef;
+    const b = isNew ? Math.min(base, 0.6) : base;
+    if (type === 'pres') return b * 1.5 + noto * (isNew ? 0.04 : 0.07) + (lead ? 6 : 0) + (isInc ? 15 : 0);
+    if (type === 'euro') return b * 1.5 + noto * (isNew ? 0.025 : 0.06) + (lead ? 5 : 0) + (isInc ? 4 : 0);
+    if (type === 'leg') return b * 1.3 + noto * 0.1 + Math.min(8, loc * 4) + (isInc ? 14 : 0);
+    if (type === 'reg') return b * 1.4 + noto * 0.08 + Math.min(4, loc * 2) + (isInc ? 4 : 0);
+    if (type === 'dep') return b * 1.35 + noto * 0.15 + Math.min(8, loc * 4) + (isInc ? 15 : 0);
+    if (type === 'sen') return b * 1.5 + noto * 0.1 + Math.min(10, loc * 5) + (isInc ? 10 : 0);
+    if (type === 'mun') return b * 1.8 + noto * 0.35 + (isInc ? 25 : 0) + Math.min(10, loc * 5);
+    return null;
+  }
   function vote(key, cands, type, noiseSd, round, turnK) {
     const u = unit(key); const w = axW(); const aff = segAffTable(w);
     const inscrits = Math.round(u.pop * 0.73);
@@ -142,6 +162,8 @@ window.E = (function () {
     });
     const blancs = votants * 0.025; const expr = votants - blancs;
     const tot = votes.reduce((a, b) => a + b, 0);
+    const pjI = cands.findIndex(c => c.pj); if (pjI >= 0 && round !== 2) { const cap = scoreCap(cands[pjI], type, u); const sh = votes[pjI] / tot * 100;
+      if (cap != null && sh > cap && cands.length > 1) { const keep = cap / 100 * tot; const ex = votes[pjI] - keep; const oth = tot - votes[pjI]; cands.forEach((c, j) => { if (j !== pjI) votes[j] += ex * votes[j] / oth; }); votes[pjI] = keep; } }
     const rows = cands.map((c, j) => ({ id: c.id, name: c.name, party: c.party, label: c.label || D.PARTIES[c.party]?.short || c.party, color: c.color || D.PARTIES[c.party]?.color || '#999', pj: !!c.pj, votes: Math.round(votes[j] / tot * expr), pct: votes[j] / tot * 100 }));
     rows.sort((a, b) => b.votes - a.votes);
     return { inscrits, votants: Math.round(votants), exprimes: Math.round(expr), participation: votants / inscrits * 100, rows };
@@ -470,7 +492,7 @@ window.E = (function () {
     if (s.mp && typeof MP !== 'undefined' && MP.on() && MP.rivals().length) { log('Investiture obtenue : le parti mise sur vous.', 'good'); return { ok: true, msg: 'Le parti vous investit : c’est vous qui porterez ses couleurs ici.' }; }
     if ((p.preInv || {})[el.id]) { log('Investiture confirmée par la commission.', 'good'); return { ok: true, msg: 'La commission d’investiture confirme votre candidature, comme convenu avec la fédération.' }; } const key = electionUnit(el.type); const terr = el.type === 'mun' ? p.communeId : el.type === 'pres' ? 'nat' : 'c' + p.circo;
     if (el.type === 'leg' && s.national.unionGauche && ['LFI', 'PCF', 'ECO', 'PS'].includes(p.party)) {
-      const res = unionParty(['LFI', 'PCF', 'ECO', 'PS'], 'c' + p.circo); if (res !== p.party) { const clout = (p.noto.circo || 0) / 60 + (p.mandats.some(m => ['maire', 'cd', 'depute'].includes(m.type)) ? 0.35 : 0) + (p.prole || 0) * 0.08; if (!(rnd() < clout * 0.6)) { p.invLost = p.invLost || {}; p.invLost[el.id] = 'de réserver la circonscription au partenaire ' + D.PARTIES[res].short; return { ok: false, refused: true, final: true, msg: 'Accord national : la circonscription est réservée au partenaire ' + D.PARTIES[res].short + ' dans l’union de la gauche. Cette décision est définitive pour cette élection.' }; } log('Votre poids local convainc l’union de la gauche de vous laisser la circonscription.', 'good'); }
+      const res = unionParty(['LFI', 'PCF', 'ECO', 'PS'], 'c' + p.circo); if (res !== p.party) { const strongM = p.mandats.some(m => ['maire', 'cd', 'depute'].includes(m.type)); const clout = strongM ? clamp((p.noto.circo || 0) / 200 + 0.1 + (p.prole || 0) * 0.04, 0, 0.4) : 0.02; if (!(rnd() < clout)) { p.invLost = p.invLost || {}; p.invLost[el.id] = 'de réserver la circonscription au partenaire ' + D.PARTIES[res].short; return { ok: false, refused: true, final: true, msg: 'Accord national : la circonscription est réservée au partenaire ' + D.PARTIES[res].short + ' dans l’union de la gauche. Cette décision est définitive pour cette élection.' }; } log('Votre poids local convainc l’union de la gauche de vous laisser la circonscription.', 'good'); }
     }
     const b = invBase(el); const rival = b.rival;
     const sc = b.me + rnd() * 15, rs = b.riv + rnd() * 15;
@@ -490,8 +512,12 @@ window.E = (function () {
       const u = unit(el.type === 'leg' ? 'c' + p.circo : 'can:' + p.communeId); const blocP = PIDS.filter(k => (D.PARTIES[k] || {}).bloc === (D.PARTIES[p.party] || {}).bloc); const share = blocP.reduce((t, k) => t + (u.base[k] || 0), 0);
       const wv = clamp((share - 15) / 20, 0, 1); if (!rival.notable && wv > 0.2) { rival.notable = true; rival.std = Math.max(rival.std, Math.round(45 + 35 * wv)); rival.noto = Math.max(rival.noto, Math.round(25 + 35 * wv)); if (!rival.mandat && wv > 0.5) rival.mandat = rnd() < 0.5 ? 'Conseiller·ère départemental·e' : 'Conseiller·ère régional·e'; } }
     const fed = s.pnj[p.fedId]; const scope = el.type === 'mun' ? 'commune' : el.type === 'pres' ? 'nat' : 'circo';
-    const parts = { poids: p.std * 0.55, noto: (p.noto[scope] || 0) * 0.35, fed: ((fed ? fed.rel : 0) + 100) / 10, role: (p.prole || 0) * 5 + (p.fedRole && el.type !== 'pres' ? 30 : 0) + (p.chef ? 80 : 0) };
-    const me = parts.poids + parts.noto + parts.fed + parts.role; const riv = rival.std * 0.55 + rival.noto * 0.35 + 10 + (rival.mandat ? 18 : 0);
+    const locM = p.mandats.filter(m => ['maire', 'adjoint', 'cd', 'cr', 'senateur', 'depute', 'meuro', 'conseiller_municipal'].includes(m.type)); const strong = locM.some(m => ['maire', 'cd', 'cr', 'depute', 'senateur'].includes(m.type));
+    const seniority = diffDays('2026-06-15', s.date) / 365 + ({ militant: 3, adjoint: 6, habitant: 0 }[s.start] ?? 2) - ((p.exParties || []).length ? 2 : 0);
+    const uW = (el.type === 'leg' || el.type === 'dep') ? unit(el.type === 'leg' ? 'c' + p.circo : 'can:' + p.communeId) : null; const blocW = uW ? PIDS.filter(k => (D.PARTIES[k] || {}).bloc === (D.PARTIES[p.party] || {}).bloc).reduce((t, k) => t + (uW.base[k] || 0), 0) : 0; const safe = clamp((blocW - 20) / 20, 0, 1);
+    const anc = el.type === 'leg' ? (strong ? 12 : locM.length ? -4 : -20) - safe * (strong ? 0 : 14) + Math.min(6, seniority * 1.2) - 6 : el.type === 'dep' ? (locM.length ? 6 : -10) + Math.min(5, seniority) - 4 : el.type === 'pres' ? (p.chef ? 0 : (p.prole || 0) >= 4 ? -10 : -45) : 0;
+    const parts = { poids: p.std * 0.55, noto: (p.noto[scope] || 0) * 0.35, fed: ((fed ? fed.rel : 0) + 100) / 10, role: (p.prole || 0) * 5 + (p.fedRole && el.type !== 'pres' ? 30 : 0) + (p.chef ? 80 : 0), ancrage: anc };
+    const me = parts.poids + parts.noto + parts.fed + parts.role + parts.ancrage; const riv = rival.std * 0.55 + rival.noto * 0.35 + 10 + (rival.mandat ? 18 : 0) + (rival.role === 'depute' && el.type === 'leg' ? 18 : 0) + (el.type === 'pres' && rival.role === 'leader' ? 25 : 0);
     return { me, riv, rival, parts, scope };
   }
   function invOdds(el) {
@@ -518,11 +544,11 @@ window.E = (function () {
     const noto = el.type === 'dep' ? (p.noto.commune * 0.5 + p.noto.circo * 0.5) : p.noto[scope];
     const lab = p.cand.label; const pet = el.type === 'mun' && petiteKey(p.cand.key); const bucket = pet ? PIDS.slice() : lab === 'DIV' ? ['DIV'] : [lab]; const sansEt = pet;
     const c = p.camp; const camp = DF().camp * (0.06 * Math.log(1 + c.terrain / 25) + 0.06 * Math.log(1 + c.medias / 15) + 0.05 * Math.log(1 + c.num / 15) + 0.09 * Math.log(1 + c.meet / 2) + Math.min(0.15, p.militants / 500) + Math.min(0.05, (c.mobil || 0) / 900));
-    const lvl = ['mun', 'dep', 'reg', 'sen'].includes(el.type) ? 'local' : 'national'; const prog = progEffect(lvl);
+    const lvl = ['mun', 'dep', 'reg', 'sen'].includes(el.type) ? 'local' : 'national'; const prog = progEffect(lvl, el.type);
     return { diff: (DIFF[S().diff || 'normal'] || DIFF.normal).bonus, bilan: typeof GV !== 'undefined' ? GV.bilanTerm(el.type) : 0, field: fieldEffect(p.cand.key), climK: 1 - 0.6 * (p.distance || 0), prog, sansEt, id: 'PJ', pj: true, name: p.name, party: lab, label: pet ? 'Liste ' + p.name.split(' ').slice(-1)[0] : lab === 'DIV' ? (p.movement || 'Divers') : D.PARTIES[lab].short, color: lab === 'DIV' ? '#8d939c' : D.PARTIES[lab].color, bucket, ax: p.ax, noto, image: p.image, cred: p.cred, camp, mom: p.mom };
   }
-  function progEffect(lvl) {
-    const o = {}; (S().p.prog || []).forEach(m => { if (m.status === 'retiree') return; const w = (m.phare ? 1 : 0.4) * (m.visib || 0) / 100 * (m.level === lvl ? 1 : 0.35) * (0.6 + (m.cred || 50) / 125) * (typeof HQ !== 'undefined' ? HQ.progK(m.level) : 1); if (m.segw) { for (const g in m.segw) o[g] = (o[g] || 0) + 0.035 * m.segw[g] * w; return; } (m.gagnants || []).forEach(g => o[g] = (o[g] || 0) + 0.1 * w); (m.perdants || []).forEach(g => o[g] = (o[g] || 0) - 0.06 * w); });
+  function progEffect(lvl, type) {
+    const o = {}; (S().p.prog || []).forEach(m => { if (m.status === 'retiree') return; const fit = type && typeof L !== 'undefined' && L.inComp ? L.inComp(m, type) : m.level === lvl; const w = (m.phare ? 1 : 0.4) * (m.visib || 0) / 100 * (fit ? 1 : m.level === lvl ? 0.45 : 0.25) * (0.6 + (m.cred || 50) / 125) * (typeof HQ !== 'undefined' ? HQ.progK(m.level) : 1); if (m.segw) { for (const g in m.segw) o[g] = (o[g] || 0) + 0.035 * m.segw[g] * w; return; } (m.gagnants || []).forEach(g => o[g] = (o[g] || 0) + 0.1 * w); (m.perdants || []).forEach(g => o[g] = (o[g] || 0) - 0.06 * w); });
     for (const k in o) o[k] = clamp(o[k], -0.3, 0.4); return o;
   }
   function pnjCand(pn, bucket, extraNoto) {
@@ -719,8 +745,33 @@ window.E = (function () {
     for (const id in q) seats[id] = (seats[id] || 0) + q[id];
     return seats;
   }
+  // Bilan de fin de mandat : promesses tenues ou non, coût, gagnants et perdants, votes
+  const MT_EL = { maire: 'mun', adjoint: 'mun', conseiller_municipal: 'mun', cd: 'dep', cr: 'reg', depute: 'leg', senateur: 'sen', meuro: 'euro', president: 'pres' };
+  function mandateReview(m, to) {
+    const s = S(), p = s.p; const t = MT_EL[m.type]; const from = m.since || to; const days = Math.max(1, diffDays(from, to));
+    const inC = x => typeof L !== 'undefined' && L.inComp ? L.inComp(x, t) : (['leg', 'sen', 'euro', 'pres'].includes(t) ? x.level === 'national' : x.level === 'local');
+    const prog = (p.prog || []).filter(x => inC(x) && (!x.date || x.date <= to));
+    const done = prog.filter(x => ['appliquee', 'adoptee'].includes(x.status)), todo = prog.filter(x => !x.status || x.status === 'proposee'), drop = prog.filter(x => x.status === 'retiree' || x.status === 'rejetee');
+    const gain = {}, lose = {}; done.forEach(x => { (x.gagnants || []).forEach(g => gain[g] = (gain[g] || 0) + 1); (x.perdants || []).forEach(g => lose[g] = (lose[g] || 0) + 1); });
+    const cost = done.reduce((a, x) => a + Math.max(0, x.cout || 0), 0), inv = done.reduce((a, x) => a + (x.inv || 0), 0);
+    const real = (p.bilan || []).filter(b => b.date >= from && b.date <= to); const prom = (p.promises || []).filter(z => z.date >= from && z.date <= to);
+    const votes = (p.votesLog || []).filter(v => v.date >= from && v.date <= to);
+    return { type: m.type, label: m.label, from, to, years: Math.round(days / 36.5) / 10, el: t, done: done.map(x => ({ l: x.resume, cost: x.cout || 0, level: x.level })), todo: todo.map(x => x.resume), drop: drop.map(x => x.resume), gain, lose, cost, inv,
+      real: real.map(b => ({ l: b.l, v: b.v })), score: real.reduce((a, b) => a + b.v, 0), prom: prom.length, broken: prom.filter(z => z.broken).length, votes: votes.length, rebel: votes.filter(v => v.line && v.choice !== v.line).length, rate: prog.length ? Math.round(done.length / Math.max(1, done.length + todo.length) * 100) : null };
+  }
+  // Présidentielle : 500 parrainages d’élus à réunir avant la date limite (environ six semaines avant le 1er tour)
+  const PARR_K = { LR: 120, PS: 110, REN: 90, PCF: 85, DIV: 30, MODEM: 50, HOR: 60, ECO: 45, LFI: 40, RN: 45, UDR: 18, REC: 22, NEW: 6 };
+  function parrRate(p) { const k = PARR_K[p.party] ?? 20; return k * (0.45 + (p.prole || 0) * 0.08 + clamp(p.noto.nat || 0, 0, 100) / 200 + (p.chef ? 0.4 : 0)) * (p.cand && p.cand.invested ? 1 : 0.35) + p.mandats.length * 1.5; }
+  function parrTick(days) {
+    const s = S(), p = s.p; if (!p.cand) return; const el = s.elections.find(e => e.id === p.cand.el); if (!el || el.type !== 'pres' || p.cand.parrOk) return;
+    if (p.cand.parr == null) { p.cand.parr = 0; p.cand.parrDue = addDays(el.d1, -40); }
+    p.cand.parr = Math.min(800, Math.round(p.cand.parr + parrRate(p) * days / 7 * (0.8 + rnd() * 0.4)));
+    if (s.date >= p.cand.parrDue) { if (p.cand.parr >= 500) { p.cand.parrOk = true; log('Le Conseil constitutionnel valide votre candidature : ' + p.cand.parr + ' parrainages.', 'good'); }
+      else { log('Seulement ' + p.cand.parr + ' parrainages sur 500 : le Conseil constitutionnel ne retient pas votre candidature.', 'bad'); p.irrec = (p.irrec || []).concat([el.id]); withdrawCand(); article('quotlib', 'Présidentielle : faute de 500 parrainages, ' + p.name + ' ne sera pas candidat·e', -0.3, 'pj'); } }
+  }
+  function parrAction() { const p = S().p; if (!p.cand || p.cand.parrOk) return 'Rien à faire.'; const g = Math.round((12 + rnd() * 18) * (1 + (p.noto.nat || 0) / 100) * ((PARR_K[p.party] ?? 20) > 60 ? 1.4 : 1)); p.cand.parr = (p.cand.parr || 0) + g; return g + ' maires acceptent de vous parrainer (total : ' + p.cand.parr + ' sur 500).'; }
   function finishElection(el) {
-    const s = S(), p = s.p;
+    const s = S(), p = s.p; const mBefore = (p.mandats || []).map(m => Object.assign({}, m));
     for (const key in el.races) {
       const r = el.races[key]; const w = r.winner; if (!w) continue;
       const winC = ((r.r2 || r).cands || []).find(c => c.id === w) || (r.cands || []).find(c => c.id === w) || ((r.r2 || r).rows || []).find(c => c.id === w) || { id: w, party: 'DIV', name: 'Candidat·e' };
@@ -743,6 +794,8 @@ window.E = (function () {
     // fin des fonctions municipales si l'on ne se représente pas
     if (el.type === 'mun' && !inThis && el.races['mun:' + p.communeId] && p.mandats.some(m => ['maire', 'adjoint', 'conseiller_municipal', 'interco'].includes(m.type))) { p.mandats = p.mandats.filter(m => !['maire', 'adjoint', 'conseiller_municipal', 'interco'].includes(m.type)); p.mairie = null; log('Fin de votre mandat municipal : vous ne vous êtes pas représenté·e.', 'info'); }
     cumulCheck();
+    // fin d’un mandat (non renouvelé, perdu ou remplacé) : on en fait le bilan
+    mBefore.filter(m => MT_EL[m.type] === el.type && m.since && diffDays(m.since, s.date) > 300).forEach(m => { const now = (p.mandats || []).find(x => x.type === m.type); const renewed = !!(now && now.since !== m.since); if (now && !renewed) return; const rv = mandateReview(m, s.date); rv.renewed = renewed; p.reviews = (p.reviews || []).concat([rv]).slice(-12); s.queue.push({ kind: 'bilanMandat', rv }); });
     scheduleNext(el);
     // compte de campagne
     if (p.cand && p.cand.el === el.id && p.cand.compte) closeCompte(el);
@@ -972,7 +1025,7 @@ window.E = (function () {
       if (villageScope() && ['attaque', 'defi', 'rumeur'].includes(act)) act = 'meeting';
       const nm = x.name; const tag = pet ? '' : ' (' + D.PARTIES[x.party].short + ')';
       if (act === 'meeting') { x.mom += 0.03; x.noto = clamp(x.noto + 2, 0, 100); s.turnRival.push(nm + tag + ' multiplie réunions publiques et porte-à-porte.'); if (rnd() < 0.5) article('dauph', nm + ' fait salle comble', 0.1, 'pnj'); }
-      else if (act === 'programme') { x.mom += 0.02; const el2 = s.est ? s.elections.find(e => e.id === s.est.el) : null; const lv = el2 && ['mun', 'dep', 'reg', 'sen'].includes(el2.type) ? 'local' : 'national'; const np = typeof DP !== 'undefined' ? DP.genProp(x, lv) : null; if (np) { (x.prog = x.prog || []).push(np); s.turnRival.push(nm + tag + ' propose « ' + np.label + ' ».'); article('dauph', nm + ' propose : ' + np.label.charAt(0).toLowerCase() + np.label.slice(1), 0, 'pnj'); } else { const pr = typeof TB !== 'undefined' ? TB.promesse(bloc, lv, rnd) : (PROMESSES[bloc] || PROMESSES.DIV); s.turnRival.push(nm + tag + ' promet ' + pr + '.'); article('dauph', nm + ' promet ' + pr, 0, 'pnj'); } }
+      else if (act === 'programme') { x.mom += 0.02; const el2 = s.est ? s.elections.find(e => e.id === s.est.el) : null; const lv = el2 && ['mun', 'dep', 'reg', 'sen'].includes(el2.type) ? 'local' : 'national'; const np = typeof DP !== 'undefined' ? DP.genProp(x, lv, el2 && el2.type) : null; if (np) { (x.prog = x.prog || []).push(np); s.turnRival.push(nm + tag + ' propose « ' + np.label + ' ».'); article('dauph', nm + ' propose : ' + np.label.charAt(0).toLowerCase() + np.label.slice(1), 0, 'pnj'); } else { const pr = typeof TB !== 'undefined' ? TB.promesse(bloc, lv, rnd) : (PROMESSES[bloc] || PROMESSES.DIV); s.turnRival.push(nm + tag + ' promet ' + pr + '.'); article('dauph', nm + ' promet ' + pr, 0, 'pnj'); } }
       else if (act === 'attaque') { asks++; const elT = s.est ? (s.elections.find(e => e.id === s.est.el) || {}).type : null; let txt, kind = 'fond'; if (typeof TB !== 'undefined') { s.recentTxt = s.recentTxt || {}; const seen = s.recentTxt.att = s.recentTxt.att || []; let a; for (let k = 0; k < 6; k++) { a = TB.attack(x, p, elT, rnd); if (!seen.includes(a.text)) break; } txt = a.text; kind = a.kind; seen.push(txt); if (seen.length > 40) seen.shift(); } else txt = gtxt(pick(ATT[bloc] || ATT.DIV), p.g).replace('{P}', p.name); const viral = rnd() < (kind === 'perso' ? 0.5 : 0.3); s.turnRival.push(nm + tag + ' vous attaque.'); post(nm, '@' + slug(nm), txt, false, viral ? rint(800, 4000) : rint(40, 600)); s.queue.push({ kind: 'rival', type: 'attaque', pnj: id, text: txt, viral, akind: kind }); }
       else if (act === 'defi') { asks++; s.turnRival.push(nm + tag + ' vous défie en débat.'); s.queue.push({ kind: 'rival', type: 'defi', pnj: id, media: pick(['radio', 'alpes3']) }); }
       else if (act === 'alliance') { asks++; const cl = (s.est && s.est.rank > 0 && s.est.rows.findIndex(r => r.id === id) > s.est.rank - 1) ? ['desistement'] : pick([['nonagression'], ['soutien'], ['desistement']]); s.turnRival.push(nm + tag + ' vous propose un accord.'); s.queue.push({ kind: 'rival', type: 'alliance', pnj: id, clauses: cl }); }
@@ -1087,18 +1140,26 @@ window.E = (function () {
     if (e.ch && !(villageScope() && e.scope !== 'loc')) s.queue.push({ kind: 'event', ev: e.id, custom: e.custom ? e : null });
   }
   function evById(id, custom) { return custom || EVENTS.find(x => x.id === id); }
+  // réagir à contre-courant de son parti a un coût interne ; suivre la ligne renforce le poids dans le parti
+  function partyCost(e, idx, c) {
+    const s = S(), p = s.p; if (p.party === 'NEW' || p.party === 'DIV') return;
+    let sup = typeof PL !== 'undefined' ? PL.evSup(p.party, e.id, idx) : null;
+    if (sup == null) { const pa = D.PARTIES[p.party].ax; let al = 0; for (const k in c.v) al += Math.sign(c.v[k]) * Math.sign(pa[AXI[k]]); sup = al < 0 ? 0 : al > 0 ? 4 : 2; }
+    if (sup <= 1) { const ld = s.pnj[s.national.leaders[p.party]]; if (ld) ld.rel -= sup === 0 ? 6 : 3; p.distance = Math.min(1, (p.distance || 0) + (sup === 0 ? 0.12 : 0.06)); p.std = clamp(p.std - (sup === 0 ? 3 : 1.5), 0, 100); log('Réaction à contre-courant de la ligne de votre parti sur « ' + e.t.slice(0, 60) + ' » : la direction grince.', 'bad'); }
+    else if (sup >= 3) { p.std = clamp(p.std + (sup === 4 ? 1 : 0.5), 0, 100); }
+  }
   function reactNational(evId, idx, custom, scope) {
     const s = S(), p = s.p; const e = evById(evId, custom); if (!e || !e.ch) return ''; const c = e.ch[idx]; const sal = s.national.salience[e.th] || 0.3;
     statement(c.txt, e.th, c.v, 1 + sal * 0.6, 'réaction à l’actualité nationale'); addNoto(scope || 'commune', 1.5 + sal * 2);
     const m = scope === 'commune' ? 'dauph' : pick(['dauph', 'radio', 'alpes3']);
     article(m, e.t + ' : ' + p.name + ' réagit depuis l’Isère', 0.1, 'pj', '« ' + c.txt + ' »'); post(p.name, '@' + slug(p.name), c.txt, true, rint(20, 200) + Math.round(p.followers / 15));
-    if (p.party !== 'NEW') { const pa = D.PARTIES[p.party].ax; let al = 0; for (const k in c.v) al += Math.sign(c.v[k]) * Math.sign(pa[AXI[k]]); if (al < 0) { const ld = s.pnj[s.national.leaders[p.party]]; if (ld) ld.rel -= 4; p.distance = Math.min(1, (p.distance || 0) + 0.1); } }
+    partyCost(e, idx, c);
     return 'Vous réagissez : « ' + c.txt + ' »';
   }
   function resolveEvent(evId, idx, custom) {
     const e = custom || EVENTS.find(x => x.id === evId); const p = S().p;
     if (idx < 0 || !e.ch) { log('Vous restez silencieux sur : ' + e.t, 'info'); return; }
-    const c = e.ch[idx]; statement(c.txt, e.th, c.v, 0.8, 'réaction'); addNoto('circo', 1.5); p.followers += rint(5, 30);
+    const c = e.ch[idx]; statement(c.txt, e.th, c.v, 0.8, 'réaction'); partyCost(e, idx, c); addNoto('circo', 1.5); p.followers += rint(5, 30);
     post(p.name, '@' + slug(p.name), c.txt, true, rint(10, 80) + Math.round(p.followers / 20));
     log('Vous réagissez : « ' + c.txt + ' »', 'info');
   }
@@ -1232,7 +1293,7 @@ window.E = (function () {
     p.distance = Math.max(0, (p.distance || 0) - 0.02 * f);
     for (const t in s.national.salience) { s.national.salience[t] *= Math.pow(0.8, f); if (s.national.salience[t] < 0.05) delete s.national.salience[t]; }
     // monde
-    rollEvents(days); pnjTick(days); rivalTick(days); partyTick(days); if (typeof DP !== 'undefined') DP.situationTick(days); if (typeof LF !== 'undefined') LF.tick(days); if (typeof GV !== 'undefined') { GV.arcTick(days); GV.govTick(days); } s.turns = (s.turns || 0) + 1; if (typeof TM !== 'undefined') TM.tick(days);
+    rollEvents(days); pnjTick(days); rivalTick(days); partyTick(days); parrTick(days); if (typeof DP !== 'undefined') DP.situationTick(days); if (typeof LF !== 'undefined') LF.tick(days); if (typeof GV !== 'undefined') { GV.arcTick(days); GV.govTick(days); } s.turns = (s.turns || 0) + 1; if (typeof TM !== 'undefined') TM.tick(days);
     for (const k in (s.zones || {})) (s.zones[k] || []).forEach(z => z.cover *= Math.pow(0.9, f));
     if (p.cand && p.focusZone && typeof TM === 'undefined') { const z = (s.zones || {})[p.cand.key]; const x = z && z.find(y => y.id === p.focusZone); if (x) x.cover = clamp(x.cover + p.militants * 0.35 * f / Math.sqrt(Math.max(0.15, x.w) * 4), 0, 100); } casseroleTick(days); staffTick(days);
     if (days === 0.5) s.half = s.half ? 0 : 1; else s.half = 0;
@@ -1312,11 +1373,11 @@ window.E = (function () {
   function mandateTick(days) {
     const p = S().p; if (rnd() > Math.min(1, days / 30)) return;
     if (typeof OF === 'undefined' && p.mandats.some(m => ['conseiller_municipal', 'adjoint', 'maire'].includes(m.type))) { const c = pick(COUNCIL); S().queue.push({ kind: 'vote', ctx: 'Conseil municipal', text: c[0], v: c[1], th: c[2] }); }
-    if (typeof OF === 'undefined' && hasMandat('depute') && rnd() < 0.85) { const t = pick(TEXTES); const pa = p.party !== 'NEW' ? D.PARTIES[p.party].ax : null; let line = null; if (pa) { let d = 0; for (const k in t[1]) d += Math.sign(t[1][k]) * Math.sign(pa[AXI[k]]); line = d > 0 ? 'pour' : 'contre'; } S().queue.push({ kind: 'vote', ctx: 'Assemblée nationale', text: t[0], v: t[1], th: t[2], line }); }
+    if (typeof OF === 'undefined' && hasMandat('depute') && rnd() < 0.85) { if (typeof PL !== 'undefined') { const t = pick(PL.TXT); S().queue.push({ kind: 'vote', ctx: 'Assemblée nationale', text: t.l, v: t.v, th: t.th, line: PL.textLine(p.party, t) }); } else { const t = pick(TEXTES); const pa = p.party !== 'NEW' ? D.PARTIES[p.party].ax : null; let line = null; if (pa) { let d = 0; for (const k in t[1]) d += Math.sign(t[1][k]) * Math.sign(pa[AXI[k]]); line = d > 0 ? 'pour' : 'contre'; } S().queue.push({ kind: 'vote', ctx: 'Assemblée nationale', text: t[0], v: t[1], th: t[2], line }); } }
     if (p.mairie) { const m = p.mairie; m.invest = Math.round(commune().pop * 320 * (1 + (m.tf - 38) / 40)); }
   }
   function resolveVote(q, choice) {
-    const p = S().p; const sign = choice === 'pour' ? 1 : choice === 'contre' ? -1 : 0;
+    const p = S().p; p.votesLog = (p.votesLog || []).concat([{ date: S().date, ctx: q.ctx, th: q.th, line: q.line || null, choice }]).slice(-200); const sign = choice === 'pour' ? 1 : choice === 'contre' ? -1 : 0;
     if (sign) { const v = {}; for (const k in q.v) v[k] = q.v[k] * sign; statement((choice === 'pour' ? 'Vote pour : ' : 'Vote contre : ') + q.text, q.th, v, 0.6, q.ctx); }
     if (q.line && choice !== q.line) { p.std = clamp(p.std - 5, 0, 100); log('Vous votez contre la consigne de votre groupe : poids interne −5.', 'bad'); }
     else if (q.line) p.std = clamp(p.std + 1, 0, 100);
@@ -1324,5 +1385,5 @@ window.E = (function () {
     log(q.ctx + ' : vote « ' + choice + ' » sur ' + q.text + '.', 'info');
   }
 
-  return { villageScope, thArt, de: deN, gtxt, cumulConflict, cumulCheck, resolveCumul, cumulDefault, cumulLabel, invOdds, invBase, sortantPart, petite, village, petiteKey, myPetite, DF, fresh, DIFF, indicators, pjTerms, peekDue, computeShared, pjCand, nextDate, rnd, rint, pick, clamp, gauss, uid, addDays, diffDays, fmtDate, eur, pct, AXI, CLAUSES, EVENTS, unit, vote, mkPnj, pnjList, findPnj, cadre, mayorOf, commune, newGame, phase, turnDays, hoursFor, nextElection, nextDate, electionUnit, TYPE_LABEL, declare, withdrawCand, investiture, endTurn, resolveEvent, applyEvent, statement, addImage, addImageAll, addNoto, popularity, hasStaff, eff, spend, addStd, plafond, log, article, post, genPosts, casserole, surface, lie, proposeAccord, betray, pollLocal, trueIntentions, resolveVote, indemnities, wdist, vecFrom, alignment, slug, rankUpdate, W1, pjCand, buildCandsPreview, runElectionRound, dissolution, estimate, rivalResolve, progEffect, natWindow, MISSIONS, daysLeft, silence, toD, fromD, PIDS, zonesFor, fieldEffect, zoneLean, canvass, reactNational, evById, natTerm, partyResolve, partyFigures, PROLE, LIST_T, LIST_SEATS, listPos };
+  return { parrAction, parrRate, mandateReview, villageScope, thArt, de: deN, gtxt, cumulConflict, cumulCheck, resolveCumul, cumulDefault, cumulLabel, invOdds, invBase, sortantPart, petite, village, petiteKey, myPetite, DF, fresh, DIFF, indicators, pjTerms, peekDue, computeShared, pjCand, nextDate, rnd, rint, pick, clamp, gauss, uid, addDays, diffDays, fmtDate, eur, pct, AXI, CLAUSES, EVENTS, unit, vote, mkPnj, pnjList, findPnj, cadre, mayorOf, commune, newGame, phase, turnDays, hoursFor, nextElection, nextDate, electionUnit, TYPE_LABEL, declare, withdrawCand, investiture, endTurn, resolveEvent, applyEvent, statement, addImage, addImageAll, addNoto, popularity, hasStaff, eff, spend, addStd, plafond, log, article, post, genPosts, casserole, surface, lie, proposeAccord, betray, pollLocal, trueIntentions, resolveVote, indemnities, wdist, vecFrom, alignment, slug, rankUpdate, W1, pjCand, buildCandsPreview, runElectionRound, dissolution, estimate, rivalResolve, progEffect, natWindow, MISSIONS, daysLeft, silence, toD, fromD, PIDS, zonesFor, fieldEffect, zoneLean, canvass, reactNational, evById, natTerm, partyResolve, partyFigures, PROLE, LIST_T, LIST_SEATS, listPos };
 })();

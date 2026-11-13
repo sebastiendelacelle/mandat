@@ -73,6 +73,7 @@ window.X = (function () {
       run() { const p = P(); const ld = S().pnj[S().national.leaders[p.party]]; E.addStd(2.5); E.addNoto('circo', 1.8); p.mom += 0.012; S().national.climate[p.party] += 0.003; if (ld) { ld.rel += 5; ld.known = true; } if (rnd() < 0.3) E.article('dauph', (ld ? ld.name : 'Le candidat') + ' en meeting dans l’Isère aux côtés ' + E.de(p.name), 0.2, 'pj'); return 'Vous animez la campagne présidentielle' + (ld ? ' ' + E.de(ld.name) : '') + ' dans votre circonscription.'; } },
     { id: 'affiches', cat: 'Campagne', l: 'Campagne d’affichage', h: 2, cost: () => ({ mun: 700, dep: 1000, leg: 2400, pres: 400000 }[curType()] || 1500), d: 'Notoriété dans la circonscription.', cond: () => inCampaign() || 'Disponible en pré-campagne et en campagne.',
       run() { E.addNoto(scopeOf(), 4 * E.eff()); P().camp.medias += 4; return 'Vos affiches couvrent les panneaux (et quelques-unes sont déjà taguées).'; } },
+    { id: 'parrainages', cat: 'Campagne', l: 'Démarcher des maires pour les parrainages', h: 6, d: 'Il faut 500 signatures d’élus, venues d’au moins 30 départements, pour être candidat·e à la présidentielle.', cond: () => { const c = P().cand; const el = c && S().elections.find(e => e.id === c.el); return el && el.type === 'pres' && !c.parrOk ? true : 'Seulement pendant la collecte des parrainages pour la présidentielle.'; }, run() { return E.parrAction(); } },
     { id: 'phoning', cat: 'Campagne', l: 'Phoning et mobilisation', h: 4, d: 'Mobilise vos sympathisants le jour du vote.', cond: () => inCampaign() || 'Disponible en pré-campagne et en campagne.',
       run() { const e = E.eff() * (1 + P().militants / 60); P().camp.terrain += 5 * e; P().mom += 0.01; return 'Vos militants appellent ' + Math.round(300 * e) + ' sympathisants.'; } },
     { id: 'numerique', cat: 'Campagne', l: 'Campagne numérique ciblée', h: 2, cost: () => ({ mun: 400, dep: 600, leg: 1500, pres: 200000 }[curType()] || 800), d: 'Vidéos et publicités ciblées : jeunes et actifs.', cond: () => inCampaign() || 'Disponible en pré-campagne et en campagne.', input: 'seg',
@@ -224,6 +225,8 @@ window.X = (function () {
     if (!o.level) o.level = 'local';
     const dup = p.prog.find(x => x.status !== 'retiree' && x.level === o.level && ((o.lever && x.lever === o.lever) || (o.src && x.src === o.src) || x.resume === o.resume));
     if (dup) { const keep = { id: dup.id, date: dup.date, phare: dup.phare, visib: dup.visib, defended: dup.defended, status: dup.status }; Object.keys(dup).forEach(k => delete dup[k]); Object.assign(dup, o, keep, { updated: true }); return dup; } // pas de doublon : on met à jour la mesure existante
+    const vo = o.axes ? E.vecFrom(o.axes) : null; const ctr = vo ? p.prog.filter(x => x.status !== 'retiree' && x.axes).find(x => { const w = E.vecFrom(x.axes); let d = 0; for (let i = 0; i < 6; i++) d += vo[i] * w[i]; return d < -700; }) : null;
+    if (ctr) { o.contra = ctr.id; ctr.contra = o.id; E.log('Attention : « ' + o.resume + ' » contredit « ' + ctr.resume + ' », déjà dans votre programme. Vos adversaires vont s’en servir.', 'bad'); p.cred = clamp(p.cred - 2, 0, 100); }
     p.prog.unshift(o); E.statement(o.text, o.theme, o.axes, 0.5, 'programme');
     (o.gagnants || []).forEach(g => D.SEG_IDS.includes(g) && E.addImage(g, 1.2)); (o.perdants || []).forEach(g => D.SEG_IDS.includes(g) && E.addImage(g, -0.8));
     let delta = (o.cred - 50) / 15; if (o.competence === 'non') delta -= 3; p.cred = clamp(p.cred + delta, 0, 100);
@@ -232,7 +235,8 @@ window.X = (function () {
   }
   function addBuilt(levId, v, fin) {
     const lev = L.LEVERS.find(z => z.id === levId); const ev = L.evaluate(lev, v, fin, E.commune()); const f = L.FIN[lev.lvl].find(z => z.id === fin);
-    return addMeasure({ text: ev.label + (f && fin !== 'aucun' ? ', financé par : ' + f.l.toLowerCase() : ''), resume: ev.label, level: lev.lvl, theme: lev.th, axes: ev.axes, cout: Math.round(ev.cost), inv: Math.round(ev.inv), fin, finL: f ? f.l : '', ind: ev.ind, competence: 'oui', cred: ev.cred, gagnants: ev.gagnants, perdants: ev.perdants, segw: ev.seg, critique: ev.critique, lever: levId, leverV: v, v, src: 'built:' + levId });
+    const fl = L.finLabel ? L.finLabel(lev, fin) : (f ? f.l : '');
+    return addMeasure({ text: ev.label + (fl && fin !== 'aucun' ? ', financé par : ' + fl.toLowerCase() : ''), resume: ev.label, level: lev.lvl, cp: lev.cp, theme: lev.th, axes: ev.axes, cout: Math.round(ev.cost), inv: Math.round(ev.inv), fin, finL: fl, ind: ev.ind, competence: 'oui', cred: ev.cred, gagnants: ev.gagnants, perdants: ev.perdants, segw: ev.seg, critique: ev.critique, lever: levId, leverV: v, v, src: 'built:' + levId });
   }
   function progSummary() {
     const live = P().prog.filter(m => m.status !== 'retiree'); const sum = lvl => live.filter(m => m.level === lvl);
@@ -249,7 +253,7 @@ window.X = (function () {
     (m.gagnants || []).forEach(g => E.addImage(g, 1.4 * e)); (m.perdants || []).forEach(g => E.addImage(g, -0.6 * e)); E.addNoto(scopeOf(), 1);
     if (inCampaign()) p.camp.terrain += 3;
     let msg = 'Vous défendez « ' + m.resume + ' » : la proposition gagne en visibilité.';
-    const lv = curLevel(); if (lv && lv !== m.level) { p.cred = clamp(p.cred - 1.5, 0, 100); msg += ' Mais vos adversaires rappellent qu’elle ne relève pas de ce mandat.'; }
+    const t0 = curType(); if (t0 && typeof L !== 'undefined' && !L.inComp(m, t0)) { p.cred = clamp(p.cred - 1.5, 0, 100); msg += ' Mais vos adversaires rappellent qu’elle relève de ' + L.whoDecides(m) + ', pas de ce mandat.'; }
     if (m.cred < 40 && rnd() < 0.35) { E.article('dauph', 'La proposition ' + E.de(p.name) + ' laisse les économistes sceptiques', -0.3, 'pj'); m.visib -= 5; }
     return msg;
   }

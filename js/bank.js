@@ -98,6 +98,58 @@ window.TB = (function () {
     ED: ['{P} divise les Français selon leur origine.', 'Le programme de {P}, c’est la sortie de l’Europe sans le dire.', '{P} n’a jamais rien géré, et ses amis ont été condamnés pour détournement de fonds européens.', 'Les mairies tenues par les amis de {P} ont coupé les subventions aux associations.', '{P} vend de la peur, parce que la peur rapporte des voix.', 'Les promesses de {P} coûtent des dizaines de milliards, financées par la « lutte contre la fraude ».', '{P} a voté contre l’aide à l’Ukraine. Ses amitiés en disent long.', 'Derrière le sourire de {P}, il y a le même programme qu’en 2002.'],
     NEW: ['{P} n’a ni parti, ni équipe, ni programme : seulement un ego.', 'Le mouvement de {P}, c’est trois amis et une page Facebook.', '{P} se dit « ni de droite ni de gauche ». En réalité, {P} ne sait pas où {il|elle} habite politiquement.', 'Qui finance {P} ? Personne ne le sait.', 'Le « renouveau » de {P}, on l’a déjà vu : il dure le temps d’une élection.', 'Sans majorité, {P} ne pourra rien faire. Voter pour {P}, c’est voter pour rien.']
   };
+  // Attaque selon le couple attaquant → cible (familles politiques) : chaque camp reproche à l’autre ce qu’il lui reproche vraiment
+  const VSX = {
+    'G>GE': ['{P} a soutenu des politiques d’austérité quand son camp gouvernait.', 'La gauche de {P} finit toujours par s’entendre avec le centre.', '{P} parle d’écologie mais ne touche jamais aux profits des grands groupes.', 'Entre {P} et les puissants, il n’y a jamais eu de vraie rupture.'],
+    'G>C': ['{P} défend une majorité qui a reporté l’âge de la retraite contre l’avis des Français.', 'Avec {P}, ce sont toujours les salariés et les services publics qui paient.', 'Les amis de {P} ont supprimé l’ISF. Les plus riches les remercient.', 'Le bilan des amis de {P} : des hôpitaux à bout et des cadeaux aux actionnaires.'],
+    'G>D': ['La droite de {P} veut couper dans les services publics pour baisser les impôts des plus aisés.', '{P} parle d’autorité mais n’a rien à dire sur la précarité.', 'Le programme de {P} tient en trois mots : réduire, couper, fermer.', '{P} lorgne vers l’extrême droite pour sauver sa place.'],
+    'G>ED': ['{P} divise les Français selon leur origine.', '{P} se dit social mais son camp vote contre chaque hausse du SMIC.', '{P} vend de la peur, parce que la peur rapporte des voix.', 'Le programme de {P} ferait payer les plus fragiles d’abord.'],
+    'GE>G': ['La radicalité de {P} fait gagner la droite.', '{P} insulte tout le monde et ne rassemble personne.', 'Avec {P}, on a les slogans, jamais les majorités.'],
+    'GE>C': ['Le bilan climatique des amis de {P} a été condamné par la justice : c’est l’« Affaire du siècle ».', 'Le « en même temps » de {P}, c’est ni écologie ni justice sociale.', '{P} défend un gouvernement qui recule sur chaque engagement climatique.'],
+    'GE>D': ['{P} veut bétonner les terres agricoles au nom de l’économie.', 'L’écologie, pour {P}, c’est toujours pour plus tard.', 'La droite de {P} promet des baisses d’impôts qu’elle n’a jamais faites.'],
+    'GE>ED': ['{P} divise les Français selon leur origine.', 'Le programme de {P} sur le climat tient en une ligne : rien.', '{P} vend de la peur, parce que la peur rapporte des voix.'],
+    'C>G': ['{P} veut faire payer les entreprises jusqu’à ce qu’il n’en reste plus.', 'Le programme de {P} a été écrit pour une manifestation, pas pour gouverner.', 'Avec {P}, c’est la dette pour tous et l’impôt pour chacun.', '{P} ne condamne jamais clairement les violences.'],
+    'C>GE': ['{P} veut interdire la voiture à ceux qui n’ont pas le choix.', 'L’écologie de {P}, c’est la punition des classes moyennes.', '{P} s’allie avec l’extrême gauche quand ça l’arrange.'],
+    'C>D': ['{P} court après l’extrême droite.', 'Quand la droite de {P} gouvernait, des milliers de postes de policiers ont été supprimés.', '{P} promet des économies sans jamais dire lesquelles.'],
+    'C>ED': ['Le programme de {P}, c’est la ruine pour les retraités et les épargnants.', '{P} n’a jamais rien géré.', 'Le chiffrage de {P} ne tient pas : des dizaines de milliards non financés.', 'Les amis de {P} ont toujours été complaisants avec le Kremlin.'],
+    'D>G': ['{P} veut faire payer les classes moyennes pour financer l’assistanat.', 'Avec {P}, les délinquants sont toujours des victimes.', 'Le programme de {P} ferait fuir toutes les entreprises.'],
+    'D>GE': ['{P} fait la morale aux gens qui vivent à quarante kilomètres de leur travail.', 'Les ZFE, les taxes, les interdictions : voilà le bilan des amis de {P}.', 'Avec {P}, il faudra demander la permission pour allumer son barbecue.'],
+    'D>C': ['{P} soutient un gouvernement qui a fait exploser la dette.', 'Le « en même temps » de {P}, c’est ni oui ni non, bien au contraire.', 'Mille milliards de dette en plus : c’est le bilan des amis de {P}.'],
+    'D>ED': ['Le programme économique de {P}, c’est celui de la gauche.', '{P} n’a jamais rien géré.', 'La retraite à 62 ans que promet {P} ruinerait le pays.'],
+    'ED>G': ['{P} est complaisant avec l’islamisme.', 'Le laxisme de {P} a désarmé la France.', '{P} veut régulariser les clandestins.', 'Avec {P}, c’est l’impôt pour les Français et les aides pour les autres.'],
+    'ED>GE': ['L’écologie punitive de {P} étrangle les Français qui travaillent.', '{P} veut des éoliennes partout, sauf sous ses fenêtres.', 'Avec {P}, la voiture devient un luxe.'],
+    'ED>C': ['{P} soutient un gouvernement qui a fait exploser la dette.', 'Le bilan des amis de {P} : l’insécurité et l’immigration record.', '{P} représente la caste qui méprise les Français.'],
+    'ED>D': ['{P} parle comme nous en campagne et vote avec le gouvernement à l’Assemblée.', 'La droite de {P} a gouverné et n’a rien fait contre l’immigration.', '{P} préfère les arrangements de couloir au courage.']
+  };
+  // propres à un parti cible, quel que soit l’attaquant (hors même famille)
+  const VSP = { RN: ['Les dirigeants du parti de {P} ont été condamnés en première instance pour détournement de fonds européens.'], PCF: ['{P} défend le nucléaire comme dans les années 1970.'], LFI: ['{P} soutient des dirigeants qui insultent les journalistes.'], HOR: ['{P} propose de travailler plus longtemps à ceux qui n’en peuvent plus.'] };
+  // critique d’une mesure : dépend du sens de la mesure (gauche ou droite sur l’axe du thème)
+  const PROPX = {
+    securite: { p: ['« {M} » ? Encore une annonce sécuritaire, sans un mot sur la prévention.', '« {M} » : des caméras et des uniformes ne remplacent pas des éducateurs.'], n: ['« {M} » : de la prévention, encore, pendant que la délinquance progresse.', '« {M} » : {P} répond aux dealers avec des médiateurs.'] },
+    immigration: { p: ['« {M} » : un slogan, pas une politique, et {P} sait que ce n’est pas applicable.', '« {M} » : {P} désigne des boucs émissaires.'], n: ['« {M} » : un appel d’air que paieront les quartiers populaires.', '« {M} » : {P} n’ose jamais parler de fermeté.'] },
+    ecologie: { n: ['« {M} » : l’écologie punitive version {P}.', '« {M} » : très joli sur une affiche, impossible à financer.'], p: ['« {M} » : {P} sacrifie le climat pour quelques voix.', '« {M} » : on paiera demain l’inaction de {P}.'] },
+    fiscalite: { p: ['« {M} » : un cadeau fiscal aujourd’hui, des services fermés demain.', '« {M} » : {P} oublie de dire quels services seront supprimés.'], n: ['« {M} » : encore des impôts, et ce sont les classes moyennes qui paieront.', '« {M} » : {P} a toujours une taxe d’avance.'] },
+    economie: { p: ['« {M} » : la casse sociale en costume-cravate.', '« {M} » : ce sont toujours les mêmes qui font les efforts.'], n: ['« {M} » : de l’argent magique, et la dette pour nos enfants.', '« {M} » : {P} n’a jamais créé un emploi de sa vie.'] },
+    pouvoir_achat: { n: ['« {M} » : un chèque électoral, financé par vos impôts de demain.', '« {M} » : {P} distribue l’argent public comme des tracts.'], p: ['« {M} » : {P} rogne sur les plus modestes.', '« {M} » : ce sont les petits salaires qui paieront.'] },
+    logement: { n: ['« {M} » : {P} va bétonner les derniers espaces verts.', '« {M} » : plus de logements sociaux, sans un mot sur la mixité.'], p: ['« {M} » ? Les promoteurs applaudissent déjà.', '« {M} » : rien pour ceux qui attendent un logement social.'] },
+    transports: { n: ['« {M} » : {P} fait la guerre à la voiture.', '« {M} » : {P} n’a jamais pris le car de 6 h 40.'], p: ['« {M} » : la voiture d’abord, les piétons et les enfants après.', '« {M} » : les habitants des hameaux attendent toujours leur bus.'] },
+    institutions: { p: ['« {M} » : la démagogie du référendum permanent.', '« {M} » : {P} promet de consulter, jamais de décider.'], n: ['« {M} » : encore des comités pendant que rien n’avance.', '« {M} » : la démocratie participative à la mode {P}, c’est consulter ceux qui sont déjà d’accord.'] },
+    europe: { p: ['« {M} » : la sortie de l’Europe sans le dire.', '« {M} » : Bruxelles ne fonctionne pas comme ça, et {P} le sait.'], n: ['« {M} » : toujours plus de Bruxelles, toujours moins de France.', '« {M} » : {P} signe un chèque en blanc à la Commission.'] },
+    agriculture: { p: ['« {M} » : le retour des pesticides.', '« {M} » : {P} sacrifie l’eau et la santé à l’agro-industrie.'], n: ['« {M} » : des normes en plus pour des paysans déjà à bout.', '« {M} » : {P} n’a jamais vu un agriculteur de près.'] },
+    education: { p: ['« {M} » : l’uniforme et l’autorité ne remplaceront pas des enseignants.'], n: ['« {M} » : {P} promet des classes, l’Éducation nationale décide des postes.'] },
+    sante: { p: ['« {M} » : on ne fait pas venir des médecins avec un communiqué de presse.'], n: ['« {M} » : très bien, et avec quels médecins ?'] },
+    societe: { p: ['« {M} » : {P} veut diviser les gens sur des sujets qui ne sont pas les leurs.'], n: ['« {M} » : {P} touche à des sujets de conscience sans débat.'] },
+    industrie: { p: ['« {M} » : {P} promet des usines comme on promet la pluie.'], n: ['« {M} » : des subventions publiques pour des usines qui fermeront demain.'] }
+  };
+  const TH_AX = { securite: 'aut', immigration: 'souv', ecologie: 'ecol', fiscalite: 'eco', economie: 'eco', pouvoir_achat: 'eco', logement: 'eco', transports: 'ecol', institutions: 'inst', europe: 'souv', agriculture: 'ecol', education: 'aut', sante: 'eco', societe: 'soc', industrie: 'eco' };
+  const AXI0 = { eco: 0, soc: 1, aut: 2, souv: 3, ecol: 4, inst: 5 };
+  // faits tirés du programme du joueur : financement absent, hors compétence, contradiction
+  const FACT = {
+    weak: ['« {M} » : {K} par an et pas un euro de financement. Qui paiera ?', '{P} promet « {M} » sans dire comment payer {K} par an.'],
+    off: ['« {M} » ne relève pas de ce mandat : {P} promet ce qu’{il|elle} ne pourra pas faire.', '« {M} » ? Ce n’est pas la compétence de ce mandat. {P} le sait très bien.'],
+    contra: ['{P} promet à la fois « {M} » et « {M2} ». Il faudra choisir.', 'Un jour « {M} », le lendemain « {M2} » : qui croire, chez {P} ?'],
+    dev: ['Même son propre camp ne suit pas {P} sur ce sujet.', '{P} contredit sa propre famille politique quand ça l’arrange.']
+  };
   // même famille : primaire, gauche divisée, droite divisée…
   const SAME = ['{P} divise notre camp au pire moment.', 'En se présentant, {P} fait gagner nos adversaires.', '{P} a toujours préféré sa carrière à l’unité.', 'Les électeurs de notre camp ne pardonneront pas la division à {P}.', 'Entre {P} et moi, il y a une différence : moi, je ne trahis pas mes engagements.', '{P} reprend nos idées en moins bien.', '{P} a refusé l’union quand on la lui a proposée.'];
   // métier du joueur (attaque « personnelle »)
@@ -219,9 +271,11 @@ window.TB = (function () {
   // Choisit une attaque adaptée à l’attaquant, au profil du joueur et à l’élection en cours
   function attack(x, p, elType, rnd) {
     const R = rnd || Math.random; const pk = a => a[Math.floor(R() * a.length)];
-    const ab = blocOf(x.party), tb = blocOf(p.party); const pool = []; // [poids, liste, type]
-    pool.push([3, GEN[ab] || GEN.DIV, 'fond']);
-    if (tb !== ab && VS[tb]) pool.push([2.5, VS[tb], 'fond']); else if (tb === ab) pool.push([2, SAME, 'perso']);
+    const ab = blocOf(x.party), tb = blocOf(p.party); const pool = []; // [poids, liste, type, extra]
+    const natEl = ['leg', 'pres', 'euro'].includes(elType); const locEl = ['mun', 'dep', 'reg'].includes(elType);
+    pool.push([locEl ? 2 : 3, GEN[ab] || GEN.DIV, 'fond']);
+    if (tb !== ab) { const vx = VSX[ab + '>' + tb]; if (vx) pool.push([locEl ? 1.4 : 2.6, vx, 'fond']); else if (VS[tb]) pool.push([locEl ? 1 : 2, VS[tb], 'fond']); if (VSP[p.party] && blocOf(p.party) !== ab) pool.push([0.8, VSP[p.party], 'fond']); }
+    else pool.push([2, SAME, 'perso']);
     if (METIER[p.metier]) pool.push([1.2, METIER[p.metier], 'perso']);
     const nm = (p.mandats || []).filter(m => m.type !== 'interco').length;
     if (!nm) pool.push([1.4, SIT.novice, 'perso']); else pool.push([1.6, SIT.sortant, 'fond']);
@@ -231,11 +285,24 @@ window.TB = (function () {
     if (p.fullTime) pool.push([0.9, SIT.pro, 'perso']);
     if (p.movedIn) pool.push([1.5, SIT.parachute, 'perso']);
     if (elType && EL[elType]) pool.push([2.4, EL[elType], 'fond']);
-    const ms = (p.prog || []).filter(m => m.status !== 'retiree' && (m.phare || (m.visib || 0) > 25) && PROP[m.theme]);
-    let M = null; if (ms.length) { const m = pk(ms); M = m.resume; pool.push([2, PROP[m.theme], 'fond']); }
+    // le programme du joueur, au niveau du scrutin
+    const live = (p.prog || []).filter(m => m.status !== 'retiree'); const inEl = m => !elType || (typeof L !== 'undefined' && L.inComp ? L.inComp(m, elType) || (natEl ? m.level === 'national' : m.level === 'local') : true);
+    const ms = live.filter(m => (m.phare || (m.visib || 0) > 25) && inEl(m) && PROPX[m.theme]);
+    const xa = (typeof D !== 'undefined' && D.PARTIES[x.party]) ? D.PARTIES[x.party].ax : null; let M = null, M2 = null, C = null;
+    if (ms.length) { const m = pk(ms); const k = TH_AX[m.theme]; const dir = m.axes && k && m.axes[k] ? Math.sign(m.axes[k]) : 0; const att = xa && k ? Math.sign(xa[AXI0[k]]) : 0;
+      if (dir && att && dir !== att) { M = m.resume; pool.push([2.4, PROPX[m.theme][dir > 0 ? 'p' : 'n'], 'fond']); } }
+    const fmt = v => typeof E !== 'undefined' && E.eur ? E.eur(v) : Math.round(v) + ' €';
+    const weak = live.filter(m => inEl(m) && (m.cout > 0 || m.inv > 0) && (!m.fin || ['aucun', 'croissance'].includes(m.fin)));
+    if (weak.length) { const m = pk(weak); pool.push([3, FACT.weak, 'fond', { M: m.resume, K: fmt(m.cout || m.inv) }]); }
+    const off = elType && typeof L !== 'undefined' && L.inComp ? live.filter(m => (m.phare || (m.visib || 0) > 20) && !L.inComp(m, elType) && (natEl ? m.level === 'national' : m.level === 'local')) : [];
+    if (off.length) pool.push([2.6, FACT.off, 'fond', { M: pk(off).resume }]);
+    const ca = live.find(m => m.contra); const cb = ca && live.find(m => m.id === ca.contra); if (ca && cb) pool.push([3.4, FACT.contra, 'fond', { M: ca.resume, M2: cb.resume }]);
+    if ((p.distance || 0) > 0.25 && p.party !== 'NEW' && p.party !== 'DIV') pool.push([1.6, FACT.dev, 'fond']);
     let tot = pool.reduce((a, b) => a + b[0], 0), r = R() * tot, sel = pool[0];
     for (const it of pool) { r -= it[0]; if (r <= 0) { sel = it; break; } }
-    return { text: fill(pk(sel[1]), p, { M }), kind: sel[2] };
+    const ex = Object.assign({ M }, sel[3] || {});
+    let t0 = pk(sel[1]); if (ex.M2) t0 = t0.replace(/\{M2\}/g, ex.M2); if (ex.K) t0 = t0.replace(/\{K\}/g, ex.K); const t = fill(t0, p, ex);
+    return { text: t, kind: sel[2], fact: !!sel[3] };
   }
   function rumeur(p, rnd) {
     const R = rnd || Math.random; const ws = RUMEURS.map(r => r.w ? r.w(p) : 1); const tot = ws.reduce((a, b) => a + b, 0); let x = R() * tot;
@@ -479,7 +546,7 @@ window.TB = (function () {
     { id: 'dissolution_rumeur', scope: 'nat', cool: 60, t: 'L’Élysée n’exclut pas une nouvelle dissolution', d: 'Les partis se préparent à des législatives anticipées.', th: 'institutions', sal: 0.4, cl: {}, gov: -0.005, ch: ch('Se dire prêt·e', { inst: 15 }, 'Si les Français doivent revoter, nous serons prêts.', 'Appeler à la stabilité', { inst: -20 }, 'Le pays n’a pas besoin d’une nouvelle crise politique.') },
     { id: 'proportionnelle', scope: 'nat', cool: 70, t: 'Le gouvernement relance le projet de proportionnelle', d: 'Les petits partis applaudissent, les grands élus locaux grincent.', th: 'institutions', sal: 0.3, cl: {}, ch: ch('Soutenir la proportionnelle', { inst: 20 }, 'Chaque voix doit compter : la proportionnelle est une exigence démocratique.', 'Défendre le scrutin majoritaire', { inst: -20 }, 'Le scrutin majoritaire garantit des majorités stables et un lien avec le territoire.') },
     { id: 'abaya', scope: 'nat', months: [9, 10], cool: 60, t: 'Laïcité : polémique sur les tenues religieuses à l’école', d: 'Le ministre durcit la circulaire, des associations saisissent le Conseil d’État.', th: 'societe', sal: 0.4, cl: { RN: 0.01, LR: 0.01 }, ch: ch('Défendre la fermeté laïque', { soc: 30, aut: 15 }, 'L’école doit rester un sanctuaire, à l’abri des pressions religieuses.', 'Dénoncer une diversion', { soc: -25 }, 'On stigmatise des adolescentes pour ne pas parler du manque de professeurs.') },
-    { id: 'narcotrafic', scope: 'nat', cool: 40, t: 'Narcotrafic : 49 morts depuis janvier, un record', d: 'Les règlements de compte touchent désormais des villes moyennes.', th: 'securite', sal: 0.7, cl: { RN: 0.02, LR: 0.02 }, gov: -0.01, ch: ch('Réclamer un parquet national et des moyens', { aut: 35 }, 'Il faut frapper les réseaux au portefeuille, avec un vrai parquet spécialisé.', 'Ouvrir le débat sur la légalisation du cannabis', { aut: -30, soc: -20 }, 'Cinquante ans de prohibition ont échoué. Il faut oser parler de la légalisation encadrée.') },
+    { id: 'narcotrafic', scope: 'nat', cool: 40, t: 'Narcotrafic : 49 morts depuis janvier, un record', d: 'Les règlements de compte touchent désormais des villes moyennes.', th: 'securite', sal: 0.7, cl: { RN: 0.02, LR: 0.02 }, gov: -0.01, ch: ch('Réclamer des moyens pour frapper les réseaux', { aut: 35 }, 'Il faut frapper les réseaux au portefeuille et donner de vrais moyens au nouveau parquet anti-criminalité organisée.', 'Ouvrir le débat sur la légalisation du cannabis', { aut: -30, soc: -20 }, 'Cinquante ans de prohibition ont échoué. Il faut oser parler de la légalisation encadrée.') },
     { id: 'prisons', scope: 'nat', cool: 60, t: 'Prisons : un taux d’occupation record de 130 %', d: 'Matelas au sol, surveillants à bout. Le garde des Sceaux promet des places.', th: 'securite', sal: 0.3, cl: {}, ch: ch('Construire des places de prison', { aut: 35 }, 'Une peine prononcée doit être exécutée : il faut construire des places.', 'Développer les peines alternatives', { aut: -30 }, 'Les courtes peines fabriquent de la récidive. Il faut d’autres sanctions.') },
     { id: 'policier_tue', scope: 'nat', cool: 70, t: 'Un policier tué lors d’un refus d’obtempérer', d: 'Hommage national, colère dans les commissariats.', th: 'securite', sal: 0.6, cl: { RN: 0.02, LR: 0.01 }, ch: ch('Soutenir les forces de l’ordre', { aut: 35 }, 'Soutien total à nos policiers, qui risquent leur vie pour nous protéger.', 'Appeler à la retenue', { aut: -10 }, 'Pensées pour sa famille. Ce drame doit nous rassembler, pas nous diviser.') },
     { id: 'refus_obtemperer', scope: 'nat', cool: 70, t: 'Un adolescent tué par un tir policier lors d’un contrôle', d: 'La vidéo circule, la colère gronde dans les quartiers.', th: 'securite', sal: 0.7, cl: { LFI: 0.02, RN: 0.01 }, gov: -0.01, ch: ch('Réclamer la vérité et la justice', { aut: -30 }, 'Toute la lumière doit être faite. Personne n’est au-dessus des lois, pas même un policier.', 'Défendre la présomption d’innocence du policier', { aut: 30 }, 'Laissons la justice travailler, et ne faisons pas le procès de toute la police.') },
