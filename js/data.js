@@ -16,10 +16,10 @@ window.D = (function () {
     ECO:   { name: 'Les Écologistes', short: 'ECO', color: '#4f9a5a', bloc: 'GE', ax: [-50, -70, -50, -50, -90, -10], wealth: 0.4 },
     PS:    { name: 'Parti socialiste', short: 'PS', color: '#e0679a', bloc: 'GE', ax: [-40, -45, -10, -60, -40, -50], wealth: 0.55 },
     REN:   { name: 'Renaissance', short: 'REN', color: '#f0b33c', bloc: 'C', ax: [30, -30, 20, -80, -10, -70], wealth: 0.7 },
-    MODEM: { name: 'MoDem', short: 'MoDem', color: '#ef8a3c', bloc: 'C', ax: [10, -20, 10, -75, -20, -60], wealth: 0.4 },
+    MODEM: { name: 'Mouvement démocrate', short: 'MoDem', color: '#ef8a3c', bloc: 'C', ax: [10, -20, 10, -75, -20, -60], wealth: 0.4 },
     HOR:   { name: 'Horizons', short: 'HOR', color: '#46a0d6', bloc: 'C', ax: [45, -10, 40, -60, 5, -65], wealth: 0.5 },
     LR:    { name: 'Les Républicains', short: 'LR', color: '#3567b5', bloc: 'D', ax: [55, 40, 60, -10, 30, -40], wealth: 0.6 },
-    UDR:   { name: 'UDR', short: 'UDR', color: '#6b5fc0', bloc: 'ED', ax: [50, 55, 70, 50, 45, 20], wealth: 0.3 },
+    UDR:   { name: 'Union des droites pour la République', short: 'UDR', color: '#6b5fc0', bloc: 'ED', ax: [50, 55, 70, 50, 45, 20], wealth: 0.3 },
     RN:    { name: 'Rassemblement national', short: 'RN', color: '#3a4fa8', bloc: 'ED', ax: [-5, 50, 75, 75, 40, 45], wealth: 0.65 },
     REC:   { name: 'Reconquête', short: 'REC', color: '#8a6a4a', bloc: 'ED', ax: [45, 80, 85, 85, 55, 40], wealth: 0.35 },
     DIV:   { name: 'Divers / sans étiquette', short: 'DIV', color: '#8d939c', bloc: 'DIV', ax: [10, 0, 20, 0, 10, -10], wealth: 0.1 }

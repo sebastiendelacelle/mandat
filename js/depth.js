@@ -47,11 +47,11 @@ window.DP = (function () {
       pr.cred = clamp(pr.cred - 12, 5, 95); pr.vis = clamp(pr.vis - 14, 0, 100); x.mom -= 0.03; x.rel -= 6; E.addNoto(sc, 1.5); p.cred = clamp(p.cred + 1, 0, 100);
       if (angle === 'perdants') pr.perdants.forEach(g => E.addImage(g, 2.2)); if (angle === 'alter') { const mine = p.prog.filter(m => m.status !== 'retiree' && m.theme === pr.th).sort((a, b) => b.cred - a.cred)[0]; if (mine) mine.visib = clamp(mine.visib + 12, 0, 100); }
       if (angle === 'ridicule') { E.addImageAll(1); E.post(p.name, '@' + E.slug(p.name), '« ' + pr.label + ' » : ' + pick(['même ses amis n’y croient pas.', 'un slogan en quête de financement.', 'la promesse la plus chère de la campagne.']), true, E.rint(200, 2000)); }
-      E.article(pick(['dauph', 'radio']), p.name + ' démonte la proposition de ' + x.name + ' (« ' + pr.label + ' »)', 0.2, 'pj');
-      msg = 'L’attaque porte : la proposition de ' + x.name + ' perd en crédibilité, et vous marquez des points.';
+      E.article(pick(['dauph', 'radio']), p.name + ' démonte la proposition ' + E.de(x.name) + ' (« ' + pr.label + ' »)', 0.2, 'pj');
+      msg = 'L’attaque porte : la proposition ' + E.de(x.name) + ' perd en crédibilité, et vous marquez des points.';
     } else {
       p.cred = clamp(p.cred - 2, 0, 100); E.addImageAll(-1); x.mom += 0.02; x.rel -= 3; if (angle === 'ridicule') E.addImageAll(-1.5);
-      E.article('dauph', 'La réplique de ' + x.name + ' à ' + p.name + ' : « des attaques sans fond »', -0.2, 'pj');
+      E.article('dauph', 'La réplique ' + E.de(x.name) + ' à ' + p.name + ' : « des attaques sans fond »', -0.2, 'pj');
       msg = 'L’attaque tombe à plat : ' + x.name + ' retourne l’argument contre vous.';
     }
     E.log('Attaque contre « ' + pr.label + ' » (' + ANGLES[angle].l.toLowerCase() + ') — ' + msg, ok ? 'good' : 'bad'); return { ok, msg };
@@ -233,7 +233,7 @@ window.DP = (function () {
   const SIT = [
     { id: 'marche', c: () => true, t: 'Interpellé·e au marché, devant une caméra', d: 'Un commerçant vous prend à partie sur les charges et la paperasse. Un passant filme.', o: [
       ['Écouter longuement, promettre de revenir', () => { E.addImage('PERI', 2); E.addImage('RET', 1); return 'La vidéo montre un·e élu·e à l’écoute. Elle tourne bien.'; }],
-      ['Répliquer sèchement', () => { if (E.rnd() < 0.5) { E.addImageAll(-2.5); E.article('info24', 'La vidéo de ' + P().name + ' qui s’emporte au marché', -0.5, 'pj'); return 'La vidéo devient virale, et pas en bien.'; } E.addImage('POP', 1.5); return 'Votre franchise plaît à certains.'; }],
+      ['Répliquer sèchement', () => { if (E.rnd() < 0.5) { E.addImageAll(-2.5); E.article('info24', 'La vidéo ' + E.de(P().name) + ' qui s’emporte au marché', -0.5, 'pj'); return 'La vidéo devient virale, et pas en bien.'; } E.addImage('POP', 1.5); return 'Votre franchise plaît à certains.'; }],
       ['Lui proposer une réunion avec les commerçants', () => { E.addImage('PERI', 1.2); E.addImage('CAD', 1); P().hours = Math.max(0, P().hours - 2); return 'Réunion calée (2 h de votre temps), les commerçants apprécient.'; }]] },
     { id: 'ag', c: p => p.party !== 'NEW', t: 'Deux rendez-vous le même soir', d: 'L’assemblée générale d’une grosse association de quartier tombe le soir de la réunion de section.', o: [
       ['L’association', () => { E.addImage('POP', 2); E.addImage('RET', 1.5); E.addStd(-2); return 'Les habitants s’en souviendront. Le parti un peu moins bien.'; }],

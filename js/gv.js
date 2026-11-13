@@ -56,7 +56,7 @@ const GV = (() => {
     if (com.pop < 3500) { p.noto.commune = Math.max(p.noto.commune, Math.round(34 - Math.log10(com.pop) * 4)); }
     if (start === 'adjoint') {
       if (p.party === 'NEW') { p.mandats.push({ type: 'conseiller_municipal', label: 'Conseiller·ère municipal·e d’opposition (' + com.name + ')', since: s.date, ind: 0, majority: false }); }
-      else { p.mandats.push({ type: 'adjoint', label: 'Adjoint·e au maire de ' + com.name, since: s.date, ind: 700, majority: true }); p.prole = Math.max(p.prole || 0, 1); }
+      else { p.mandats.push({ type: 'adjoint', label: 'Adjoint·e au maire ' + E.de(com.name), since: s.date, ind: 700, majority: true }); p.prole = Math.max(p.prole || 0, 1); }
       p.noto.commune = Math.max(p.noto.commune, 34); p.noto.circo = Math.max(p.noto.circo, 12); p.cred = clamp(p.cred + 6, 0, 100); E.addStd(6); D.SEG_IDS.forEach(g => E.addImage(g, 3));
       addBilan('Six ans d’adjoint·e : bilan contrasté', 2, 'mandat');
     } else if (start === 'notable') {
@@ -91,8 +91,8 @@ const GV = (() => {
     const t = s.pnj[a.traitor] || p.staff.find(x => x.id === a.traitor); const rising = p.mandats.length > 0 || (s.est && s.est.pct >= 18);
     if (t && !a.betrayed && rising && (t.loy ?? (t.rel + 50)) < 55 && R() < 0.12 * Math.min(1, days / 14)) {
       a.betrayed = s.date; const nm = t.name; const c = p.casseroles.find(k => !k.out);
-      if (c) { c.out = true; E.article('revel', 'Un proche de ' + p.name + ' balance : ' + c.label, -0.6, 'pj'); E.addImageAll(-2.5); }
-      else { E.article('dauph', nm + ', proche de ' + p.name + ', passe chez l’adversaire', -0.4, 'pj'); E.addStd(-3); p.militants = Math.max(0, p.militants - Math.round(p.militants * 0.15)); }
+      if (c) { c.out = true; E.article('revel', 'Un proche ' + E.de(p.name) + ' balance : ' + c.label, -0.6, 'pj'); E.addImageAll(-2.5); }
+      else { E.article('dauph', nm + ', proche ' + E.de(p.name) + ', passe chez l’adversaire', -0.4, 'pj'); E.addStd(-3); p.militants = Math.max(0, p.militants - Math.round(p.militants * 0.15)); }
       if (a.traitorStaff) p.staff = p.staff.filter(x => x.id !== t.id);
       LF.sms(a.traitorStaff ? 'Ancien collaborateur' : t.id, 'Rien de personnel. Tu ne m’as jamais laissé ma place. Bonne chance pour la suite.', [{ l: 'Ne pas répondre', res: 'La trahison laisse des traces.' }], { role: 'Traître' });
       if (s.pnj[t.id]) remember(t.id, 'Vous a trahi·e', -20);
@@ -139,7 +139,7 @@ const GV = (() => {
     if (v === 'pour') { if (maj) { E.addStd(2); msg = 'Vous votez le budget avec la majorité. Discipline appréciée.'; } else { E.addStd(-4); p.cred = clamp(p.cred + 1, 0, 100); msg = 'Vous votez le budget du gouvernement contre votre groupe. Remarqué, et pas apprécié.'; } }
     if (v === 'contre') { if (maj) { E.addStd(-5); E.addImageAll(0.6); msg = 'Vous votez contre le budget de votre propre camp. Les électeurs aiment l’indépendance, le groupe beaucoup moins.'; } else { E.addStd(1.5); msg = 'Vous votez contre, avec votre groupe.'; } }
     if (v === 'abst') { msg = 'Vous vous abstenez. Ni pour, ni contre : personne n’est content.'; E.addImageAll(-0.3); }
-    if (amend) { if (p.hours >= 3) p.hours -= 3; const ok = R() < 0.3 + (maj ? 0.25 : 0) + (p.expertise ? 0.1 : 0); if (ok) { E.addImageAll(1.2); E.addNoto('circo', 3); addBilan('Amendement adopté : crédits pour la circonscription', 6, 'loi'); msg += ' Votre amendement pour la circonscription est adopté !'; E.article('dauph', 'Budget : l’amendement de ' + p.name + ' adopté', 0.3, 'pj'); } else msg += ' Votre amendement est rejeté.'; }
+    if (amend) { if (p.hours >= 3) p.hours -= 3; const ok = R() < 0.3 + (maj ? 0.25 : 0) + (p.expertise ? 0.1 : 0); if (ok) { E.addImageAll(1.2); E.addNoto('circo', 3); addBilan('Amendement adopté : crédits pour la circonscription', 6, 'loi'); msg += ' Votre amendement pour la circonscription est adopté !'; E.article('dauph', 'Budget : l’amendement ' + E.de(p.name) + ' adopté', 0.3, 'pj'); } else msg += ' Votre amendement est rejeté.'; }
     return msg;
   }
   function opposant() { const s = S(), p = P(); const com = p.communeId; const el = s.elections.filter(e => e.type === 'mun' && e.races).slice(-1)[0]; const r = el && el.races['mun:' + com]; const row = r && (r.r2 || r).rows.find(x => !x.pj && s.pnj[x.id]); return row ? s.pnj[row.id] : E.findPnj(x => x.territory === com && x.role !== 'journaliste'); }

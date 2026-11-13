@@ -42,7 +42,7 @@ window.X = (function () {
     { id: 'figure', cat: 'Campagne', l: 'Faire venir une figure nationale', h: 4, cost: 1500, d: 'Meeting avec un ténor du parti : notoriété et élan, mais vous épousez le climat national de votre camp.', cond: () => { if (P().party === 'NEW') return 'Votre mouvement n’a pas de ténors nationaux.'; if (!inCampaign()) return 'Pendant une campagne.'; return true; },
       run() { const p = P(); const figs = E.partyFigures(); const x = figs.find(y => y.rel > -20) || figs[0]; const cl = S().national.climate[p.party] || 0; const govP = S().national.gov.includes(p.party) ? -((50 - (S().national.approval ?? 35)) / 100) * 0.4 : 0;
         E.addNoto(scopeOf(), 4 + (x ? x.noto / 15 : 2)); p.mom += 0.03 + (cl + govP) * 0.4; p.distance = Math.max(0, (p.distance || 0) - 0.35); p.camp.meet += 1; if (x) { x.rel += 4; x.known = true; }
-        E.article('dauph', (x ? x.name : 'Un ténor') + ' en meeting aux côtés de ' + p.name, 0.2, 'pj');
+        E.article('dauph', (x ? x.name : 'Un ténor') + ' en meeting aux côtés ' + E.de(p.name), 0.2, 'pj');
         return (x ? x.name : 'Une figure nationale') + ' vient vous soutenir. ' + (cl + govP < -0.05 ? 'Mais l’impopularité nationale de votre camp vous colle désormais à la peau.' : 'L’élan national de votre camp vous porte.'); } },
     { id: 'distance', cat: 'Parti', l: 'Prendre ses distances avec la direction nationale', h: 2, d: 'Vous vous démarquez de votre camp : le climat national pèse moins sur vous, mais le parti grince.', cond: () => P().party === 'NEW' ? 'Vous n’avez pas de direction nationale.' : ((P().distance || 0) > 0.85 ? 'Déjà très en retrait.' : true),
       run() { const p = P(); p.distance = Math.min(1, (p.distance || 0) + 0.35); E.addStd(-5); p.natSup = clamp(p.natSup - 2, 0, 100); const ld = S().pnj[S().national.leaders[p.party]]; if (ld) ld.rel -= 8; E.addNoto('circo', 1.5); E.article('dauph', p.name + ' prend ses distances avec la direction nationale de ' + D.PARTIES[p.party].short, 0, 'pj'); return 'Vous jouez la carte locale. La direction nationale le note.'; } },
@@ -70,7 +70,7 @@ window.X = (function () {
     { id: 'meeting', cat: 'Campagne', l: 'Organiser un meeting', h: 8, cost: () => ({ mun: 900, dep: 1200, leg: 2500, pres: 150000 }[curType()] || 1500), d: 'Votre discours est évalué ; mobilise et donne de l’élan.', cond: () => inCampaign() || 'Disponible en pré-campagne et en campagne.', input: 'text', ai: 'speech' },
     { id: 'presi', cat: 'Campagne', l: 'Faire campagne pour la présidentielle', h: 4, d: 'Animer la campagne de votre candidat·e dans la circonscription : poids au parti, visibilité, et un élan pour les législatives.',
       cond: () => { const nw = E.natWindow(); if (!nw || !nw.open || nw.pres.status === 'fini') return 'Pendant la campagne présidentielle uniquement.'; if (P().party === 'NEW') return 'Votre mouvement n’a pas de candidat·e à la présidentielle.'; return true; },
-      run() { const p = P(); const ld = S().pnj[S().national.leaders[p.party]]; E.addStd(2.5); E.addNoto('circo', 1.8); p.mom += 0.012; S().national.climate[p.party] += 0.003; if (ld) { ld.rel += 5; ld.known = true; } if (rnd() < 0.3) E.article('dauph', (ld ? ld.name : 'Le candidat') + ' en meeting dans l’Isère aux côtés de ' + p.name, 0.2, 'pj'); return 'Vous animez la campagne présidentielle' + (ld ? ' de ' + ld.name : '') + ' dans votre circonscription.'; } },
+      run() { const p = P(); const ld = S().pnj[S().national.leaders[p.party]]; E.addStd(2.5); E.addNoto('circo', 1.8); p.mom += 0.012; S().national.climate[p.party] += 0.003; if (ld) { ld.rel += 5; ld.known = true; } if (rnd() < 0.3) E.article('dauph', (ld ? ld.name : 'Le candidat') + ' en meeting dans l’Isère aux côtés ' + E.de(p.name), 0.2, 'pj'); return 'Vous animez la campagne présidentielle' + (ld ? ' ' + E.de(ld.name) : '') + ' dans votre circonscription.'; } },
     { id: 'affiches', cat: 'Campagne', l: 'Campagne d’affichage', h: 2, cost: () => ({ mun: 700, dep: 1000, leg: 2400, pres: 400000 }[curType()] || 1500), d: 'Notoriété dans la circonscription.', cond: () => inCampaign() || 'Disponible en pré-campagne et en campagne.',
       run() { E.addNoto(scopeOf(), 4 * E.eff()); P().camp.medias += 4; return 'Vos affiches couvrent les panneaux (et quelques-unes sont déjà taguées).'; } },
     { id: 'phoning', cat: 'Campagne', l: 'Phoning et mobilisation', h: 4, d: 'Mobilise vos sympathisants le jour du vote.', cond: () => inCampaign() || 'Disponible en pré-campagne et en campagne.',
@@ -91,7 +91,7 @@ window.X = (function () {
     { id: 'trolls', cat: 'Coups tordus', l: 'Campagne de dénigrement en ligne', h: 2, cost: 2000, d: 'Faux comptes et rumeurs contre un rival. Risque de diffamation.', input: 'pnjrival',
       run(o) { const x = S().pnj[o.pnj]; x.img -= 6; x.mom -= 0.04; E.post('Anonyme', pick(['@verite38', '@onvousment', '@lanceur_alertes38']), 'Ce que ' + x.name + ' ne veut pas que vous sachiez… #Isère', false, rint(200, 1500)); if (rnd() < 0.25) E.casserole('trolls', 'une campagne de faux comptes contre ' + x.name, 2, rnd() < 0.5, 0.08); return 'La rumeur circule sur X contre ' + x.name + '.'; } },
     { id: 'taupe', cat: 'Coups tordus', l: 'Infiltrer l’équipe adverse', h: 3, cost: 2500, d: 'Une taupe chez un rival : vous lisez son jeu.', input: 'pnjrival',
-      run(o) { const x = S().pnj[o.pnj]; x.mom -= 0.05; x.spied = S().date; if (rnd() < 0.2) { E.casserole('taupe', 'avoir infiltré l’équipe de ' + x.name, 2, true, 0.07); } return 'Votre taupe chez ' + x.name + ' : ambition ' + x.traits.ambition + ', loyauté ' + x.traits.loyaute + ', rancune ' + x.traits.rancune + ', ' + (x.secrets ? 'des secrets à creuser' : 'pas de secret connu') + '. Sa campagne est désorganisée.'; } },
+      run(o) { const x = S().pnj[o.pnj]; x.mom -= 0.05; x.spied = S().date; if (rnd() < 0.2) { E.casserole('taupe', 'avoir infiltré l’équipe ' + E.de(x.name), 2, true, 0.07); } return 'Votre taupe chez ' + x.name + ' : ambition ' + x.traits.ambition + ', loyauté ' + x.traits.loyaute + ', rancune ' + x.traits.rancune + ', ' + (x.secrets ? 'des secrets à creuser' : 'pas de secret connu') + '. Sa campagne est désorganisée.'; } },
     { id: 'occulte', cat: 'Coups tordus', l: 'Solliciter un financement occulte', h: 2, d: 'De l’argent liquide d’un entrepreneur. Délit grave.',
       run() { const amt = rint(6, 25) * 1000; P().cash += amt; E.casserole('occulte', 'un financement illégal de ' + eur(amt) + ' en liquide', amt > 15000 ? 4 : 3, true, 0.035); return 'Une enveloppe de ' + eur(amt) + '. Personne n’en saura rien… peut-être.'; } },
     { id: 'audit', cat: 'Coups tordus', l: 'Vérifier la loyauté de l’équipe', h: 2, d: 'Révèle la loyauté réelle de vos collaborateurs.', cond: () => P().staff.length ? true : 'Vous n’avez pas d’équipe.',
@@ -124,7 +124,7 @@ window.X = (function () {
   ];
   function doOff(jid, kind, extra) {
     const p = P(); const j = S().pnj[jid]; j.known = true; p.hours -= 1;
-    if (kind === 'strategie') { j.rel += 10; if (rnd() < 0.15 + Math.max(0, -j.rel) / 200) { E.addImageAll(-1); E.article(j.territory, 'Les coulisses de la campagne de ' + p.name, -0.2, 'pj'); return j.name + ' a publié une partie de vos confidences. Relation +10, mais l’article fait jaser.'; } return j.name + ' apprécie la confiance. Relation +10.'; }
+    if (kind === 'strategie') { j.rel += 10; if (rnd() < 0.15 + Math.max(0, -j.rel) / 200) { E.addImageAll(-1); E.article(j.territory, 'Les coulisses de la campagne ' + E.de(p.name), -0.2, 'pj'); return j.name + ' a publié une partie de vos confidences. Relation +10, mais l’article fait jaser.'; } return j.name + ' apprécie la confiance. Relation +10.'; }
     if (kind === 'couverture') { if (j.rel < 10) { j.rel -= 2; return j.name + ' ne vous doit rien et ne viendra pas.'; } j.rel -= 6; E.addNoto(scopeOf(), 3.5); E.addImageAll(0.8); E.article(j.territory, p.name + ' sur le terrain : reportage', 0.4, 'pj'); return j.name + ' couvre votre déplacement : reportage flatteur (relation −6).'; }
     if (kind === 'adversaire') { const d = p.dossiers.find(z => z.id === extra); if (!d) return ''; const x = S().pnj[d.on]; p.dossiers = p.dossiers.filter(z => z.id !== d.id); if (rnd() < 0.45 + j.rel / 150) { x.img -= 9 * d.g; x.mom -= 0.06 * d.g; E.article(j.territory, 'Enquête : ' + x.name + ', ' + d.label, -0.7, 'pnj'); j.rel += 4; if (rnd() < 0.12) { x.rel -= 40; return 'L’article sort. ' + x.name + ' soupçonne pourtant votre main.'; } return 'L’article sort, et personne ne remonte jusqu’à vous.'; } j.rel -= 3; return j.name + ' juge l’information insuffisamment recoupée.'; }
     return '';
@@ -161,7 +161,7 @@ window.X = (function () {
     const vol = E.statement(text, ev.theme || 'institutions', vecOf(ev.axes), 0.5 + reach / 150, 'post X');
     E.addNoto(scopeOf(), reach / 30); if (inCampaign()) p.camp.num += 2 + reach / 20;
     let m = 'Publié : ' + likes + ' j’aime.';
-    if (rnd() * 100 < risk * 0.6) { E.addImageAll(-2 - risk / 25); p.cred = clamp(p.cred - 2, 0, 100); E.article(pick(['info24', 'ventilo', 'dauph']), 'Bad buzz : le message de ' + p.name + ' indigne les réseaux', -0.6, 'pj', '« ' + text.slice(0, 140) + ' »'); m += ' Bad buzz : le message est épinglé par la presse.'; }
+    if (rnd() * 100 < risk * 0.6) { E.addImageAll(-2 - risk / 25); p.cred = clamp(p.cred - 2, 0, 100); E.article(pick(['info24', 'ventilo', 'dauph']), 'Bad buzz : le message ' + E.de(p.name) + ' indigne les réseaux', -0.6, 'pj', '« ' + text.slice(0, 140) + ' »'); m += ' Bad buzz : le message est épinglé par la presse.'; }
     else if (reach > 75 && rnd() < 0.5) { E.addNoto(scopeOf(), 4); m += ' Le message devient viral.'; }
     if (ev.mensonge) { E.lie(text, 1); m += ' (Affirmation contestable : un fact-check pourrait suivre.)'; }
     if (vol) m += ' La presse relève une contradiction avec vos déclarations passées.';
@@ -170,7 +170,7 @@ window.X = (function () {
   function applyMeasure(text, ev, level) {
     const p = P(); const m = addMeasure({ text, level: level || 'local', theme: D.THEMES[ev.theme] ? ev.theme : 'economie', cout: +ev.cout_annuel_eur || 0, competence: ev.competence || 'oui', cred: clamp(+ev.credibilite || 50, 0, 100), resume: ev.resume || text.slice(0, 90), critique: ev.critique || '', gagnants: (ev.gagnants || []).filter(g => D.SEG_IDS.includes(g)), perdants: (ev.perdants || []).filter(g => D.SEG_IDS.includes(g)), axes: vecOf(ev.axes) });
     if (m.competence === 'non' && rnd() < 0.6) E.article('dauph', p.name + ' promet ce qu’une collectivité ne peut pas faire', -0.4, 'pj', m.critique);
-    if (m.cred < 35 && rnd() < 0.5) E.article(pick(['quotlib', 'revel']), 'Contre-expertise : la mesure de ' + p.name + ' ne tient pas', -0.4, 'pj', m.critique);
+    if (m.cred < 35 && rnd() < 0.5) E.article(pick(['quotlib', 'revel']), 'Contre-expertise : la mesure ' + E.de(p.name) + ' ne tient pas', -0.4, 'pj', m.critique);
     return m;
   }
   function applySpeech(text, ev) {
@@ -180,7 +180,7 @@ window.X = (function () {
     E.statement(text, ev.theme || 'institutions', vecOf(ev.axes), 0.5, 'meeting');
     if (ev.punchline) { E.post(p.name, '@' + E.slug(p.name), '« ' + ev.punchline + ' »', true, rint(100, 900)); }
     if (ev.mensonge) E.lie(ev.punchline || text.slice(0, 120), 1);
-    E.article('dauph', 'Meeting de ' + p.name + ' : ' + (sc >= 65 ? 'une salle conquise' : sc >= 45 ? 'un discours sans surprise' : 'une salle clairsemée et un discours qui tombe à plat'), (sc - 50) / 60, 'pj');
+    E.article('dauph', 'Meeting ' + E.de(p.name) + ' : ' + (sc >= 65 ? 'une salle conquise' : sc >= 45 ? 'un discours sans surprise' : 'une salle clairsemée et un discours qui tombe à plat'), (sc - 50) / 60, 'pj');
     return 'Discours noté ' + Math.round(sc) + '/100. ' + (ev.commentaire || '');
   }
   function applyDebate(sum) { // sum: {score, segments, lies:[text], punchlines:[..], gaffes}
@@ -220,6 +220,8 @@ window.X = (function () {
   function addMeasure(m) {
     const p = P(); const o = Object.assign({ id: E.uid('mes'), date: S().date, status: 'proposee', phare: false, visib: 20, defended: 0 }, m);
     if (!o.level) o.level = 'local';
+    const dup = p.prog.find(x => x.status !== 'retiree' && x.level === o.level && ((o.lever && x.lever === o.lever) || (o.src && x.src === o.src) || x.resume === o.resume));
+    if (dup) { const keep = { id: dup.id, date: dup.date, phare: dup.phare, visib: dup.visib, defended: dup.defended, status: dup.status }; Object.keys(dup).forEach(k => delete dup[k]); Object.assign(dup, o, keep, { updated: true }); return dup; } // pas de doublon : on met à jour la mesure existante
     p.prog.unshift(o); E.statement(o.text, o.theme, o.axes, 0.5, 'programme');
     (o.gagnants || []).forEach(g => D.SEG_IDS.includes(g) && E.addImage(g, 1.2)); (o.perdants || []).forEach(g => D.SEG_IDS.includes(g) && E.addImage(g, -0.8));
     let delta = (o.cred - 50) / 15; if (o.competence === 'non') delta -= 3; p.cred = clamp(p.cred + delta, 0, 100);
@@ -246,7 +248,7 @@ window.X = (function () {
     if (inCampaign()) p.camp.terrain += 3;
     let msg = 'Vous défendez « ' + m.resume + ' » : la proposition gagne en visibilité.';
     const lv = curLevel(); if (lv && lv !== m.level) { p.cred = clamp(p.cred - 1.5, 0, 100); msg += ' Mais vos adversaires rappellent qu’elle ne relève pas de ce mandat.'; }
-    if (m.cred < 40 && rnd() < 0.35) { E.article('dauph', 'La proposition de ' + p.name + ' laisse les économistes sceptiques', -0.3, 'pj'); m.visib -= 5; }
+    if (m.cred < 40 && rnd() < 0.35) { E.article('dauph', 'La proposition ' + E.de(p.name) + ' laisse les économistes sceptiques', -0.3, 'pj'); m.visib -= 5; }
     return msg;
   }
   function applyConference(id, score) { const p = P(); const m = p.prog.find(x => x.id === id); m.visib = clamp((m.visib || 0) + 10 + score / 4, 0, 100); m.cred = clamp(m.cred + (score - 50) / 8, 0, 100); p.cred = clamp(p.cred + (score - 50) / 15, 0, 100); E.addNoto(scopeOf(), 2 + score / 25); E.article(pick(['dauph', 'radio', 'alpes3']), p.name + ' présente « ' + m.resume + ' » : ' + (score >= 60 ? 'une proposition solidement défendue' : score >= 45 ? 'des réponses inégales' : 'des journalistes peu convaincus'), (score - 50) / 60, 'pj'); return 'Conférence de presse notée ' + Math.round(score) + '/100.'; }
@@ -260,12 +262,12 @@ window.X = (function () {
     }
     if (m.level === 'national' && has('depute')) {
       const gov = S().national.gov.includes(p.party); const pr = clamp(0.08 + (gov ? 0.32 : 0) + p.std / 400 + (m.cred - 50) / 300, 0.04, 0.75);
-      if (rnd() < pr) { m.status = 'adoptee'; E.addNoto('nat', 7); p.cred = clamp(p.cred + 4, 0, 100); (m.gagnants || []).forEach(g => E.addImage(g, 2.5)); E.article('quotlib', 'L’Assemblée adopte la proposition de loi de ' + p.name + ' : « ' + m.resume + ' »', 0.5, 'pj'); return 'Victoire : votre proposition de loi est adoptée.'; }
-      m.status = 'rejetee'; m.visib = clamp(m.visib + 20, 0, 100); E.addNoto('nat', 2); E.article('quotlib', 'La proposition de loi de ' + p.name + ' rejetée en séance', -0.1, 'pj'); return 'Proposition de loi rejetée, mais le débat a eu lieu et votre proposition est désormais connue.';
+      if (rnd() < pr) { m.status = 'adoptee'; E.addNoto('nat', 7); p.cred = clamp(p.cred + 4, 0, 100); (m.gagnants || []).forEach(g => E.addImage(g, 2.5)); E.article('quotlib', 'L’Assemblée adopte la proposition de loi ' + E.de(p.name) + ' : « ' + m.resume + ' »', 0.5, 'pj'); return 'Victoire : votre proposition de loi est adoptée.'; }
+      m.status = 'rejetee'; m.visib = clamp(m.visib + 20, 0, 100); E.addNoto('nat', 2); E.article('quotlib', 'La proposition de loi ' + E.de(p.name) + ' rejetée en séance', -0.1, 'pj'); return 'Proposition de loi rejetée, mais le débat a eu lieu et votre proposition est désormais connue.';
     }
     if (m.level === 'local' && (has('cd') || has('conseiller_municipal') || has('adjoint'))) {
       const maj = p.mandats.some(x => ['cd', 'conseiller_municipal', 'adjoint'].includes(x.type) && x.majority);
-      if (rnd() < (maj ? 0.55 : 0.15)) { m.status = 'adoptee'; p.cred = clamp(p.cred + 2, 0, 100); (m.gagnants || []).forEach(g => E.addImage(g, 1.8)); E.article('dauph', 'Le conseil adopte le vœu de ' + p.name + ' : « ' + m.resume + ' »', 0.3, 'pj'); return 'Votre vœu est adopté par le conseil.'; }
+      if (rnd() < (maj ? 0.55 : 0.15)) { m.status = 'adoptee'; p.cred = clamp(p.cred + 2, 0, 100); (m.gagnants || []).forEach(g => E.addImage(g, 1.8)); E.article('dauph', 'Le conseil adopte le vœu ' + E.de(p.name) + ' : « ' + m.resume + ' »', 0.3, 'pj'); return 'Votre vœu est adopté par le conseil.'; }
       m.visib = clamp(m.visib + 12, 0, 100); return 'Le conseil rejette votre vœu' + (maj ? '' : ' (vous êtes dans l’opposition)') + ', mais vous avez pris date.';
     }
     return 'Cette proposition ne relève pas de votre mandat actuel (' + (m.level === 'local' ? 'il faut un mandat local' : 'il faut être député·e') + ').';
@@ -292,7 +294,7 @@ window.X = (function () {
   }
   function resolveOffer(q, accept) {
     const p = P(); const x = S().pnj[q.pnj];
-    if (q.type === 'soutien') { if (accept) { p.accords.push({ id: E.uid('acc'), with: x.id, clauses: ['soutien'], date: S().date, status: 'actif' }); E.addNoto(scopeOf(), x.noto / 8); E.article('dauph', x.name + ' apporte son soutien à ' + p.name, 0.3, 'pj'); return x.name + ' vous soutient publiquement.'; } return 'Vous déclinez le soutien de ' + x.name + '.'; }
+    if (q.type === 'soutien') { if (accept) { p.accords.push({ id: E.uid('acc'), with: x.id, clauses: ['soutien'], date: S().date, status: 'actif' }); E.addNoto(scopeOf(), x.noto / 8); E.article('dauph', x.name + ' apporte son soutien à ' + p.name, 0.3, 'pj'); return x.name + ' vous soutient publiquement.'; } return 'Vous déclinez le soutien ' + E.de(x.name) + '.'; }
     if (q.type === 'enveloppe') { if (accept) { p.cash += q.amount; E.casserole('occulte', 'une enveloppe de ' + eur(q.amount) + ' remise par ' + x.name, q.amount > 15000 ? 4 : 3, true, 0.035); x.rel += 15; p.promises.push({ to: x.id, what: 'contrepartie', date: S().date }); return 'Vous acceptez ' + eur(q.amount) + '. ' + x.name + ' attend un retour.'; } x.rel -= 10; return 'Vous refusez. ' + x.name + ' n’insiste pas.'; }
   }
   function resolveT2(q, maintain) {
@@ -347,18 +349,25 @@ window.X = (function () {
     cap('news', hard ? 50 : 70); cap('posts', hard ? 30 : 60); cap('sms', hard ? 40 : 70); cap('polls', hard ? 10 : 20);
     if (Array.isArray(s.log) && s.log.length > (hard ? 100 : 160)) s.log = s.log.slice(0, hard ? 100 : 160);
     if (Array.isArray(s.hist) && s.hist.length > 200) s.hist = s.hist.slice(-200);
-    if (Array.isArray(s.results) && s.results.length > (hard ? 12 : 24)) s.results = s.results.slice(-(hard ? 12 : 24));
+    if (Array.isArray(s.results) && s.results.length > (hard ? 12 : 24)) s.results = s.results.slice(0, hard ? 12 : 24); // les plus récents sont en tête
     cap('polls', hard ? 8 : 14);
     const last = {}; (s.elections || []).forEach(e => { if (e.status === 'fini') last[e.type] = e.id; });
     (s.elections || []).forEach(e => { if (e.status === 'fini' && e.races && last[e.type] !== e.id) { for (const k in e.races) { const r = e.races[k]; delete r.cands; if (r.r2) delete r.r2.cands; } } });
     (s.elections || []).forEach(e => { if (e.status === 'fini' && e.races && hard) { for (const k in e.races) { const r = e.races[k]; if (k !== (s.p.cand && s.p.cand.key)) { delete r.cands; if (r.r2) delete r.r2.cands; } } } });
     Object.values(s.pnj || {}).forEach(x => { if (!x.alive && hard) { delete x.prog; delete x.mem; } });
-    if (hard) { const keep = new Set([].concat(s.rivals || [], Object.values(s.arcs || {}).filter(v => typeof v === 'string'), (s.p.dossiers || []).map(d => d.on), (s.p.promises || []).map(x => x.to), (s.p.accords || []).map(x => x.with || x.pnj), Object.values(s.national.leaders || {}), [s.p.fedId, s.p.secId]));
+    if (hard) { const live = []; (s.elections || []).forEach(e => { if (e.status !== 'fini' && e.races) for (const k in e.races) { const r = e.races[k]; (r.cands || []).forEach(c => live.push(c.id)); if (r.r2) (r.r2.cands || []).forEach(c => live.push(c.id)); (r.t2 || []).forEach(id => live.push(id)); } });
+      const keep = new Set([].concat(live, s.rivals || [], Object.values(s.arcs || {}).filter(v => typeof v === 'string'), (s.p.dossiers || []).map(d => d.on), (s.p.promises || []).map(x => x.to), (s.p.accords || []).map(x => x.with || x.pnj), Object.values(s.national.leaders || {}), [s.p.fedId, s.p.secId]));
       Object.values(s.pnj || {}).forEach(x => { if (x.role === 'candidat' && !x.known && !x.human && !(x.mem && x.mem.length) && !x.rel && !keep.has(x.id)) delete s.pnj[x.id]; }); }
   }
   const rnd3 = (k, v) => typeof v === 'number' && !Number.isInteger(v) ? Math.round(v * 1000) / 1000 : v;
   function serialize() { const s = S(); prune(s, false); let j = JSON.stringify(s, rnd3); if (j.length > 220000) { prune(s, true); j = JSON.stringify(s, rnd3); } return j; }
-  function load(json) { const s = typeof json === 'string' ? JSON.parse(json) : json; if (!s || !s.p || !s.date) throw new Error('Sauvegarde invalide'); G.S = s; return s; }
+  function load(json) { const s = typeof json === 'string' ? JSON.parse(json) : json; if (!s || !s.p || !s.date) throw new Error('Sauvegarde invalide'); G.S = s; repair(s); return s; }
+  // Réparation des sauvegardes abîmées par l'ancien compactage : candidats d'une élection en cours effacés, candidature vers une élection disparue.
+  function repair(s) {
+    s.pnj = s.pnj || {};
+    (s.elections || []).forEach(e => { if (!e.races) return; for (const k in e.races) { const r = e.races[k]; [].concat(r.cands || [], (r.r2 && r.r2.cands) || []).forEach(c => { if (c && c.id && c.id !== 'PJ' && !c.pjList && !s.pnj[c.id] && !/^(MP|H_)/.test(c.id)) s.pnj[c.id] = { id: c.id, g: 'F', name: c.name || 'Candidat·e', age: 50, party: c.party || 'DIV', ax: c.ax || (D.PARTIES[c.party || 'DIV'] || D.PARTIES.DIV).ax.slice(), traits: { loyaute: 50, ambition: 50, scrupules: 50, sangfroid: 50, terrain: 50, rancune: 40 }, noto: c.noto || 30, rel: 0, img: 0, secrets: 0, std: 40, mom: 0, role: 'candidat', territory: null, mandat: null, alive: true, enemy: false, known: true }; }); } });
+    const p = s.p; if (p.cand && !(s.elections || []).some(e => e.id === p.cand.el)) { p.cand = null; p.camp = { terrain: 0, medias: 0, num: 0, meet: 0 }; }
+  }
 
   return { doOff, setMission, raise, recadrer, addBuilt, progSummary, applyContribution, newMeasureFromCatalogue, addMeasure, setPhare, defendMeasure, applyConference, applyInOffice, curLevel, snap, deltas, ACTIONS, avail, doAction, startAI, costOf, applyPost, applyMeasure, applySpeech, applyDebate, applyDialogue, applyQag, applyTribune, staffCandidates, hire, fire, resolveSection, resolveOffer, resolveT2, resolveConsigne, PROJETS, mairieProjet, mairieTaxe, mairieEmprunt, serialize, load, scopeOf, curType, inCampaign };
 })();

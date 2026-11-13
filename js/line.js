@@ -179,7 +179,7 @@ const LN = (() => {
     const x = s.pnj[id]; if (!x) return ''; p.parrain = { to: id, date: s.date }; x.rel = clamp(x.rel + 12, -100, 100);
     if (x.party === p.party) { E.addStd(3); return 'Parrainage envoyé. ' + x.name + ' vous remercie personnellement : vous comptez parmi les premiers soutiens.'; }
     if (p.party !== 'NEW') { E.addStd(-6); E.article('dauph', 'Parrainages : ' + p.name + ' soutient ' + x.name + ' (' + D.PARTIES[x.party].short + '), pas le candidat de son parti', -0.1, 'pj'); return 'Parrainage publié au Journal officiel. Votre parti n’a pas apprécié.'; }
-    E.addNoto('circo', 1); return 'Parrainage publié. Vous existez désormais aux yeux de ' + x.name + ' et de son équipe.';
+    E.addNoto('circo', 1); return 'Parrainage publié. Vous existez désormais aux yeux ' + E.de(x.name) + ' et de son équipe.';
   }
 
   /* ---------- tour de jeu ---------- */

@@ -177,7 +177,7 @@ const LV = (() => {
   function finish(st) {
     const p = P(); const score = st.bar; const seg = {}; SEGS.forEach(g => seg[g] = clamp(st.seg[g] / 2.5, -15, 15));
     let caught = 0; st.lies.forEach(() => { if (R() < 0.55) caught++; });
-    if (caught) { p.cred = clamp(p.cred - 4 * caught, 0, 100); E.article('revel', 'Vérification : ' + caught + ' affirmation(s) fausse(s) de ' + p.name + ' pendant le débat', -0.4, 'pj'); }
+    if (caught) { p.cred = clamp(p.cred - 4 * caught, 0, 100); E.article('revel', 'Vérification : ' + caught + ' affirmation(s) fausse(s) ' + E.de(p.name) + ' pendant le débat', -0.4, 'pj'); }
     if ((st.couper || 0) >= 2) E.addImage('RET', -1.5);
     return { oppId: st.opp && st.opp.id, iv: st.iv, score, segments: seg, lies: st.lies.filter((_, i) => i < st.lies.length - caught), punchlines: st.punches.slice(0, 2), stmts: st.stmts.slice(0, 4), caught, best: st.best, worst: st.worst };
   }

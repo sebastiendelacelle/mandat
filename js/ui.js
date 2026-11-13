@@ -5,6 +5,19 @@
   const S = () => G.S, P = () => G.S && G.S.p;
   const UI = { screen: 'home', tab: 'bureau', wiz: null, filter: 'entourage', hasSave: false };
   const r0 = n => Math.round(n);
+  /* ---------- correcteur typographique : filet de sécurité sur tout le texte affiché ---------- */
+  const LOW = 'a-zàâäéèêëîïôöùûüçœ';
+  const FRX = [
+    [/\b([Dd])e (Le|Les) (?=[A-ZÉ])/g, (m, d, a) => (d === 'D' ? 'D' : 'd') + (a === 'Le' ? 'u ' : 'es ')],
+    [/(^|[\s(«])([Àà]) (Le|Les) (?=[A-ZÉ])/g, (m, b, x, a) => b + (x === 'À' ? 'A' : 'a') + (a === 'Le' ? 'u ' : 'ux ')],
+    [new RegExp('\\b([Dd])e ([AEIOUYÂÉÈÊÎÔÛ][' + LOW + '])', 'g'), '$1’$2'],
+    [new RegExp('\\b([Dd])e (H[eéèiouy][' + LOW + '])', 'g'), '$1’$2'],
+    [new RegExp('(\\d+(?:[.,]\\d+)?)\\s([' + LOW + '-]+)\\(s\\)', 'g'), (m, n, w) => n + ' ' + w + (parseFloat(n.replace(',', '.')) >= 2 ? 's' : '')],
+    [/dépenses de l’état/g, 'dépenses de l’État'], [/\b1e sur\b/g, '1er sur']
+  ];
+  const frFix = t => { let o = t; for (const [r, f] of FRX) o = o.replace(r, f); return o; };
+  function frNode(n) { if (n.nodeType === 3) { const v = n.nodeValue; if (v && /de |\(s\)|à L|état|1e /i.test(v)) { const f = frFix(v); if (f !== v) n.nodeValue = f; } return; } if (n.nodeType === 1 && !/^(SCRIPT|STYLE|TEXTAREA|INPUT)$/.test(n.nodeName)) n.childNodes.forEach(frNode); }
+  try { new MutationObserver(ms => ms.forEach(m => { if (m.type === 'characterData') frNode(m.target); else m.addedNodes.forEach(frNode); })).observe(document.body, { childList: true, subtree: true, characterData: true }); } catch (e) { }
 
   /* ---------- stockage ---------- */
   const Store = {
@@ -75,7 +88,13 @@
 
   /* ---------- accueil ---------- */
   function newWiz(mp) { UI.wiz = { step: 0, name: '', g: 'F', age: 32, metier: 'salarie', ans: [], perso: [], party: null, movement: '', communeId: mp && mp.arena ? mp.arena.communeId : null, qs: pickQuiz(), ps: pickPerso(), mp: mp || null }; UI.screen = 'wiz'; render(); }
-  async function openSlot(k) { const j = await Store.peek(k); if (!j) return false; try { MP.leave(); X.load(j); UI.screen = 'game'; UI.tab = 'bureau'; render(); if (G.S.mp) MP.enter(); return true; } catch (e) { toast('Sauvegarde illisible.'); return false; } }
+  async function openSlot(k) {
+    const ld = loading('Chargement de votre partie…'); let j = null;
+    try { for (let i = 0; i < 40 && !Store.ready; i++) await new Promise(r => setTimeout(r, 200)); j = await Store.peek(k); } catch (e) { j = null; }
+    ld.close();
+    if (!j) { const again = await choice('Partie introuvable', '<p>Impossible de charger la sauvegarde pour l’instant. Vérifiez votre connexion internet, puis réessayez.</p><p class="muted small">Vos parties sont liées à ce navigateur, ou à votre compte Google si vous vous êtes connecté·e.</p>', [{ l: 'Réessayer', v: true }, { l: 'Fermer', v: false }]); return again ? openSlot(k) : false; }
+    try { MP.leave(); X.load(j); UI.screen = 'game'; UI.tab = 'bureau'; render(); if (G.S.mp) MP.enter(); return true; } catch (e) { await info('Sauvegarde illisible', '<p>Cette sauvegarde est endommagée et ne peut pas être ouverte.</p>'); return false; }
+  }
   function renderHome() {
     const mpOk = MP.available(); const games = UI.mpGames || [];
     $app.innerHTML = '<div class="hero"><div class="kicker">Simulation politique · Isère, 2026</div><h1>Man<span>dat</span></h1><p class="tag">Partez de rien. Visez l’Élysée.</p>' +
@@ -265,7 +284,8 @@
     const mois = Math.max(1, Math.round((d - 210) / 30));
     return { t: 'Objectif : ' + e.label, x: 'Scrutin le ' + E.fmtDate(e.d1) + ', candidatures dans ' + mois + ' mois. D’ici là, faites-vous connaître localement' + (party ? ' et prenez du poids au parti pour décrocher l’investiture.' + iot : ' et recrutez des militants pour votre mouvement.'), a: party ? ['porte', 'section', 'dej'] : ['porte', 'mouvement', 'dej'] };
   }
-  function declBtns(e) { const rl = (P().rallied || {})[e.id]; if (rl) { const x = S().pnj[rl]; return '<p class="small" style="margin:0">Vous soutenez ' + esc(x ? x.name : 'le candidat du parti') + ', investi·e par le parti.</p>' + (e.type === 'mun' && x ? '<button class="btn" data-joinr="' + e.id + '">Rejoindre sa liste</button>' : ''); } if (E.LIST_T.includes(e.type)) return '<button class="btn primary" data-decl="' + e.id + '">' + (P().party === 'NEW' ? 'Conduire une liste' : 'Demander une place sur la liste') + '</button>'; return e.type === 'mun' ? '<button class="btn primary" data-decl="' + e.id + '">' + (E.myPetite() ? 'Monter ma liste (sans étiquette)' : 'Conduire une liste') + '</button><button class="btn" data-join="' + e.id + '">Rejoindre une liste</button>' : '<button class="btn primary" data-decl="' + e.id + '">Être candidat·e</button>'; }
+  function declBtns(e) { const rl = (P().rallied || {})[e.id]; if (rl) { const x = S().pnj[rl]; return '<p class="small" style="margin:0">Vous soutenez ' + esc(x ? x.name : 'le candidat du parti') + ', investi·e par le parti.</p>' + (e.type === 'mun' && x ? '<button class="btn" data-joinr="' + e.id + '">Rejoindre sa liste</button>' : ''); } if (E.LIST_T.includes(e.type)) return '<button class="btn primary" data-decl="' + e.id + '">' + (P().party === 'NEW' ? 'Conduire une liste' : 'Demander une place sur la liste') + '</button>'; const lost = (P().invLost || {})[e.id]; if (lost) return '<p class="small" style="margin:0">Investiture refusée pour cette élection : le parti a choisi ' + esc(lost) + '.</p>' + (e.type === 'mun' ? '<button class="btn" data-join="' + e.id + '">Rejoindre une liste</button>' : '');
+    return e.type === 'mun' ? '<button class="btn primary" data-decl="' + e.id + '">Me porter candidat·e</button><button class="btn" data-join="' + e.id + '">Rejoindre une liste</button><p class="small muted" style="margin:6px 0 0">' + (E.myPetite() ? 'Vous conduirez une liste sans étiquette : il faudra ensuite trouver vos colistiers.' : 'Vous conduirez une liste : le parti doit d’abord vous investir.') + '</p>' : '<button class="btn primary" data-decl="' + e.id + '">Me porter candidat·e</button>'; }
   function quick(id) { const a = X.ACTIONS.find(x => x.id === id); if (!a) return ''; const av = X.avail(a); const c = X.costOf(a); return '<button class="qa" data-act="' + id + '"' + (av === true ? '' : ' disabled title="' + esc(av) + '"') + '><b>' + esc(a.l) + '</b><span>' + (a.h ? a.h + ' h' : '') + (c ? ' · ' + E.eur(c) : '') + '</span></button>'; }
   function spark(vals, w, hgt) {
     const v = vals.filter(x => x != null); if (v.length < 2) return ''; const mx = Math.max(...v, 5), mn = Math.min(...v, 0); const sx = (w - 8) / (v.length - 1);
@@ -292,6 +312,7 @@
     const md = hasOF() ? OF.mode() : 'libre';
     const cs0 = campSteps(); let h = guideCard() + (md === 'mandat' ? bureauElu() + '<div style="height:12px"></div>' : md === 'both' ? eluBar() : '') + (cs0 ? cs0 + '<div style="height:12px"></div>' : '') + dashTiles() + '<div class="obj"><div class="eyebrow">Votre objectif</div><h2>' + esc(o.t) + '</h2><p>' + esc(o.x) + '</p>';
     if (o.e) h += '<div class="row">' + declBtns(o.e) + '</div>';
+    if (p.cumul && E.cumulConflict()) h += '<div class="row"><button class="btn primary" data-cumul>Régler le cumul de mandats (avant le ' + E.fmtDate(p.cumul.due) + ')</button></div>';
     if (o.a.length) h += '<div class="qas">' + o.a.map(quick).join('') + '</div>';
     if (o.debate && p.cand && p.cand.mode !== 'colistier') { const max = E.phase().id === 'entre2' ? 2 : 1; h += '<div class="row" style="margin-top:8px"><button class="btn" id="debat"' + (p.cand.debates < max && p.hours >= 4 ? '' : ' disabled') + '>Débat télévisé · 4 h</button></div>'; }
     h += '<div class="left">Il vous reste <b>' + p.hours + ' h</b> ce tour. <button class="linkbtn" data-go="agir">Toutes les actions</button> · <button class="linkbtn" data-plan>Composer mon agenda</button></div></div>';
@@ -593,7 +614,7 @@
   }
   async function budgetFlow() {
     const p = P(); const m = p.mairie; if (!m) return; const before = X.snap();
-    const tf = await choice('Budget ' + S().date.slice(0, 4) + ' de ' + E.commune().name, '<p>Le conseil municipal doit voter le budget avant le 15 avril. Taxe foncière actuelle : <b>' + m.tf + ' %</b>. Cohésion de votre majorité : ' + Math.round(m.cohesion ?? 70) + ' %.</p><p class="muted small">1. La fiscalité</p>', [{ l: 'Baisser la taxe foncière d’un point', sub: 'Populaire, réduit vos marges', v: '-1' }, { l: 'Maintenir le taux', sub: 'Sans surprise', v: '0' }, { l: 'Augmenter d’un point', sub: 'Impopulaire, finance des investissements', v: '1' }]);
+    const tf = await choice('Budget ' + S().date.slice(0, 4) + ' ' + E.de(E.commune().name), '<p>Le conseil municipal doit voter le budget avant le 15 avril. Taxe foncière actuelle : <b>' + m.tf + ' %</b>. Cohésion de votre majorité : ' + Math.round(m.cohesion ?? 70) + ' %.</p><p class="muted small">1. La fiscalité</p>', [{ l: 'Baisser la taxe foncière d’un point', sub: 'Populaire, réduit vos marges', v: '-1' }, { l: 'Maintenir le taux', sub: 'Sans surprise', v: '0' }, { l: 'Augmenter d’un point', sub: 'Impopulaire, finance des investissements', v: '1' }]);
     const prio = await choice('Budget : votre priorité', '<p class="muted small">2. L’investissement que vous mettez en avant</p>', GV.PRIOS.map(x => ({ l: x[1], sub: 'Plaît aux ' + Object.keys(x[2]).map(g => D.SEGS.find(s => s.id === g).name.toLowerCase()).join(' et '), v: x[0] })));
     const sv = await choice('Budget : les associations', '<p class="muted small">3. Les subventions</p>', [{ l: 'Augmenter les subventions', v: '1' }, { l: 'Les maintenir', v: '0' }, { l: 'Les réduire', v: '-1' }]);
     const msg = GV.budgetSession(+tf, prio, +sv); E.estimate(); render(); await info('Vote du budget', '<p>' + esc(msg) + '</p>' + chipsHTML(X.deltas(before, X.snap())));
@@ -607,7 +628,7 @@
   async function interpFlow() {
     const x = GV.opposant(); if (!x) return; const before = X.snap();
     await info('Conseil municipal', '<p>' + esc(x.name) + ', chef·fe de file de l’opposition, vous interpelle en séance publique. La presse locale est dans la salle.</p>', 'Prendre la parole');
-    const sum = await debateRun({ format: 'Conseil municipal de ' + E.commune().name, host: 'Le public du conseil', rounds: 5, opponents: [{ name: x.name, label: D.PARTIES[x.party].short, id: x.id }] });
+    const sum = await debateRun({ format: 'Conseil municipal ' + E.de(E.commune().name), host: 'Le public du conseil', rounds: 5, opponents: [{ name: x.name, label: D.PARTIES[x.party].short, id: x.id }] });
     GV.interpOutcome(sum); X.applyDebate(sum); E.estimate(); render(); await info('Fin de séance', '<p>' + (sum.score >= 55 ? 'Vous avez dominé l’échange.' : sum.score < 45 ? 'L’opposition a marqué des points.' : 'Échange équilibré.') + '</p>' + chipsHTML(X.deltas(before, X.snap())));
   }
 
@@ -833,6 +854,7 @@
     $app.querySelectorAll('[data-thread]').forEach(b => b.onclick = () => openThread(b.dataset.thread));
     $app.querySelectorAll('[data-mapmode]').forEach(b => b.onclick = () => { UI.mapMode = b.dataset.mapmode; render(); });
     $app.querySelectorAll('[data-decl]').forEach(b => b.onclick = () => declareFlow(b.dataset.decl, 'tete'));
+    $app.querySelectorAll('[data-cumul]').forEach(b => b.onclick = async () => { S().queue.push({ kind: 'cumul' }); await runQueue(); Store.save(); render(); });
     $app.querySelectorAll('[data-join]').forEach(b => b.onclick = () => joinFlow(b.dataset.join));
     $app.querySelectorAll('[data-pjm]').forEach(b => b.onclick = () => { const m = P().prog.find(x => x.id === b.dataset.pjm); if (!m) return; const lev = L.LEVERS.find(z => z.id === m.lever); const r = OF.startPj({ lev: m.lever, v: m.leverV, l: m.resume, th: m.theme, mid: m.id, inv: m.inv, cost: m.cout, seg: m.segw }); toast(r.msg); render(); });
     const pjn = document.getElementById('pjnew'); if (pjn) pjn.onclick = pjNewFlow;
@@ -872,7 +894,7 @@
     if (a.input === 'rival') { const id = preset || await choice(a.l, '', (S().rivals || []).map(i => S().pnj[i]).filter(Boolean).map(x => ({ l: x.name + ' — ' + D.PARTIES[x.party].short, v: x.id })).concat([{ l: 'Annuler', v: null }])); if (!id) return; await challengeFlow(id); return; }
     if (a.input === 'theme') { o.theme = await choice(a.l, '', Object.entries(D.THEMES).map(([k, t]) => ({ l: t.l, v: k })).concat([{ l: 'Annuler', v: null }])); if (!o.theme) return; }
     if (a.input === 'fuite') { o.dossier = await choice('Quel dossier ?', '', P().dossiers.map(d => ({ l: S().pnj[d.on].name + ' : ' + d.label, v: d.id })).concat([{ l: 'Annuler', v: null }])); if (!o.dossier) return; o.pnj = await pnjPick('À quel·le journaliste ?', x => x.role === 'journaliste'); if (!o.pnj) return; }
-    if (a.input === 'role') { const role = await choice('Quel poste ?', '', Object.entries(D.STAFF_ROLES).map(([k, r]) => ({ l: r.l, sub: r.d, v: k })).concat([{ l: 'Annuler', v: null }])); if (!role) return; P().hours -= a.h; const cs = X.staffCandidates(role); const pickd = await choice('Candidat·e·s : ' + D.STAFF_ROLES[role].l, '<p class="muted">La loyauté affichée est une impression d’entretien.</p>', cs.map(c => ({ l: c.name + ' — ' + (c.sal ? E.eur(c.sal) + '/mois' : 'bénévole'), sub: 'Compétence ' + c.comp + ' · loyauté ≈ ' + E.clamp(r0(c.loy / 10) * 10 + E.rint(-1, 1) * 10, 0, 100) + ' · ambition ' + c.amb, v: c })).concat([{ l: 'Ne recruter personne', v: null }])); if (pickd) X.hire(pickd); render(); return; }
+    if (a.input === 'role') { const role = await choice('Quel poste ?', '', Object.entries(D.STAFF_ROLES).map(([k, r]) => ({ l: r.l, sub: r.d, v: k })).concat([{ l: 'Annuler', v: null }])); if (!role) return; P().hours -= a.h; const cs = X.staffCandidates(role); const pickd = await choice('Candidat·e·s : ' + D.STAFF_ROLES[role].l, '<p class="muted">La loyauté affichée est une impression d’entretien.</p>', cs.map(c => ({ l: c.name + ' — ' + (c.sal ? E.eur(c.sal) + '/mois' : 'bénévole'), sub: 'Compétence ' + c.comp + ' · loyauté ≈ ' + E.clamp(r0(c.loy / 10) * 10 + E.rint(-1, 1) * 10, 0, 100) + ' · ambition ' + c.amb, v: c })).concat([{ l: 'Ne recruter personne', v: null }])); if (pickd) { const cur = P().staff.find(x => x.role === role); if (cur && !(await choice('Remplacer ' + cur.name + ' ?', '<p>' + esc(cur.name) + ' occupe déjà ce poste. Recruter ' + esc(pickd.name) + ' met fin à sa mission.</p>', [{ l: 'Remplacer', v: true }, { l: 'Garder ' + cur.name, v: false }]))) { render(); return; } X.hire(pickd); } render(); return; }
     if (a.input === 'accord') { await accordFlow(preset); return; }
     if (a.input === 'grand') { o.grand = await choice(a.l, '<p class="muted">Un seul grand chantier à la fois, financé à 60 % par l’emprunt.</p>', LF.GRANDS.map(g => ({ l: g.l, sub: g.m + ' mois prévus · ' + E.eur(Math.round(P().mairie.invest * g.c * 2)) + ' · plaît aux ' + topSegs(g.seg), v: g.id })).concat([CANCEL])); if (!o.grand) return; }
     if (a.input === 'com') { o.com = await choice(a.l, '<p class="muted">Votre commission fixe votre spécialité pour tout le mandat.</p>', Object.entries(LF.COMMISSIONS).map(([k, c]) => ({ l: 'Commission ' + (c[0] === 'Lois' ? 'des lois' : c[0] === 'Défense' ? 'de la défense' : c[0] === 'Finances' ? 'des finances' : 'des ' + c[0].toLowerCase()), sub: 'Expertise : ' + D.THEMES[c[1]].l, v: k })).concat([CANCEL])); if (!o.com) return; }
@@ -929,7 +951,7 @@
     const subs = [];
     p.prog.filter(m => m.status !== 'retiree').sort((x, y) => y.phare - x.phare).slice(0, 4).forEach(m => subs.push({ l: 'Défendre : ' + m.resume, v: { kind: 'mesure', m, t: m.resume, th: m.theme, desc: 'défendre sa proposition « ' + m.resume + ' »' + (m.finL ? ' (financement : ' + m.finL + ')' : '') + (m.ind ? ' ; impact : ' + m.ind : '') } }));
     (s.recentEv || []).slice(0, 2).forEach(r => { const e = E.evById(r.id, r.custom); if (e && e.ch) subs.push({ l: 'Réagir : ' + e.t, v: { kind: 'actu', e, t: e.t, th: e.th, desc: 'réagir à l’actualité nationale « ' + e.t + ' » en la rapportant à ' + loc } }); });
-    (s.rivals || []).map(id => s.pnj[id]).filter(Boolean).forEach(x => (x.prog || []).slice(0, 2).forEach(pr => subs.push({ l: 'Attaquer : ' + x.name + ' — ' + pr.label, v: { kind: 'rival', x, pr, t: pr.label, th: pr.th, desc: 'critiquer la proposition « ' + pr.label + ' » de ' + x.name + ' (financement : ' + pr.fin + ')' } })));
+    (s.rivals || []).map(id => s.pnj[id]).filter(Boolean).forEach(x => (x.prog || []).slice(0, 2).forEach(pr => subs.push({ l: 'Attaquer : ' + x.name + ' — ' + pr.label, v: { kind: 'rival', x, pr, t: pr.label, th: pr.th, desc: 'critiquer la proposition « ' + pr.label + ' » ' + E.de(x.name) + ' (financement : ' + pr.fin + ')' } })));
     Object.entries(s.national.salience).sort((x, y) => y[1] - x[1]).slice(0, 3).forEach(([th]) => subs.push({ l: 'Thème : ' + D.THEMES[th].l, v: { kind: 'theme', t: D.THEMES[th].l, th, desc: 'sa position sur le thème « ' + D.THEMES[th].l + ' »' } }));
     const sub = await choice(kind === 'post' ? 'Publier sur X' : 'Écrire une tribune', '<p class="muted">Sur quoi ?</p>', subs.concat([{ l: 'Écrire entièrement moi-même', v: 'own' }, { l: 'Annuler', v: null }]));
     if (!sub) return; if (sub === 'own') return aiAction(a, true);
@@ -1063,7 +1085,7 @@
   }
   async function addProp(lid, v, fin, prob) {
     const before = X.snap(); P().hours -= 3; const m = X.addBuilt(lid, v, fin); m.prob = prob; E.log('Nouvelle proposition : ' + m.resume, 'action'); E.estimate();
-    await info('Proposition ajoutée', measureCard(m) + '<div class="sep"></div><div class="eyebrow">Effets</div>' + chipsHTML(X.deltas(before, X.snap())) + '<p class="muted small">Défendez-la pour la rendre visible : c’est la visibilité qui la fait peser dans le vote.</p>'); render();
+    await info(m.updated ? 'Proposition mise à jour' : 'Proposition ajoutée', measureCard(m) + '<div class="sep"></div><div class="eyebrow">Effets</div>' + chipsHTML(X.deltas(before, X.snap())) + '<p class="muted small">Défendez-la pour la rendre visible : c’est la visibilité qui la fait peser dans le vote.</p>'); render();
   }
   async function builderFlow(lidStart, pb) {
     if (P().hours < 3) { toast('Il faut 3 h.'); return; }
@@ -1091,7 +1113,7 @@
     const r = await ask('Votre proposition ' + (lvl0 === 'local' ? 'locale' : 'nationale'), 'Soyez concret : quoi, pour qui, financé comment.', lvl0 === 'local' ? 'Ex. Ouvrir la piscine municipale le dimanche, financé par…' : 'Ex. Exonérer de charges les heures supplémentaires…', { max: 1200, btn: 'Proposer (3 h)' }); if (!r) return;
     P().hours -= a.h; const ld = loading('Chiffrage et contre-expertise…'); const ev = await A.measure(r.text, lvl0); ld.close();
     const m = X.applyMeasure(r.text, ev, lvl0); E.estimate();
-    await info('Proposition ajoutée', measureCard(m) + (ev._fallback ? '<p class="muted small">Évaluation scriptée (IA indisponible).</p>' : '') + '<div class="sep"></div><div class="eyebrow">Effets</div>' + chipsHTML(X.deltas(before, X.snap()))); render();
+    await info(m.updated ? 'Proposition mise à jour' : 'Proposition ajoutée', measureCard(m) + (ev._fallback ? '<p class="muted small">Évaluation scriptée (IA indisponible).</p>' : '') + '<div class="sep"></div><div class="eyebrow">Effets</div>' + chipsHTML(X.deltas(before, X.snap()))); render();
   }
   async function catalogueFlowUnused() {
     const a = X.ACTIONS.find(x => x.id === 'mesure'); if (P().hours < a.h) { toast('Il faut 3 h.'); return; }
@@ -1105,8 +1127,8 @@
       const r = await ask('Votre proposition ' + (lvl === 'local' ? 'locale' : 'nationale'), 'Soyez concret.', lvl === 'local' ? 'Ex. Ouvrir la piscine municipale le dimanche, financé par…' : 'Ex. Exonérer de charges les heures supplémentaires…', { max: 1200, btn: 'Proposer (3 h)' }); if (!r) return;
       P().hours -= a.h; const ld = loading('Chiffrage et contre-expertise…'); const ev = await A.measure(r.text, lvl); ld.close();
       const m = X.applyMeasure(r.text, ev, lvl); E.estimate();
-      await info('Proposition ajoutée', measureCard(m) + (ev._fallback ? '<p class="muted small">Évaluation scriptée (IA indisponible).</p>' : '') + '<div class="sep"></div><div class="eyebrow">Effets</div>' + chipsHTML(X.deltas(before, X.snap())));
-    } else { P().hours -= a.h; const m = X.newMeasureFromCatalogue(pickd); E.estimate(); await info('Proposition ajoutée', measureCard(m) + '<div class="sep"></div><div class="eyebrow">Effets</div>' + chipsHTML(X.deltas(before, X.snap()))); }
+      await info(m.updated ? 'Proposition mise à jour' : 'Proposition ajoutée', measureCard(m) + (ev._fallback ? '<p class="muted small">Évaluation scriptée (IA indisponible).</p>' : '') + '<div class="sep"></div><div class="eyebrow">Effets</div>' + chipsHTML(X.deltas(before, X.snap())));
+    } else { P().hours -= a.h; const m = X.newMeasureFromCatalogue(pickd); E.estimate(); await info(m.updated ? 'Proposition mise à jour' : 'Proposition ajoutée', measureCard(m) + '<div class="sep"></div><div class="eyebrow">Effets</div>' + chipsHTML(X.deltas(before, X.snap()))); }
     go('agir', 'programme');
   }
   function measureCard(m) {
@@ -1280,7 +1302,7 @@
       sc = E.clamp(sc, 5, 98);
       rounds++; sum.score += sc; for (const k in (j.segments || {})) sum.segments[k] = (sum.segments[k] || 0) + (+j.segments[k] || 0) / dctx.rounds * (reach ? 0.4 + (reach[k] || 0) * 2 : 1);
       if (j.mensonge) sum.lies.push(j.affirmation || reply.slice(0, 120)); if (j.punchline) sum.punchlines.push(j.punchline); sum.stmts.push({ text: reply, theme: q.theme, axes: j.axes || (chosen && chosen.ax) });
-      if (j.gaffe) { E.addImageAll(-2); E.article('info24', 'La gaffe de ' + P().name + ' en plein débat', -0.6, 'pj', reply.slice(0, 160)); }
+      if (j.gaffe) { E.addImageAll(-2); E.article('info24', 'La gaffe ' + E.de(P().name) + ' en plein débat', -0.6, 'pj', reply.slice(0, 160)); }
       hist.push({ q: q.question, reply });
     }
     sum.score = sum.score / Math.max(1, rounds); return sum;
@@ -1323,12 +1345,18 @@
   async function declareFlow(elId, mode) {
     const el = S().elections.find(e => e.id === elId); const p = P();
     if (el.type === 'pres' && p.presDesig !== el.id && p.parrainages < 500) { await info('Parrainages', '<p>Il faut 500 parrainages d’élus, issus d’au moins 30 départements, pour être candidat·e à l’élection présidentielle. Vous en avez <b>' + p.parrainages + '</b>. Démarchez des élus (Agenda, Réseau).</p>'); return; }
-    const r = E.declare(elId, mode);
+    // Avant de demander l'investiture : le détail de vos chances, sans tirage
+    const io = mode === 'tete' && p.party !== 'NEW' && !(el.type === 'mun' && E.myPetite()) ? E.invOdds(el) : null;
+    if (io && !io.pre && io.rival) { const pt = io.parts || {}; const row = (l, v) => '<div class="row" style="justify-content:space-between"><span>' + l + '</span><b class="num">' + Math.round(v) + '</b></div>';
+      const go = await choice('Demander l’investiture', '<p>La commission d’investiture compare votre dossier à celui de <b>' + esc(io.rival.name) + '</b>' + (io.rival.mandat ? ' (' + esc(io.rival.mandat) + ')' : '') + '. Sa décision est définitive pour cette élection.</p>' + row('Poids dans le parti', pt.poids || 0) + row('Notoriété', pt.noto || 0) + row('Soutien de la fédération', pt.fed || 0) + row('Responsabilités', pt.role || 0) + '<p style="margin-top:8px">Vos chances aujourd’hui : <b class="num">' + io.pct + ' %</b>' + (io.need > 0 ? ' · il vous manque environ ' + io.need + ' points' : '') + '.</p>', [{ l: 'Déposer ma demande', v: true }, { l: 'Attendre et renforcer mon dossier', sub: 'Poids au parti, notoriété, relation avec la fédération', v: false }]); if (!go) return; }
+    const r = E.declare(elId, mode); Store.save(); // décision de la commission enregistrée tout de suite
     if (r.ok) { await info('Candidature', '<p>' + esc(r.msg) + '</p>' + (el.type === 'mun' && E.myPetite() ? '<p><b>Vos trois chantiers :</b></p><ol class="small"><li>Compléter la liste (QG › Feuille de route).</li><li>Écrire votre projet pour le village (Programme), puis le publier.</li><li>Aller voir les habitants : porte-à-porte, marché, fêtes.</li></ol>' : '<p class="muted">Pensez à recruter un mandataire financier pour encaisser des dons.</p>')); if (hasHQ() && HQ.needDC()) await dcFlow(false); render(); return; }
     if (r.refused && p.party !== 'NEW' && S().mp && MP.rivals().length) { const r2 = E.declare(elId, 'dissident'); await info('Investiture refusée', '<p>' + esc(r.msg) + '</p><p>Dans une partie multijoueur, on ne se retire pas : vous partez en dissidence. ' + esc(r2.msg || '') + '</p>'); render(); return; }
     if (r.refused && p.party !== 'NEW') {
-      const v = await choice('Investiture refusée', '<p>' + esc(r.msg) + '</p>', [{ l: 'M’incliner et soutenir le candidat du parti', sub: 'Poids interne +4, la fédération vous en sera redevable', v: 'ok' }, { l: 'Partir en dissidence', sub: 'Vous perdez une grande partie de votre poids interne et l’étiquette', v: 'diss' }]);
-      if (v === 'ok') { E.addStd(4); const f = S().pnj[p.fedId]; if (f) f.rel += 8; if (r.rival) S().pnj[r.rival].rel += 10; p.rallied = Object.assign({}, p.rallied, { [elId]: r.rival }); E.log('Vous vous rangez derrière le candidat du parti.', 'info');
+      const rv = r.rival ? S().pnj[r.rival] : null; const lab = rv ? (rv.g === 'F' ? 'la candidate du parti' : 'le candidat du parti') : 'la décision du parti';
+      const v = await choice('Investiture refusée', '<p>' + esc(r.msg) + '</p>', (el.type === 'mun' && rv ? [{ l: 'Négocier une place éligible sur la liste ' + E.de(rv.name), sub: 'Poids interne −3, mais une vraie chance d’être élu·e', v: 'nego' }] : []).concat([{ l: 'M’incliner et soutenir ' + lab, sub: 'Poids interne +4, la fédération vous en sera redevable', v: 'ok' }, { l: 'Partir en dissidence', sub: 'Vous perdez une grande partie de votre poids interne et l’étiquette', v: 'diss' }]));
+      if (v === 'nego') { E.addStd(-3); p.rallied = Object.assign({}, p.rallied, { [elId]: r.rival }); const r3 = E.declare(elId, 'colistier', r.rival, { nego: true }); await info('Liste municipale', '<p>' + esc(r3.msg) + '</p>'); render(); return; }
+      if (v === 'ok') { E.addStd(4); const f = S().pnj[p.fedId]; if (f) f.rel += 8; if (r.rival) S().pnj[r.rival].rel += 10; p.rallied = Object.assign({}, p.rallied, { [elId]: r.rival }); E.log('Vous vous rangez derrière ' + lab + '.', 'info');
         if (el.type === 'mun' && r.rival) { const j = await choice('Et maintenant ?', '<p>' + esc(S().pnj[r.rival].name) + ' conduira la liste du parti. Vous pouvez la rejoindre : votre place dépendra de votre poids et de votre relation.</p>', [{ l: 'Rejoindre sa liste', v: 'join' }, { l: 'Soutenir de l’extérieur', sub: 'Vous pourrez la rejoindre plus tard', v: 'out' }]); if (j === 'join') { const r3 = E.declare(elId, 'colistier', r.rival); await info('Liste municipale', '<p>' + esc(r3.msg) + '</p>'); } } }
       else { const r2 = E.declare(elId, 'dissident'); await info('Dissidence', '<p>' + esc(r2.msg) + '</p>'); }
       render(); return;
@@ -1399,6 +1427,7 @@
         else if (q.kind === 'offer') { const x = s.pnj[q.pnj]; if (q.type === 'soutien') { const v = await choice('Proposition de soutien', '<p>' + esc(x.name) + ' (' + esc(x.mandat || ROLE_L[x.role]) + ') propose de vous soutenir publiquement.</p>', [{ l: 'Accepter', v: true }, { l: 'Décliner', v: false }]); toast(X.resolveOffer(q, v)); } else { const v = await choice('Une enveloppe', '<p>' + esc(x.name) + ' (' + esc(x.mandat || 'notable') + ') vous propose « un coup de main » de <b>' + E.eur(q.amount) + '</b> en liquide, sans reçu. Il attendra un retour.</p>', [{ l: 'Accepter l’enveloppe', sub: 'Financement illégal : risque pénal', v: true }, { l: 'Refuser', v: false }]); toast(X.resolveOffer(q, v)); } }
         else if (q.kind === 'vote') { const v = await choice(q.ctx, '<p><b>' + esc(q.text) + '</b></p>' + (q.line ? '<p class="muted">Consigne de votre groupe : ' + q.line + '.</p>' : ''), [{ l: 'Voter pour', v: 'pour' }, { l: 'Voter contre', v: 'contre' }, { l: 'S’abstenir', v: 'abstention' }]); E.resolveVote(q, v); }
         else if (q.kind === 'info') await info(q.title, '<p>' + esc(q.text) + '</p>');
+        else if (q.kind === 'cumul') { const c = E.cumulConflict(); if (c) { const v = await choice('Non-cumul des mandats', '<p>' + esc(c.why) + '</p><p class="muted small">La loi vous laisse 30 jours pour choisir. Sans réponse, ' + (c.kind === 'exec' ? 'votre fonction exécutive locale prend fin' : 'le mandat le plus ancien prend fin') + '.</p>', c.opts.map(t => ({ l: 'Renoncer à : ' + E.cumulLabel(t), v: t })).concat([{ l: 'Décider plus tard', sub: 'Avant le ' + E.fmtDate(P().cumul ? P().cumul.due : S().date), v: null }])); if (v) await info('Non-cumul', '<p>' + esc(E.resolveCumul(v)) + '</p>'); } }
         else if (q.kind === 'budget') await budgetFlow();
         else if (q.kind === 'plf') await plfFlow();
         else if (q.kind === 'interp') await interpFlow();
@@ -1437,15 +1466,15 @@
   async function rivalQ(q) {
     const s = S(); const x = s.pnj[q.pnj]; if (!x) return; const who = esc(x.name) + ' ' + pill(x.party); const before = X.snap(); let msg = '';
     if (q.type === 'attaque') {
-      const v = await choice('Attaque de ' + x.name, '<p>' + who + ' sur X :</p><div class="bubble them">' + esc(q.text) + '</div>', [{ l: 'Répondre avec vos mots', sub: 'Votre réponse est publiée et évaluée', v: 'write' }, { l: 'Réplique cinglante', sub: 'Ça passe ou ça casse, selon votre sang-froid', v: 'cinglant' }, { l: 'Répondre sur le fond, calmement', v: 'fond' }, { l: 'Ignorer', v: 'ignore' }]);
+      const v = await choice('Attaque ' + E.de(x.name), '<p>' + who + ' sur X :</p><div class="bubble them">' + esc(q.text) + '</div>', [{ l: 'Répondre avec vos mots', sub: 'Votre réponse est publiée et évaluée', v: 'write' }, { l: 'Réplique cinglante', sub: 'Ça passe ou ça casse, selon votre sang-froid', v: 'cinglant' }, { l: 'Répondre sur le fond, calmement', v: 'fond' }, { l: 'Ignorer', v: 'ignore' }]);
       if (v === 'write') { const r = await ask('Votre réponse à ' + x.name, 'Publiée sur X.', 'Votre réponse…', { max: 280, btn: 'Publier' }); if (r) { const ld = loading('Évaluation…'); const ev = await A.post(r.text); ld.close(); msg = X.applyPost(r.text, ev); x.rel -= 5; if ((ev.portee || 0) > 55) x.mom -= 0.02; } else msg = E.rivalResolve(q, 'ignore'); }
       else msg = E.rivalResolve(q, v);
     } else if (q.type === 'defi') {
-      const v = await choice('Défi de ' + x.name, '<p>' + who + ' vous défie publiquement : un face-à-face sur ' + (q.media === 'alpes3' ? 'Alpes 3' : 'Radio Isère') + '.</p>', [{ l: 'Accepter le débat', sub: '4 h, même si votre agenda est plein', v: 'ok' }, { l: 'Refuser', sub: x.name + ' dira que vous fuyez', v: 'refuse' }]);
+      const v = await choice('Défi ' + E.de(x.name), '<p>' + who + ' vous défie publiquement : un face-à-face sur ' + (q.media === 'alpes3' ? 'Alpes 3' : 'Radio Isère') + '.</p>', [{ l: 'Accepter le débat', sub: '4 h, même si votre agenda est plein', v: 'ok' }, { l: 'Refuser', sub: x.name + ' dira que vous fuyez', v: 'refuse' }]);
       if (v === 'ok') { await debateFlow([{ name: x.name, label: D.PARTIES[x.party].short, id: x.id }], 'Face-à-face sur ' + (q.media === 'alpes3' ? 'Alpes 3' : 'Radio Isère') + ' : ' + P().name + ' contre ' + x.name, 3); return; }
       msg = E.rivalResolve(q, 'refuse');
     } else if (q.type === 'alliance') {
-      const v = await choice('Proposition de ' + x.name, '<p>' + who + ' vous propose un accord : <b>' + q.clauses.map(c => E.CLAUSES[c]).join(', ') + '</b>.</p><p class="muted small">Relation ' + r0(x.rel) + ' · loyauté perçue ' + (x.traits.loyaute > 60 ? 'solide' : x.traits.loyaute > 35 ? 'moyenne' : 'douteuse') + '</p>', [{ l: 'Accepter', v: 'accept' }, { l: 'Négocier en tête-à-tête', sub: 'Ouvre un rendez-vous (3 h)', v: 'talk' }, { l: 'Refuser', v: 'no' }]);
+      const v = await choice('Proposition ' + E.de(x.name), '<p>' + who + ' vous propose un accord : <b>' + q.clauses.map(c => E.CLAUSES[c]).join(', ') + '</b>.</p><p class="muted small">Relation ' + r0(x.rel) + ' · loyauté perçue ' + (x.traits.loyaute > 60 ? 'solide' : x.traits.loyaute > 35 ? 'moyenne' : 'douteuse') + '</p>', [{ l: 'Accepter', v: 'accept' }, { l: 'Négocier en tête-à-tête', sub: 'Ouvre un rendez-vous (3 h)', v: 'talk' }, { l: 'Refuser', v: 'no' }]);
       if (v === 'talk') { await runAction('rdv', x.id); return; } msg = E.rivalResolve(q, v);
     } else if (q.type === 'rumeur') {
       msg = E.rivalResolve(q, await choice('Rumeur', '<p>L’entourage de ' + who + ' fait courir le bruit que vous ' + esc(q.text) + '.</p>', [{ l: 'Démentir publiquement', v: 'dementi' }, { l: 'Porter plainte en diffamation', sub: '2 500 € de frais, issue incertaine', v: 'plainte' }, { l: 'Ignorer', v: 'ignore' }]));
@@ -1536,7 +1565,7 @@
   async function atelierFlow() {
     const r = HQ.atelier(); if (!r.ok) { toast(r.msg); return; } render(); if (!r.notes.length) { toast(r.msg); return; }
     for (const n of r.notes) {
-      const opts = n.k === 'miss' ? [{ l: 'Ajouter une proposition sur ' + D.THEMES[n.t].l.toLowerCase(), v: 'add' }] : n.k === 'unf' ? [{ l: 'La retirer du programme', v: 'do' }] : n.k === 'trop' ? [{ l: 'Retirer les propositions secondaires', v: 'do' }] : n.k === 'phare' ? [{ l: 'En faire une mesure phare', v: 'do' }] : [{ l: 'Ajouter une proposition', v: 'add' }];
+      const opts = n.k === 'miss' ? [{ l: 'Ajouter une proposition sur ' + E.thArt(n.t), v: 'add' }] : n.k === 'unf' ? [{ l: 'La retirer du programme', v: 'do' }] : n.k === 'trop' ? [{ l: 'Retirer les propositions secondaires', v: 'do' }] : n.k === 'phare' ? [{ l: 'En faire une mesure phare', v: 'do' }] : [{ l: 'Ajouter une proposition', v: 'add' }];
       const v = await choice('Atelier programme', '<p>' + esc(n.txt) + '</p>', opts.concat([{ l: 'Passer', v: null }]));
       if (v === 'do') toast(HQ.noteAct(n, true));
       else if (v === 'add') { HQ.noteAct({ k: 'none' }, true); render(); if (n.t) await chapterFlow(n.t, HQ.lvl()); else await themePick(HQ.lvl()); return; }
@@ -1921,7 +1950,10 @@
   }
 
   /* ---------- rendu ---------- */
-  function render() { if (UI.screen === 'game' && G.S) renderGame(); else if (UI.screen === 'wiz') renderWiz(); else renderHome(); }
+  function render() { if (UI.screen === 'game' && G.S) { renderGame(); autoSave(); } else if (UI.screen === 'wiz') renderWiz(); else renderHome(); }
+  // Sauvegarde automatique après chaque action (hors fenêtres en cours), pour ne rien perdre en fermant l'appli
+  function autoSave() { clearTimeout(UI.svT); UI.svT = setTimeout(function tick() { if (UI.screen !== 'game' || !G.S) return; if (document.querySelector('.ov')) { UI.svT = setTimeout(tick, 3000); return; } Store.save(); }, 2500); }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && UI.screen === 'game' && G.S && !document.querySelector('.ov')) { try { localStorage.setItem(Store.lsKey(Store.slot()), X.serialize()); } catch (e) { } Store.save(); } });
   function vv() { const v = window.visualViewport; if (!v) return; const r = document.documentElement.style; r.setProperty('--vvh', v.height + 'px'); r.setProperty('--vvt', v.offsetTop + 'px'); }
   if (window.visualViewport) { window.visualViewport.addEventListener('resize', vv); window.visualViewport.addEventListener('scroll', vv); vv(); }
   document.addEventListener('focusin', e => { if (e.target.closest && e.target.closest('.modal') && /TEXTAREA|INPUT/.test(e.target.tagName)) setTimeout(() => e.target.scrollIntoView({ block: 'nearest' }), 250); });
