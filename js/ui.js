@@ -934,7 +934,7 @@
     $app.querySelectorAll('[data-proj]').forEach(b => b.onclick = () => { const r = X.mairieProjet(b.dataset.proj); toast(r.msg); render(); });
     $app.querySelectorAll('[data-tf]').forEach(b => b.onclick = () => { toast(X.mairieTaxe(+b.dataset.tf)); render(); });
     const em = document.getElementById('emprunt'); if (em) em.onclick = () => { toast(X.mairieEmprunt()); render(); };
-    const db = document.getElementById('debat'); if (db) db.onclick = debateFlow;
+    const db = document.getElementById('debat'); if (db) db.onclick = () => debateFlow();
     const rt = document.getElementById('retire'); if (rt) rt.onclick = async () => { const ok = await choice('Retirer votre candidature ?', '<p>Les dépenses déjà engagées restent à votre charge.</p>', [{ l: 'Me retirer', v: true }, { l: 'Rester en lice', v: false }]); if (ok) { E.withdrawCand(); render(); } };
     const inj = document.getElementById('inject'); if (inj) inj.onclick = injectFlow;
     const sv = document.getElementById('sv'); if (sv) sv.onclick = async () => toast((await Store.save()) ? 'Partie sauvegardée.' : 'Sauvegarde impossible ici : copiez la sauvegarde.');
