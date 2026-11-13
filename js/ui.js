@@ -88,6 +88,36 @@
   const partyName = () => P().party === 'NEW' ? P().movement : D.PARTIES[P().party].name;
 
   /* ---------- accueil ---------- */
+  /* ---------- partie rapide : tout est tiré au sort ---------- */
+  function drawProfile() {
+    const R = Math.random, pk = a => a[Math.floor(R() * a.length)];
+    const g = R() < 0.5 ? 'F' : 'M'; const met = pk(D.METIERS); const ar = met.age || [26, 64]; const age = ar[0] + Math.floor(R() * (Math.min(ar[1], 70) - ar[0] + 1));
+    const vil = R() < 0.25; const com = vil ? pk(D.VILLAGES) : pk(D.COMMUNES);
+    const NB = { LFI: 10, PCF: 2.5, ECO: 6.5, PS: 11, REN: 14, MODEM: 4, HOR: 5, LR: 10, UDR: 3, RN: 25, REC: 2.5 }; const ids = D.QUIZ_P.filter(k => NB[k]);
+    let party = null, movement = '';
+    if (vil && R() < 0.5) { party = 'NEW'; movement = 'Sans étiquette'; }
+    else { const w = ids.map(k => Math.sqrt(NB[k])); let x = R() * w.reduce((a, b) => a + b, 0); party = ids[ids.length - 1]; for (let i = 0; i < ids.length; i++) { x -= w[i]; if (x <= 0) { party = ids[i]; break; } } }
+    const base = party === 'NEW' ? [0, 10, 10, 0, 10, -10] : D.PARTIES[party].ax; const ax = base.map(v => E.clamp(Math.round(v + (R() - 0.5) * 30), -100, 100));
+    const traits = {}; Object.keys(D.TRAITS).forEach(t => traits[t] = 25 + Math.floor(R() * 55));
+    const rs = R(); const start = rs < 0.45 ? 'militant' : rs < 0.75 ? 'adjoint' : 'notable';
+    return { name: pk(g === 'F' ? D.FIRST_F : D.FIRST_M) + ' ' + pk(D.LAST), g, age, metier: met.id, metL: met.label, communeId: com.id, comName: com.name, village: !!com.village, party, movement, ax, traits, start };
+  }
+  const genderize = (t, g) => t.replace(/([A-Za-zÀ-ÿ]+)·([a-zà-ÿ]+)/g, (m, b, x) => g !== 'F' ? b : x === 'ère' ? b.replace(/ier$/, 'ière') : x === 'rice' ? b.replace(/eur$/, 'rice') : b + x);
+  async function quickGame() {
+    if (UI.hasSave) { const ok = await choice('Partie rapide', '<p>Une partie rapide remplace votre carrière solo en cours. Pensez à l’exporter si vous voulez la garder.</p>', [{ l: 'Continuer', v: true }, { l: 'Annuler', v: false }]); if (!ok) return; }
+    const STL = { militant: 'simple militant·e', adjoint: 'adjoint·e au maire sortant·e', notable: 'personnalité locale' };
+    let w;
+    for (;;) {
+      w = drawProfile(); const pn = w.party === 'NEW' ? 'Sans étiquette' : D.PARTIES[w.party].name;
+      const card = '<div class="qcard"><div class="row" style="gap:10px;align-items:center">' + avatar(w.name, w.party === 'NEW' ? 'DIV' : w.party) + '<div><b style="font-size:18px">' + esc(w.name) + '</b><div class="muted small">' + w.age + ' ans · ' + esc(genderize(w.metL, w.g)) + '</div></div></div>' +
+        '<div class="drow"><span>Commune</span><b>' + esc(w.comName) + (w.village ? ' (village)' : '') + '</b></div><div class="drow"><span>Étiquette</span><b>' + esc(pn) + '</b></div><div class="drow"><span>Point de départ</span><b>' + esc(genderize(w.village && w.start === 'militant' ? 'habitant·e engagé·e' : w.village && w.start === 'notable' ? 'figure du village' : STL[w.start], w.g).replace(/^./, c => c.toUpperCase())) + '</b></div><div class="drow"><span>Difficulté</span><b>Normale</b></div></div>';
+      const v = await choice('Partie rapide', card, [{ l: 'Jouer avec ce personnage', v: 'go', cls: 'sel' }, { l: 'Tirer un autre profil', v: 're' }, { l: 'Annuler', v: null }]);
+      if (v === 'go') break; if (!v) return;
+    }
+    MP.leave(); E.newGame({ name: w.name, g: w.g, age: w.age, metier: w.metier, communeId: w.communeId, ax: w.ax, traits: w.traits, party: w.party, movement: w.party === 'NEW' ? w.movement : null, quiz: null, diff: 'normal' });
+    GV.applyStart(w.start); E.estimate(); UI.screen = 'game'; UI.tab = 'bureau'; render(); await Store.save();
+    info('C’est parti', '<p>Votre <b>objectif du moment</b> s’affiche en haut du bureau, avec les actions conseillées. Quand vos heures sont dépensées, appuyez sur <b>Tour suivant</b>.</p>', 'Compris');
+  }
   function newWiz(mp) { UI.wiz = { step: 0, name: '', g: 'F', age: 32, metier: 'salarie', ans: [], perso: [], party: null, movement: '', communeId: mp && mp.arena ? mp.arena.communeId : null, qs: pickQuiz(), ps: pickPerso(), mp: mp || null }; UI.screen = 'wiz'; render(); }
   async function openSlot(k) {
     const ld = loading('Chargement de votre partie…'); let j = null;
@@ -99,13 +129,14 @@
   function renderHome() {
     const mpOk = MP.available(); const games = UI.mpGames || [];
     $app.innerHTML = '<div class="hero"><div class="kicker">Simulation politique · Isère, 2026</div><h1>Man<span>dat</span></h1><p class="tag">Partez de rien. Visez l’Élysée.</p>' +
-      '<div class="modes"><div class="mode"><div class="eyebrow">Solo</div><h3>Votre carrière</h3><p class="muted small">Face à des adversaires simulés. À votre rythme.</p><div class="row" style="gap:8px">' + (UI.hasSave ? '<button class="btn primary" id="h-load">Continuer</button><button class="btn" id="h-new">Nouvelle carrière</button>' : '<button class="btn primary" id="h-new">Commencer</button>') + '</div></div>' +
+      '<div class="modes"><div class="mode"><div class="eyebrow">Solo</div><h3>Votre carrière</h3><p class="muted small">Face à des adversaires simulés. À votre rythme.</p><div class="row" style="gap:8px">' + (UI.hasSave ? '<button class="btn primary" id="h-load">Continuer</button><button class="btn" id="h-new">Nouvelle carrière</button>' : '<button class="btn primary" id="h-new">Commencer</button>') + '<button class="btn ghost" id="h-quick">Partie rapide</button></div><p class="muted small" style="margin:8px 0 0">Partie rapide : commune, parti, métier et personnage tirés au sort. Vous jouez tout de suite.</p></div>' +
       '<div class="mode mp"><div class="eyebrow">Multijoueur entre amis</div><h3>Même commune, mêmes élections</h3><p class="muted small">Tous les joueurs partent de la même commune et s’affrontent à chaque élection : municipales, départementales, législatives. Chacun joue quand il veut. Les scrutins où vous vous affrontez sont des rendez-vous : le résultat tombe quand tous les candidats y sont arrivés.</p>' +
       (mpOk ? (games.length ? '<div class="stack" style="gap:6px;margin-bottom:10px">' + games.map(g => '<button class="gamebtn" data-gopen="' + esc(g.gid) + '"><b>' + esc(g.name) + '</b><span class="num muted">' + esc(g.gid) + '</span></button>').join('') + '</div>' : '') + '<div class="row" style="gap:8px"><button class="btn primary" id="h-mpnew">Créer une partie</button><button class="btn" id="h-mpjoin">Rejoindre avec un code</button></div>' : '<p class="small" style="color:var(--warn);margin:0">' + (window.claude && window.claude.use ? 'Connectez-vous à claude.ai pour jouer en multijoueur.' : 'Le multijoueur n’est disponible que dans la version du jeu hébergée sur claude.ai. Ici, vos parties solo sont sauvegardées dans ce navigateur.') + '</p>') + '</div></div>' +
       '<ol class="how"><li><b>Créez votre personnage</b><span>Quelques questions sur vos idées et votre caractère. 3 minutes.</span></li><li><b>Dépensez vos heures</b><span>Composez votre agenda : terrain, parti, médias, alliances.</span></li><li><b>Passez au tour suivant</b><span>Élections, débats, scandales et trahisons arrivent d’eux-mêmes.</span></li></ol>' +
       (window.MandatAuth ? '<div class="card" style="margin:10px 0"><p class="small" style="margin:0 0 8px">' + (window.MandatAuth.isGoogle() ? 'Connecté·e : <b>' + esc(window.MandatAuth.name() || '') + '</b>. Vos parties vous suivent sur tous vos appareils.' : 'Vos parties sont liées à ce navigateur. Connectez-vous pour les retrouver sur tous vos appareils.') + '</p>' + (window.MandatAuth.isGoogle() ? '<button class="btn sm ghost" id="h-out">Se déconnecter</button>' : '<button class="btn sm primary" id="h-gin">Se connecter avec Google</button>') + '</div>' : '') +
       '<p class="muted small">Partis réels, personnalités fictives, règles électorales de 2026. Vos parties solo et multijoueur sont sauvegardées séparément : passez de l’une à l’autre quand vous voulez. <button class="linkbtn" id="h-imp">Importer une sauvegarde</button></p></div>';
     document.getElementById('h-new').onclick = () => newWiz(null);
+    const hq = document.getElementById('h-quick'); if (hq) hq.onclick = () => quickGame();
     const gin = document.getElementById('h-gin'); if (gin) gin.onclick = async () => { const r = await window.MandatAuth.signInGoogle(); if (r && r.msg) toast(r.msg); await Store.init(); render(); };
     const gout = document.getElementById('h-out'); if (gout) gout.onclick = async () => { await window.MandatAuth.signOut(); location.reload(); };
     const l = document.getElementById('h-load'); if (l) l.onclick = () => openSlot('carriere');
@@ -327,35 +358,39 @@
     h += '<div class="c5 card"><h3>Vos adversaires</h3>' + (rv.length ? rv.map(x => { const row = es.rows.find(r => r.id === x.id); return '<div class="li"><div class="grow"><div class="row" style="gap:6px"><b>' + esc(x.name) + '</b>' + pill(x.party) + (row ? '<span class="num muted small">' + E.pct(row.pct) + '</span>' : '') + '</div><div class="muted small">' + esc(x.mandat || ROLE_L[x.role] || '') + ' · relation ' + r0(x.rel) + (x.enemy ? ' · <span style="color:var(--bad)">ennemi·e</span>' : '') + '</div>' + (x.prog && x.prog.length ? '<div class="small" style="margin-top:4px"><span class="muted">Propose :</span> ' + x.prog.slice(0, 2).map(pr => '<button class="linkbtn" data-atk="' + x.id + ':' + pr.id + '">' + esc(pr.label) + '</button>').join(' · ') + '</div>' : '') + '<div class="row" style="gap:6px;margin-top:6px"><button class="btn sm" data-rdv="' + x.id + '">Rencontrer</button><button class="btn sm" data-defi="' + x.id + '">Défier en débat</button><button class="btn sm ghost" data-enq="' + x.id + '">Enquêter</button></div></div></div>'; }).join('') : '<p class="muted">Pas encore d’adversaire identifié.</p>') + ((s.turnRival || []).length ? '<div class="sep"></div><div class="eyebrow">Ce tour</div>' + s.turnRival.map(t => '<div class="small" style="margin-top:4px">' + esc(t) + '</div>').join('') : '') + '</div></div>';
     return h;
   }
+  const WIDE_Q = '(min-width: 1100px)';
+  const wideNow = () => !!(window.matchMedia && window.matchMedia(WIDE_Q).matches);
+  if (window.matchMedia) { const mq = window.matchMedia(WIDE_Q); const f = () => { if (UI.screen === 'game' && UI.tab === 'bureau' && !document.querySelector('.ov')) render(); }; if (mq.addEventListener) mq.addEventListener('change', f); else if (mq.addListener) mq.addListener(f); }
   function tBureau() {
     const s = S(), p = P(); const o = objective(); const pop = E.popularity();
     const une = s.news.slice(0, 4).find(n => n.about === 'pj') || s.news[0];
     const md = hasOF() ? OF.mode() : 'libre';
-    const cs0 = campSteps(); let h = guideCard() + (md === 'mandat' ? bureauElu() + '<div style="height:12px"></div>' : md === 'both' ? eluBar() : '') + (cs0 ? cs0 + '<div style="height:12px"></div>' : '') + dashTiles() + '<div class="obj"><div class="eyebrow">Votre objectif</div><h2>' + esc(o.t) + '</h2><p>' + esc(o.x) + '</p>';
+    const cs0 = campSteps(); const head = guideCard() + (md === 'mandat' ? bureauElu() + '<div style="height:12px"></div>' : md === 'both' ? eluBar() : '') + (cs0 ? cs0 + '<div style="height:12px"></div>' : '') ; const dash = dashTiles(); let h = '<div class="obj"><div class="eyebrow">Votre objectif</div><h2>' + esc(o.t) + '</h2><p>' + esc(o.x) + '</p>';
     if (o.e) h += '<div class="row">' + declBtns(o.e) + '</div>';
     if (p.cumul && E.cumulConflict()) h += '<div class="row"><button class="btn primary" data-cumul>Régler le cumul de mandats (avant le ' + E.fmtDate(p.cumul.due) + ')</button></div>';
     if (o.a.length) h += '<div class="qas">' + o.a.map(quick).join('') + '</div>';
     if (o.debate && p.cand && p.cand.mode !== 'colistier') { const max = E.phase().id === 'entre2' ? 2 : 1; h += '<div class="row" style="margin-top:8px"><button class="btn" id="debat"' + (p.cand.debates < max && p.hours >= 4 ? '' : ' disabled') + '>Débat télévisé · 4 h</button></div>'; }
     const lp = (s.lastPlan || []).filter(it => { const a = X.ACTIONS.find(x => x.id === it.id); return a && X.avail(a) === true; });
     if (lp.length) { const hh = lp.reduce((t, it) => t + (X.ACTIONS.find(x => x.id === it.id).h || 0), 0); h += '<div class="row" style="margin-top:8px"><button class="btn" data-replan' + (hh <= p.hours ? '' : ' disabled') + '>↻ Refaire mon agenda précédent · ' + lp.length + ' action' + (lp.length > 1 ? 's' : '') + ', ' + hh + ' h</button></div>'; }
-    h += '<div class="left">Il vous reste <b>' + p.hours + ' h</b> ce tour. <button class="linkbtn" data-go="agir">Toutes les actions</button> · <button class="linkbtn" data-plan>Composer mon agenda</button></div></div>';
+    h += '<div class="left">Il vous reste <b>' + p.hours + ' h</b> ce tour. <button class="linkbtn" data-go="agir">Toutes les actions</button> · <button class="linkbtn" data-plan>Composer mon agenda</button></div></div>'; const ob = h; h = '';
     h += msCard();
     if (S().mp) MP.waitingForMe().forEach(w => { h += '<button class="smsbar" data-go="plus:joueurs" style="border-left-color:#5a78c2"><span><b>' + esc(w.name) + ' vous attend</b><span class="cp">Avancez jusqu’au scrutin : il ne peut pas voter sans vous</span></span></button>'; });
     if (S().mp && S().mp.wait) h += '<button class="smsbar" data-go="plus:joueurs" style="border-left-color:var(--warn)"><span><b>Rendez-vous électoral</b><span class="cp">Vous attendez d’autres joueurs pour un scrutin</span></span></button>';
     h += boucleBar();
     const un = LF.unread(); if (un) { const last = S().sms.find(m => !m.read); h += '<button class="smsbar" data-go="msg:sms">' + avatar(last.name, last.party) + '<span><b>' + esc(last.name) + '</b><span class="cp">' + esc(last.text) + '</span></span><span class="badge">' + un + '</span></button>'; }
-    const vilS = E.villageScope(); h += estBlock() + whyCard() + (vilS ? '' : natBlock());
-    h += '<div class="grid" style="margin-top:14px"><div class="c8"><div class="une">' + (une && une.about === 'pj' ? '<div class="flash">VOUS</div>' : '') + '<div class="mast"><b>' + esc(une ? une.media : 'Le Dauphinois') + '</b><span>' + E.fmtDate(s.date) + '</span></div><h2>' + esc(une ? une.title : 'Calme plat avant la tempête') + '</h2>' + (une && une.body ? '<p>' + esc(une.body) + '</p>' : '') + '</div></div>';
-    h += '<div class="c4 card"><div class="eyebrow">' + esc(p.rank) + '</div><h3 style="font-size:21px;margin:4px 0 6px">' + esc(p.name) + '</h3><div class="row">' + (p.party === 'NEW' ? pill('DIV', p.movement) : pill(p.party)) + '<span class="muted">' + esc(E.commune().name) + '</span></div>' +
+    const ms = h; const vilS = E.villageScope(); const est = estBlock(), why = whyCard(), nat = vilS ? '' : natBlock();
+    const uneH = '<div class="une">' + (une && une.about === 'pj' ? '<div class="flash">VOUS</div>' : '') + '<div class="mast"><b>' + esc(une ? une.media : 'Le Dauphinois') + '</b><span>' + E.fmtDate(s.date) + '</span></div><h2>' + esc(une ? une.title : 'Calme plat avant la tempête') + '</h2>' + (une && une.body ? '<p>' + esc(une.body) + '</p>' : '') + '</div>';
+    const prof = '<div class="card"><div class="eyebrow">' + esc(p.rank) + '</div><h3 style="font-size:21px;margin:4px 0 6px">' + esc(p.name) + '</h3><div class="row">' + (p.party === 'NEW' ? pill('DIV', p.movement) : pill(p.party)) + '<span class="muted">' + esc(E.commune().name) + '</span></div>' +
       '<div class="mini">' + [['Popularité', (pop >= 0 ? '+' : '') + r0(pop), 50 + pop / 2, pop >= 0 ? 'var(--good)' : 'var(--bad)'], ['Notoriété', r0(Math.max(p.noto.commune, p.noto.circo)), Math.max(p.noto.commune, p.noto.circo)], ['Crédibilité', r0(p.cred), p.cred], p.party === 'NEW' ? ['Militants', p.militants, Math.min(100, p.militants)] : ['Poids au parti', r0(p.std), p.std]].map(([l, v, g, c]) => '<div><span>' + l + '</span><b class="num">' + v + '</b>' + gauge(g, c) + '</div>').join('') + '</div>' +
       '<div class="eyebrow" style="margin-top:10px">Mandats</div>' + (p.mandats.length ? p.mandats.map(m => '<div style="margin-top:3px">' + esc(m.label) + '</div>').join('') : '<div class="muted" style="margin-top:3px">Aucun pour l’instant</div>') + '</div>';
-    if (p.cand) { const el = s.elections.find(e => e.id === p.cand.el); const c = p.cand.compte;
-      h += '<div class="c6 card"><h3>Votre candidature</h3><div><b>' + esc(el.label) + '</b> · ' + esc(E.unit(p.cand.key).name) + '</div><div class="muted">' + (p.cand.mode === 'colistier' ? 'Sur la liste de ' + esc(s.pnj[p.cand.listOf].name) + ', position ' + p.cand.listPos : p.cand.invested ? 'Investi·e par ' + esc(partyName()) : 'Candidature dissidente') + ' · scrutin le ' + E.fmtDate(el.status === 't1' ? el.d2 : el.d1) + '</div>' +
+    let cand = ''; if (p.cand) { const el = s.elections.find(e => e.id === p.cand.el); const c = p.cand.compte;
+      cand = '<div class="card"><h3>Votre candidature</h3><div><b>' + esc(el.label) + '</b> · ' + esc(E.unit(p.cand.key).name) + '</div><div class="muted">' + (p.cand.mode === 'colistier' ? 'Sur la liste de ' + esc(s.pnj[p.cand.listOf].name) + ', position ' + p.cand.listPos : p.cand.invested ? 'Investi·e par ' + esc(partyName()) : 'Candidature dissidente') + ' · scrutin le ' + E.fmtDate(el.status === 't1' ? el.d2 : el.d1) + '</div>' +
         (c ? '<div class="sep"></div><div class="row" style="justify-content:space-between"><span>Dépenses</span><span class="num">' + E.eur(c.depenses) + (c.plafond ? ' / ' + E.eur(c.plafond) : '') + '</span></div>' + (c.plafond ? gauge(c.depenses / c.plafond * 100, c.depenses > c.plafond * 0.85 ? 'var(--warn)' : 'var(--paper)') : '') + '<div class="row" style="justify-content:space-between;margin-top:6px"><span>Solde du compte</span><span class="num">' + E.eur(c.recettes - c.depenses) + '</span></div>' : '') +
         '<div class="row" style="margin-top:10px"><button class="linkbtn" id="retire">Retirer ma candidature</button></div></div>'; }
-    h += '<div class="c12 card"><h3>' + VZ.icon('calendar', 20) + ' Calendrier électoral</h3>' + VZ.timeline(s.elections.filter(e => e.status !== 'fini').sort((a, b) => a.d1 < b.d1 ? -1 : 1).slice(0, 8).map(e => { const d = E.diffDays(s.date, e.d1); const can = !p.cand && e.status === 'futur' && d <= 210 && !(p.inelig && p.inelig > s.date) && (e.type !== 'pres' || p.presDesig === e.id || p.party === 'NEW') && !(e.type !== 'pres' && p.mandats.some(m => m.type === 'president')); const mo = Math.round(d / 30.4); const MS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.']; const fd = [String(+e.d1.slice(8, 10)) + (e.d1.slice(8, 10) === '01' ? 'er' : ''), MS[+e.d1.slice(5, 7) - 1], e.d1.slice(0, 4)];
+    const cal = '<div class="card"><h3>' + VZ.icon('calendar', 20) + ' Calendrier électoral</h3>' + VZ.timeline(s.elections.filter(e => e.status !== 'fini').sort((a, b) => a.d1 < b.d1 ? -1 : 1).slice(0, 8).map(e => { const d = E.diffDays(s.date, e.d1); const can = !p.cand && e.status === 'futur' && d <= 210 && !(p.inelig && p.inelig > s.date) && (e.type !== 'pres' || p.presDesig === e.id || p.party === 'NEW') && !(e.type !== 'pres' && p.mandats.some(m => m.type === 'president')); const mo = Math.round(d / 30.4); const MS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.']; const fd = [String(+e.d1.slice(8, 10)) + (e.d1.slice(8, 10) === '01' ? 'er' : ''), MS[+e.d1.slice(5, 7) - 1], e.d1.slice(0, 4)];
       return { type: e.type, on: !!(p.cand && p.cand.el === e.id), soon: d <= 210, day: fd.slice(0, 2).join(' '), year: fd[2] || e.d1.slice(0, 4), label: esc(e.label), meta: (d <= 0 ? 'en cours' : d < 45 ? 'dans ' + d + ' jours' : 'dans ' + mo + ' mois') + ' · ' + (['mun', 'dep', 'reg', 'sen'].includes(e.type) ? 'scrutin local' : 'scrutin national') + (p.cand && p.cand.el === e.id ? ' · <b>vous êtes candidat·e</b>' : ''), extra: can ? '<div class="row" style="gap:4px;margin-top:6px">' + declBtns(e).replace(/class="btn primary"/g, 'class="btn sm primary"').replace(/class="btn"/g, 'class="btn sm"') + '</div>' : '' }; })) + '</div>';
-    return h + '</div>';
+    if (wideNow()) return '<div class="bur"><div class="bmain">' + head + ob + ms + est + why + '<div style="margin-top:14px">' + uneH + '</div></div><aside class="bside">' + dash + prof + cand + nat + cal + '</aside></div>';
+    return head + dash + ob + ms + est + why + nat + '<div class="grid" style="margin-top:14px"><div class="c8">' + uneH + '</div><div class="c4">' + prof + '</div>' + (cand ? '<div class="c6">' + cand + '</div>' : '') + '<div class="c12">' + cal + '</div></div>';
   }
 
   /* ---------- Actions ---------- */
@@ -685,7 +720,7 @@
   /* ---------- Opinion ---------- */
   function tOpinion() {
     const s = S(), p = P();
-    let h = '<div class="grid"><div class="c6 card"><h3>Votre image par électorat <span class="muted">−100 à +100</span></h3>' + D.SEGS.map(g => '<div class="axisrow" style="grid-template-columns:170px 1fr 40px"><span>' + g.name + '</span>' + diverge(p.image[g.id] || 0) + '<span class="num" style="text-align:right">' + r0(p.image[g.id] || 0) + '</span></div>').join('') +
+    let h = '<div class="grid"><div class="c6 card"><h3>Votre image par électorat <span class="muted">−100 à +100</span></h3>' + D.SEGS.map(g => '<div class="axisrow segrow" style="grid-template-columns:minmax(150px,190px) 1fr 40px"><span class="segl"><span class="segi">' + VZ.icon(g.id, 18) + '</span>' + g.name + '</span>' + diverge(p.image[g.id] || 0) + '<span class="num" style="text-align:right">' + r0(p.image[g.id] || 0) + '</span></div>').join('') +
       '<div class="sep"></div><div class="eyebrow">Notoriété</div>' + [['commune', E.commune().name], ['circo', D.CIRCOS[p.circo - 1].name], ['dept', 'Isère'], ['nat', 'France']].map(([k, l]) => '<div class="axisrow" style="grid-template-columns:170px 1fr 40px"><span>' + esc(l) + '</span><div class="hbar" style="width:100%;height:10px"><i style="width:' + p.noto[k] + '%"></i></div><span class="num" style="text-align:right">' + r0(p.noto[k]) + '</span></div>').join('') + '</div>';
     h += '<div class="c6">' + mapCard() + '</div>';
     // sondages
@@ -1205,7 +1240,7 @@
   /* ---------- débat / interview en direct ---------- */
   function lvMeters(st, segD) {
     return '<div class="lv-segs">' + LV.SEGS.map(g => { const v = st.seg[g]; const d = segD ? segD[g] : 0; const w = Math.min(50, Math.abs(v) / 15 * 50);
-      return '<div class="lsg"><span>' + LV.SHORT[g] + '</span><div class="lsb"><i class="' + (v >= 0 ? 'p' : 'n') + '" style="' + (v >= 0 ? 'left:50%' : 'right:50%') + ';width:' + w + '%"></i></div><b class="num ' + (d > 0.5 ? 'up' : d < -0.5 ? 'down' : '') + '">' + (d > 0.5 ? '▲' : d < -0.5 ? '▼' : '') + '</b></div>'; }).join('') + '</div>';
+      return '<div class="lsg"><span>' + VZ.icon(g, 14) + ' ' + LV.SHORT[g] + '</span><div class="lsb"><i class="' + (v >= 0 ? 'p' : 'n') + '" style="' + (v >= 0 ? 'left:50%' : 'right:50%') + ';width:' + w + '%"></i></div><b class="num ' + (d > 0.5 ? 'up' : d < -0.5 ? 'down' : '') + '">' + (d > 0.5 ? '▲' : d < -0.5 ? '▼' : '') + '</b></div>'; }).join('') + '</div>';
   }
   function lvTop(st) {
     const left = esc(P().name.split(' ')[0]), right = st.iv ? '' : esc(st.opp.name.split(' ').slice(-1)[0]);
@@ -1805,6 +1840,30 @@
   /* ---------- hémicycle ---------- */
   const ASM_ORDER = ['LFI', 'PCF', 'ECO', 'PS', 'DIV', 'REN', 'MODEM', 'HOR', 'LR', 'UDR', 'RN', 'REC'];
   const ASM_2024 = LF.ASM_2024;
+  // Conseil municipal (communes de 1 000 habitants et plus) : prime majoritaire de la moitié des sièges, le reste à la plus forte moyenne (listes à 5 % et plus)
+  function munSeats(rows, N, winId) {
+    const elig = rows.filter(x => x.pct >= 5 || x.id === winId); const prime = Math.ceil(N / 2); const seats = {}; elig.forEach(x => seats[x.id] = 0); seats[winId] = prime;
+    const q = {}; elig.forEach(x => q[x.id] = 0); for (let i = 0; i < N - prime; i++) { let best = null, bv = -1; elig.forEach(x => { const v = x.pct / (q[x.id] + 1); if (v > bv) { bv = v; best = x.id; } }); if (best) q[best]++; }
+    for (const k in q) seats[k] += q[k]; return seats;
+  }
+  function seatHemi(groups, title) { // groups : [{ n, color, l, me }], dans l’ordre gauche → droite
+    const N = groups.reduce((a, g) => a + g.n, 0); if (!N) return ''; const rows = N <= 19 ? 2 : N <= 35 ? 3 : N <= 55 ? 4 : 5; const R0 = 70, R1 = 140, cx = 160, cy = 152;
+    const radii = Array.from({ length: rows }, (_, i) => R0 + (R1 - R0) * (rows === 1 ? 0 : i / (rows - 1))); const tot = radii.reduce((a, b) => a + b, 0);
+    const cnt = radii.map(r => Math.round(N * r / tot)); cnt[rows - 1] += N - cnt.reduce((a, b) => a + b, 0);
+    const pos = []; radii.forEach((r, i) => { const n = cnt[i]; for (let j = 0; j < n; j++) { const a = Math.PI - Math.PI * (n === 1 ? 0.5 : j / (n - 1)); pos.push({ a, x: cx + r * Math.cos(a), y: cy - r * Math.sin(a) }); } });
+    pos.sort((u, v) => v.a - u.a); const list = []; groups.forEach(g => { for (let i = 0; i < g.n; i++) list.push(g); });
+    const rd = N > 45 ? 6 : N > 29 ? 7.5 : 9;
+    let h = '<svg class="hemi" viewBox="0 0 320 168" role="img" aria-label="' + esc(title) + '">';
+    pos.forEach((q, i) => { const g = list[i]; h += '<circle cx="' + q.x.toFixed(1) + '" cy="' + q.y.toFixed(1) + '" r="' + rd + '" fill="' + g.color + '"' + (g.me ? ' stroke="#1b1f3b" stroke-width="2"' : '') + '/>'; });
+    h += '<text x="160" y="138" text-anchor="middle" class="hn">' + N + '</text><text x="160" y="160" text-anchor="middle" class="hs">sièges · majorité ' + (Math.floor(N / 2) + 1) + '</text></svg>';
+    return h + '<div class="lgd hemil">' + groups.filter(g => g.n).map(g => '<span><i style="background:' + g.color + '"></i>' + esc(g.l) + ' <b class="num">' + g.n + '</b></span>').join('') + '</div>';
+  }
+  function councilHTML(el, sn) {
+    if (!el || el.type !== 'mun' || el.status !== 'fini' || !sn.winner) return ''; const com = E.commune(); if (!com || com.pop < 1000) return '';
+    const N = D.councilSize(com.pop); const seats = sn.seats && Object.keys(sn.seats).length ? sn.seats : munSeats(sn.rows, N, sn.winner); const ord = k => { const i = ASM_ORDER.indexOf(k); return i < 0 ? 5 : i; };
+    const groups = sn.rows.filter(x => seats[x.id]).sort((a, b) => ord(a.label) - ord(b.label)).map(x => ({ n: seats[x.id], color: x.color || '#8d939c', l: x.pj ? 'Votre liste' : x.name + ' (' + x.label + ')', me: !!x.pj }));
+    return '<div class="eyebrow" style="margin-top:12px">Nouveau conseil municipal ' + esc(E.de(com.name)) + '</div>' + seatHemi(groups, 'Composition du conseil municipal') + '<p class="muted small" style="margin:4px 0 0">La liste arrivée en tête reçoit la moitié des sièges ; les autres sont répartis à la proportionnelle entre les listes à 5 % et plus.</p>';
+  }
   function hemicycle(seats) {
     const list = []; ASM_ORDER.concat(Object.keys(seats).filter(k => !ASM_ORDER.includes(k))).forEach(k => { for (let i = 0; i < (seats[k] || 0); i++) list.push(k); });
     const N = list.length; if (!N) return ''; const rows = 11, R0 = 58, R1 = 150, cx = 160, cy = 158;
@@ -1858,7 +1917,7 @@
     c.msgs.slice().reverse().forEach(m => {
       h += '<div class="daytag">' + E.fmtDate(m.date, false) + '</div><div class="bubble ' + (m.out ? 'me' : 'them') + '">' + esc(m.text) + '</div>';
       (m.thread || []).forEach(t => { h += '<div class="bubble ' + (t.me ? 'me' : 'them') + '">' + esc(t.t) + '</div>'; });
-      if (m.replies && m.answered == null) h += '<div class="reps">' + m.replies.map((r, i) => '<button class="btn sm" data-rep="' + m.id + ':' + i + '">' + esc(r.l) + '</button>').join('') + '</div>';
+      if (m.replies && m.answered == null) { const exec = P().mandats.some(z => ['maire', 'adjoint'].includes(z.type)); h += '<div class="reps">' + m.replies.map((r, i) => (r.opp || /^Interpeller publiquement le maire/.test(r.l)) && exec ? '' : '<button class="btn sm" data-rep="' + m.id + ':' + i + '">' + esc(r.l) + '</button>').join('') + '</div>'; }
     });
     const hu = c.msgs.find(m => m.human); return h + '</div>' + (hu ? '<div class="row" style="gap:6px;flex-wrap:nowrap;margin-top:8px"><input class="field" id="hrep" maxlength="600" placeholder="Répondre à ' + esc(c.name) + '…" style="flex:1"><button class="btn primary" data-hsend="' + esc(hu.human) + '">Envoyer</button></div>' : '') + '<div class="foot"><button class="btn' + (hu ? '' : ' primary') + '" data-ok>Fermer</button></div>';
   }
@@ -1954,7 +2013,8 @@
     if (winner && prop) h += '<p class="verdict">' + (winner.pj ? 'Votre liste arrive en tête.' : esc(winner.name) + ' (' + esc(winner.label) + ') arrive en tête.') + ' Les sièges sont répartis à la proportionnelle' + (el.type === 'reg' ? ', avec une prime de 25 % pour la liste arrivée en tête' : '') + '.</p>';
     else if (winner) h += '<p class="verdict ' + (winner.pj ? 'win' : pjRow ? 'lose' : '') + '">' + (winner.pj ? 'Vous l’emportez.' : esc(winner.name) + ' (' + esc(winner.label) + ') l’emporte.') + '</p>';
     else if (sn.t2) h += '<p class="verdict' + (pjRow && sn.t2.includes(pjRow.id) ? ' win' : pjRow ? ' lose' : '') + '">Qualifié·e·s pour le second tour : ' + sn.t2.map(id => { const x = sn.rows.find(y => y.id === id); return x ? (x.pj ? 'vous' : esc(x.name)) : ''; }).join(', ') + '.</p>';
-    if (sn.seats) h += '<div class="eyebrow" style="margin-top:10px">Sièges</div><div class="row" style="margin-top:6px">' + Object.entries(sn.seats).filter(([, v]) => v > 0).map(([id, v]) => { const x = sn.rows.find(y => y.id === id); return '<span class="chip">' + esc(x ? (x.pj ? 'Votre liste' : x.name) : id) + ' <b class="num">' + v + '</b></span>'; }).join('') + '</div>';
+    if (sn.seats && !councilHTML(el, sn)) h += '<div class="eyebrow" style="margin-top:10px">Sièges</div><div class="row" style="margin-top:6px">' + Object.entries(sn.seats).filter(([, v]) => v > 0).map(([id, v]) => { const x = sn.rows.find(y => y.id === id); return '<span class="chip">' + esc(x ? (x.pj ? 'Votre liste' : x.name) : id) + ' <b class="num">' + v + '</b></span>'; }).join('') + '</div>';
+    h += councilHTML(el, sn);
     if (el && el.type === 'leg' && el.status === 'fini') { const cnt = {}; for (const k in el.races) { const w = el.races[k].winner; const row = (el.races[k].r2 || el.races[k]).rows.find(x => x.id === w); if (row) cnt[row.label] = (cnt[row.label] || 0) + 1; } h += '<div class="row" style="margin-top:8px">' + Object.entries(cnt).map(([k, v]) => '<span class="chip">' + esc(k) + ' <b class="num">' + v + '</b></span>').join('') + '</div>'; if (s.national.assembly) h += '<div class="eyebrow" style="margin-top:12px">Nouvelle Assemblée nationale</div>' + hemicycle(s.national.assembly); }
     h += nightMap(el, sn) + breakdownHTML(q, sn) + '</div>';
     await new Promise(res => modal('<h2>Soirée électorale · ' + esc(r.label) + '</h2>' + h + '<div class="foot"><button class="btn primary" data-ok>Continuer</button></div>', (m, close) => {

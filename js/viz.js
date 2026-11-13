@@ -17,6 +17,13 @@ window.VZ = (function () {
     immigration: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.5 3.5 5.3 3.5 8.5s-1 6-3.5 8.5c-2.5-2.5-3.5-5.3-3.5-8.5s1-6 3.5-8.5z"/>',
     europe: '<circle cx="12" cy="12" r="8.5"/><path d="m12 8 1.2 2.5 2.7.4-2 1.9.5 2.7-2.4-1.3-2.4 1.3.5-2.7-2-1.9 2.7-.4z"/>',
     industrie: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
+    // électorats
+    JUD: '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2.5 9 2.5 12 0v-5M22 9v6"/>',
+    POP: '<path d="M4 14a8 8 0 0 1 16 0"/><path d="M3 14h18v2H3zM12 6v3M9 7.5l1 2M15 7.5l-1 2"/>',
+    RET: '<circle cx="9" cy="5" r="2"/><path d="M9 7v6l-3 8M9 13l3 3v5M9 9l4 2M16 10v11M16 10c0-2 3-2 3 0"/>',
+    PERI: '<path d="M5 16l1.5-5a2 2 0 0 1 2-1.5h7a2 2 0 0 1 2 1.5L19 16"/><rect x="3" y="16" width="18" height="4" rx="1.5"/><circle cx="7" cy="20" r="1.2"/><circle cx="17" cy="20" r="1.2"/>',
+    CAD: '<rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20M10 16v3h4v-3"/>',
+    RUR: '<circle cx="7" cy="17" r="3.5"/><circle cx="18" cy="18" r="2.5"/><path d="M7 13.5V8h6l2 5h3.5v5M10.5 17h5M13 8V5"/>',
     // familles d'actions et divers
     terrain: '<path d="M12 21s-6-5.5-6-11a6 6 0 1 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/>',
     parti: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',

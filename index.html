@@ -633,6 +633,23 @@ svg.isere .ml { fill: #1b1f3b; stroke: #fff; } svg.isere .ml.me { fill: #2337a8;
 .lgd span { display: flex; align-items: center; gap: 6px; } .lgd i { width: 10px; height: 10px; border-radius: 3px; }
 .diverge { height: 14px; border-radius: 7px; }
 .diverge i { border-radius: 7px; }
+.qcard { background: var(--raise); border-radius: 14px; padding: 12px 14px; }
+.qcard .drow { border-color: #d7dce6; }
+/* bureau sur deux colonnes (ordinateur) */
+.bur { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+.bmain > * + * { margin-top: 14px; }
+.bmain > .grid { margin-top: 14px !important; }
+.bside { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 96px; max-height: calc(100vh - 110px); overflow: auto; scrollbar-width: thin; padding-bottom: 8px; }
+.bside .dash { grid-template-columns: 1fr 1fr; margin: 0; }
+.bside .card.nat { margin-top: 0 !important; }
+.bside .card.nat .row { flex-direction: column; }
+@media (min-width: 1100px) { main { max-width: 1240px; } }
+/* électorats */
+.segl { display: flex; align-items: center; gap: 8px; }
+.segi { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: var(--raise); color: #3c4258; flex: 0 0 auto; }
+.segrow { margin: 6px 0; }
+.lsg .vi { vertical-align: -2px; }
+.hemil { flex-direction: row; flex-wrap: wrap; gap: 6px 14px; justify-content: center; margin-top: 4px; }
 </style>
 </head>
 <body>
