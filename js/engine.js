@@ -1092,6 +1092,7 @@ window.E = (function () {
       (x.prog || []).forEach(pr => pr.vis = clamp(pr.vis + 3 * f * heat, 0, 75));
       if (rnd() > Math.min(0.95, (0.55 - i * 0.12) * f * heat)) return;
       const opts = [['meeting', 20 + t.charisme / 3], ['programme', 18], ['attaque', (t.ambition + t.rancune) / 4 + (x.rel < 0 ? 20 : 0) - (x.rel > 30 ? 25 : 0)], ['defi', pet || !p.cand || !['campagne', 'entre2', 'pre'].includes(ph) || s.queue.some(q => q.type === 'defi') ? 0 : t.ambition / 4 + t.charisme / 5], ['alliance', pet ? 0 : x.rel > 5 ? 15 + x.rel / 4 : 4], ['rumeur', t.scrupules < 45 ? 25 - t.scrupules / 3 : 0], ['debauche', p.staff.some(y => y.loy < 50) ? 10 : 0], ['critique', (p.prog || []).some(m => m.status !== 'retiree' && (m.phare || m.visib > 25)) ? 26 : 0]];
+      if (typeof FL !== 'undefined' && i === 0) FL.biasRival(x, opts);
       let act = wpick(opts, o => Math.max(0, o[1]))[0];
       if (['attaque', 'defi', 'alliance', 'rumeur', 'critique'].includes(act) && asks >= 2) act = 'meeting';
       if (villageScope() && ['attaque', 'defi', 'rumeur'].includes(act)) act = 'meeting';
@@ -1373,7 +1374,7 @@ window.E = (function () {
     // élections arrivées à échéance
     s.elections.slice().sort((a, b) => nextDate(a) < nextDate(b) ? -1 : 1).forEach(e => { if (e.status !== 'fini' && nextDate(e) <= s.date) runElectionRound(e); });
     // mandats : séances
-    mandateTick(days); if (typeof HQ !== 'undefined') HQ.tick(days); if (typeof OF !== 'undefined') OF.tick(days); if (typeof LN !== 'undefined') { try { LN.tick(days); } catch (e) { console.error(e); } }
+    mandateTick(days); if (typeof HQ !== 'undefined') HQ.tick(days); if (typeof OF !== 'undefined') OF.tick(days); if (typeof FL !== 'undefined') { try { FL.tick(days); } catch (e) { console.error(e); } } if (typeof LN !== 'undefined') { try { LN.tick(days); } catch (e) { console.error(e); } }
     const legF = s.elections.find(e => e.type === 'leg' && e.status === 'futur');
     const dW = s.mp ? dissMP() : null; // en multijoueur : semaine tirée de la graine commune, date du scrutin calée sur cette semaine
     if (legF && diffDays(s.date, legF.d1) > 400 && diffDays(s.national.lastDiss, s.date) > 365 && diffDays(s.national.lastLeg || '2024-07-07', s.date) > 365 && (s.mp ? dW != null : rnd() < 0.004 * f * (1 + Math.max(0, -(s.national.climate[s.national.gov[0]] || 0)) * 5))) { let d1 = s.mp ? addDays('2026-06-15', dW * 7 + 35) : addDays(s.date, 35); if (d1 <= addDays(s.date, 7)) d1 = addDays(s.date, 14); const dd = toD(d1); dd.setUTCDate(dd.getUTCDate() + (7 - dd.getUTCDay()) % 7); if (dissolution(fromD(dd)) !== false) s.queue.push({ kind: 'info', title: 'Dissolution', text: 'Le président dissout l’Assemblée nationale. Législatives anticipées le ' + fmtDate(fromD(dd)) + '.' }); }

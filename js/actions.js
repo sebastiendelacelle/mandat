@@ -151,6 +151,7 @@ window.X = (function () {
     let rk = [1, 1, 0.7, 0.5, 0.35, 0.25][Math.min(5, nrep)]; const pk = typeof HQ !== 'undefined' ? HQ.prepK() : 1; const pp = P(); const b0 = rk < 1 || pk < 1 ? JSON.stringify({ i: pp.image, n: pp.noto, c: pp.camp, z: S0.zones }) : null;
     const msg = a.run(opts || {});
     if (b0) { const o = JSON.parse(b0); const sc = (cur, old) => { for (const k in cur) { if (typeof cur[k] === 'number' && typeof old[k] === 'number') cur[k] = old[k] + (cur[k] - old[k]) * rk; } }; sc(pp.image, o.i); sc(pp.noto, o.n); const rk0 = rk; rk = rk0 * pk; sc(pp.camp, o.c); for (const k in (S0.zones || {})) (S0.zones[k] || []).forEach((z, i) => { const oz = o.z && o.z[k] && o.z[k][i]; if (oz) z.cover = oz.cover + (z.cover - oz.cover) * rk; }); rk = rk0; }
+    if (a.ill && typeof FL !== 'undefined' && rnd() < 0.6) FL.later(E.rint(3, 12), 'enquete', { t: a.l.toLowerCase() });
     E.log(a.l + ' — ' + msg, 'action'); (S0.turnDid = S0.turnDid || []).push({ l: a.l, m: typeof msg === 'string' ? msg : '' }); return { ok: true, msg };
   }
   function startAI(id) { const a = ACTIONS.find(x => x.id === id); const ok = avail(a); if (ok !== true) return { ok: false, msg: ok }; if (!pay(a)) return { ok: false, msg: 'Paiement impossible.' }; P().hours -= a.h; (G.S.turnDid = G.S.turnDid || []).push({ l: a.l, m: '' }); return { ok: true, a }; }

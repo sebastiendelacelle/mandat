@@ -53,7 +53,7 @@
   /* ---------- modales & toasts ---------- */
   function modal(html, onMount, cls) {
     const ov = document.createElement('div'); ov.className = 'ov'; ov.innerHTML = '<div class="modal ' + (cls || '') + '" role="dialog" aria-modal="true">' + html + '</div>';
-    document.body.appendChild(ov); document.querySelectorAll('.toast').forEach(t => t.classList.add('hi')); const m = ov.firstChild; const close = () => ov.remove();
+    document.body.appendChild(ov); document.querySelectorAll('.toast').forEach(t => { const m0 = t.textContent; t.remove(); toast(m0); }); const m = ov.firstChild; const close = () => ov.remove();
     if (onMount) onMount(m, close); if (window.matchMedia('(hover: hover)').matches) { const f = m.querySelector('textarea, input'); if (f) f.focus({ preventScroll: true }); }
     return { m, close };
   }
@@ -80,7 +80,7 @@
     t.innerHTML = '<div class="row" style="justify-content:space-between;align-items:flex-start"><b>' + esc(title) + '</b><button class="linkbtn" aria-label="Fermer">OK</button></div><div class="small" style="margin:4px 0 6px">' + esc(msg) + '</div>' + chipsHTML(ds);
     document.body.appendChild(t); t.querySelector('button').onclick = () => t.remove(); setTimeout(() => t.remove(), 7000); // chaque bandeau a sa propre minuterie
   }
-  function toast(msg) { document.querySelectorAll('.toast').forEach(t => t.remove()); const t = document.createElement('div'); t.className = 'toast' + (document.querySelector('.ov') ? ' hi' : ''); t.textContent = msg; t.onclick = () => t.remove(); document.body.appendChild(t); setTimeout(() => t.remove(), Math.min(6500, 3000 + String(msg).length * 18)); }
+  function toast(msg, n) { if (document.querySelector('.ov') && (n || 0) < 120) { setTimeout(() => toast(msg, (n || 0) + 1), 500); return; } document.querySelectorAll('.toast').forEach(t => t.remove()); const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; t.onclick = () => t.remove(); document.body.appendChild(t); setTimeout(() => t.remove(), Math.min(6500, 3000 + String(msg).length * 18)); }
 
   /* ---------- composants ---------- */
   const pc = code => D.PARTIES[code] ? D.PARTIES[code].color : '#8d939c';
@@ -274,7 +274,7 @@
 
   /* ---------- jeu ---------- */
   const pmList = () => { const L = (P().postMortems || []).slice().reverse(); return L.length ? '<h2 class="sec">Analyses de vos élections</h2><div class="card">' + L.map((pm, i) => '<details' + (i ? '' : ' open') + ' style="' + (i ? 'border-top:1px solid var(--line);margin-top:8px;padding-top:8px' : '') + '"><summary><b>' + esc(pm.label) + '</b> · ' + (pm.won ? 'gagnée' : 'perdue') + '</summary>' + postMortemHTML(pm).replace(/<p class="muted small" style="margin-top:10px">Retrouvez[^<]*<\/p>/, '') + '</details>').join('') + '</div>' : ''; };
-  const tCarnet = () => msFull() + pmList() + '<h2 class="sec">Dossiers</h2>' + tDossiers() + '<h2 class="sec">Journal et sauvegarde</h2>' + tJournal();
+  const tCarnet = () => msFull() + flCarnet() + pmList() + '<h2 class="sec">Dossiers</h2>' + tDossiers() + '<h2 class="sec">Journal et sauvegarde</h2>' + tJournal();
   function renderGame() {
     const s = S(), p = P(); const ph = E.phase(); const days = E.turnDays(); const fc = face(); document.body.dataset.face = fc;
     const cmp = p.cand && p.cand.compte && ph.id !== 'hors' ? p.cand.compte : null;
@@ -405,10 +405,10 @@
         '<div class="row" style="margin-top:10px"><button class="linkbtn" id="retire">Retirer ma candidature</button></div></div>'; }
     const cal = '<div class="card"><h3>' + VZ.icon('calendar', 20) + ' Calendrier électoral</h3>' + VZ.timeline(s.elections.filter(e => e.status !== 'fini').sort((a, b) => a.d1 < b.d1 ? -1 : 1).slice(0, 8).map(e => { const d = E.diffDays(s.date, e.d1); const can = !p.cand && e.status === 'futur' && d <= 210 && !(p.inelig && p.inelig > s.date) && (e.type !== 'pres' || p.presDesig === e.id || p.party === 'NEW') && !(e.type !== 'pres' && p.mandats.some(m => m.type === 'president')); const mo = Math.round(d / 30.4); const MS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.']; const fd = [String(+e.d1.slice(8, 10)) + (e.d1.slice(8, 10) === '01' ? 'er' : ''), MS[+e.d1.slice(5, 7) - 1], e.d1.slice(0, 4)];
       return { type: e.type, on: !!(p.cand && p.cand.el === e.id), soon: d <= 210, day: fd.slice(0, 2).join(' '), year: fd[2] || e.d1.slice(0, 4), label: esc(e.label), meta: (d <= 0 ? 'en cours' : d < 45 ? 'dans ' + d + ' jours' : 'dans ' + mo + ' mois') + ' · ' + (['mun', 'dep', 'reg', 'sen'].includes(e.type) ? 'scrutin local' : 'scrutin national') + (p.cand && p.cand.el === e.id ? ' · <b>vous êtes candidat·e</b>' : ''), extra: can ? '<div class="row" style="gap:4px;margin-top:6px">' + declBtns(e).replace(/class="btn primary"/g, 'class="btn sm primary"').replace(/class="btn"/g, 'class="btn sm"') + '</div>' : '' }; })) + '</div>';
-    const fil = filCard(); const cs = cs0 ? '<div style="height:12px"></div>' + cs0 : '';
+    const fil = filCard(); const ab = flCard(); const cs = cs0 ? '<div style="height:12px"></div>' + cs0 : '';
     const more = (inner, lbl) => '<details class="more" data-more' + (s.homeMore ? ' open' : '') + '><summary>' + lbl + '</summary><div class="stack" style="margin-top:12px">' + inner + '</div></details>';
-    if (wideNow()) return '<div class="bur"><div class="bmain">' + head + ob + est + cs + ms + fil + more(why + uneH + msc, 'Analyse, presse et objectifs de carrière') + '</div><aside class="bside">' + dash + prof + cand + nat + cal + '</aside></div>';
-    return head + ob + dash + est + cs + ms + fil + more(why + nat + uneH + prof + cand + msc + cal, 'Plus d’infos : analyse, presse, profil, calendrier');
+    if (wideNow()) return '<div class="bur"><div class="bmain">' + head + ob + ab + est + cs + ms + fil + more(why + uneH + msc, 'Analyse, presse et objectifs de carrière') + '</div><aside class="bside">' + dash + prof + cand + nat + cal + '</aside></div>';
+    return head + ob + ab + dash + est + cs + ms + fil + more(why + nat + uneH + prof + cand + msc + cal, 'Plus d’infos : analyse, presse, profil, calendrier');
   }
 
   /* ---------- Actions ---------- */
@@ -687,6 +687,30 @@
     if (G) h += '<details class="how"><summary class="small">Comment ça marche ?</summary>' + G + '</details>';
     return h + '</div>';
   }
+  /* ---------- « À trancher » : le fil des dossiers ---------- */
+  function flCard() {
+    if (typeof FL === 'undefined') return ''; const L = FL.pending(); if (!L.length) return '';
+    const gz = t => genderize(t, P().g);
+    return '<div class="card flc"><h3>À trancher <span class="muted">' + L.length + '</span></h3>' + L.slice(0, 5).map(it => '<button class="flit' + (it.urgent ? ' urg' : '') + '" data-fl="' + it.id + '"><span class="grow"><b>' + esc(gz(it.t)) + '</b><span class="muted small">' + esc(it.from) + ' · avant le ' + E.fmtDate(it.due) + '</span></span><span class="chev">›</span></button>').join('') + '<p class="muted small" style="margin:8px 0 0">Sans réponse à la date dite, la décision se fait sans vous, et ça se voit.</p></div>';
+  }
+  async function flFlow(id) {
+    if (typeof FL === 'undefined') return; const it = FL.pending().find(x => x.id === id); if (!it) return;
+    E.estimate(); const before = X.snap();
+    const body = '<p class="muted small" style="margin-top:0">' + esc(it.from) + '</p><p>' + esc(it.body) + '</p>' + (it.dflt && it.dflt.res ? '<p class="muted small">Sans réponse d’ici le ' + E.fmtDate(it.due) + ' : ' + esc(it.dflt.res) + '</p>' : '');
+    const v = await choice(it.t, body, it.opts.map((o, i) => { const ok = FL.optOk(o); return { l: o.l, sub: [o.sub || (o.h ? o.h + ' h' : ''), ok === true ? '' : ok].filter(Boolean).join(' · '), ill: o.ill, v: i }; }).concat([{ l: 'Décider plus tard', cls: 'ghost', v: 'later' }]));
+    if (v == null || v === 'later') { render(); return; }
+    const r = FL.decide(id, v); if (!r.ok) { toast(r.msg); render(); return; }
+    E.estimate(); render(); result(it.t, r.msg, before);
+  }
+  function flCarnet() {
+    if (typeof FL === 'undefined') return ''; const f = FL.F(); const gz = t => genderize(t, P().g); let h = '';
+    const pr = f.prom.slice().reverse(); const open = pr.filter(x => x.ok == null), kept = pr.filter(x => x.ok === true), brk = pr.filter(x => x.ok === false);
+    if (pr.length) h += '<h2 class="sec">Vos engagements</h2><div class="card">' + (open.length ? open.map(x => '<div class="small" style="margin:4px 0">○ ' + esc(gz(x.t)) + ' <span class="muted">· échéance ' + E.fmtDate(x.due) + '</span></div>').join('') : '<p class="muted small">Aucun engagement en cours.</p>') + (kept.length || brk.length ? '<div class="muted small" style="margin-top:8px">' + kept.length + ' tenu' + (kept.length > 1 ? 's' : '') + ' · ' + brk.length + ' non tenu' + (brk.length > 1 ? 's' : '') + '</div>' + brk.slice(0, 3).map(x => '<div class="small" style="color:var(--bad)">✗ ' + esc(gz(x.t)) + '</div>').join('') : '') + '</div>';
+    const arcs = f.arcs.slice().reverse().slice(0, 6); if (arcs.length) h += '<h2 class="sec">Dossiers au long cours</h2><div class="card">' + arcs.map(a => { const A = FL.ARCS[a.k]; return '<div class="small" style="margin:4px 0"><b>' + esc(A.t) + '</b> <span class="muted">· ' + (a.end ? (a.won ? 'issue favorable' : 'issue défavorable') : 'étape ' + (a.step + 1) + ' sur ' + A.steps.length) + '</span></div>'; }).join('') + '</div>';
+    const db = f.debts.slice().reverse().slice(0, 6); if (db.length) h += '<h2 class="sec">Services rendus et dettes</h2><div class="card">' + db.map(d => '<div class="small" style="margin:4px 0">' + esc(d.who) + ' <span class="muted">· ' + esc(d.why) + ' · ' + (d.closed ? (d.paid ? 'réglée' : 'refusée') : d.asked ? 'réclamée' : 'pas encore réclamée') + '</span></div>').join('') + '</div>';
+    if (f.votes.length) h += '<h2 class="sec">Vos votes</h2><div class="card">' + f.votes.slice(0, 8).map(v => '<div class="small" style="margin:4px 0">' + E.fmtDate(v.date) + ' · ' + esc(v.t) + ' : <b>' + esc(gz(v.v)) + '</b></div>').join('') + '</div>';
+    return h;
+  }
   /* ---------- fil des réalisations ---------- */
   function filCard() {
     const s = S(); const f = s.lastTurn; if (!f || f.to !== s.date) return '';
@@ -696,6 +720,7 @@
     else h += '<p class="small" style="color:var(--warn)">Vous n’avez rien fait ce mois-ci : vos heures ont été perdues, et la notoriété s’érode d’elle-même.</p>';
     if (f.est) h += '<p class="small" style="margin:6px 0 0">' + esc(f.est.label) + ' : <b class="num">' + E.pct(f.est.pct) + '</b>' + (f.est.prev != null ? ' <span class="num ' + (f.est.pct >= f.est.prev ? 'up' : 'down') + '">(' + (f.est.pct >= f.est.prev ? '+' : '−') + E.pct(Math.abs(f.est.pct - f.est.prev)).replace(/\s?%$/, '') + ' pt)</span>' : '') + '</p>';
     h += ds.length ? '<div class="eyebrow" style="margin-top:8px">Ce que ça a changé</div>' + chipsHTML(ds) : '<p class="muted small" style="margin:6px 0 0">Rien n’a vraiment bougé.</p>';
+    if (typeof FL !== 'undefined') { const ec = FL.F().echo.filter(e => e.date > f.from && e.date <= f.to).slice(0, 4); if (ec.length) h += '<div class="eyebrow" style="margin-top:8px">Les suites de vos décisions</div>' + ec.map(e => '<div class="small" style="margin-top:3px">' + esc(genderize(e.t, P().g)) + '</div>').join(''); const pl = FL.planOf(); if (pl) h += '<div class="eyebrow" style="margin-top:8px">Votre adversaire</div><div class="small" style="margin-top:3px">' + (pl.sure ? '' : 'Rumeur : ') + esc(pl.name) + ' a décidé de ' + esc(pl.l) + '.</div>'; }
     if (f.news && f.news.length) h += '<div class="eyebrow" style="margin-top:8px">On parle de vous</div>' + f.news.map(n => '<div class="small" style="margin-top:3px"><b>' + esc(n.m) + '</b> · ' + esc(n.t) + '</div>').join('');
     return h + '</div>';
   }
@@ -733,7 +758,7 @@
     const tf = await choice('Budget ' + S().date.slice(0, 4) + ' ' + E.de(E.commune().name), '<p>Le conseil municipal doit voter le budget avant le 15 avril. Taxe foncière actuelle : <b>' + m.tf + ' %</b>. Cohésion de votre majorité : ' + Math.round(m.cohesion ?? 70) + ' %.</p><p class="muted small">1. La fiscalité</p>', [{ l: 'Baisser la taxe foncière d’un point', sub: 'Populaire, réduit vos marges', v: '-1' }, { l: 'Maintenir le taux', sub: 'Sans surprise', v: '0' }, { l: 'Augmenter d’un point', sub: 'Impopulaire, finance des investissements', v: '1' }]);
     const prio = await choice('Budget : votre priorité', '<p class="muted small">2. L’investissement que vous mettez en avant</p>', GV.PRIOS.map(x => ({ l: x[1], sub: 'Plaît aux ' + Object.keys(x[2]).map(g => D.SEGS.find(s => s.id === g).name.toLowerCase()).join(' et '), v: x[0] })));
     const sv = await choice('Budget : les associations', '<p class="muted small">3. Les subventions</p>', [{ l: 'Augmenter les subventions', v: '1' }, { l: 'Les maintenir', v: '0' }, { l: 'Les réduire', v: '-1' }]);
-    const msg = GV.budgetSession(+tf, prio, +sv); E.estimate(); render(); await info('Vote du budget', '<p>' + esc(msg) + '</p>' + chipsHTML(X.deltas(before, X.snap())));
+    const msg = GV.budgetSession(+tf, prio, +sv); if (+sv < 0 && typeof FL !== 'undefined') FL.later(2, 'asso', {}); E.estimate(); render(); await info('Vote du budget', '<p>' + esc(msg) + '</p>' + chipsHTML(X.deltas(before, X.snap())));
   }
   async function plfFlow() {
     const s = S(), p = P(); const maj = s.national.gov.includes(p.party); const before = X.snap();
@@ -922,6 +947,7 @@
     $app.querySelectorAll('[data-replan]').forEach(b => b.onclick = async () => { const pl = planState(); pl.length = 0; (S().lastPlan || []).forEach(it => { const a = X.ACTIONS.find(x => x.id === it.id); if (a && X.avail(a) === true) pl.push({ id: it.id, o: Object.assign({}, it.o) }); }); if (pl.length) await runPlan(); });
     $app.querySelectorAll('[data-gnext]').forEach(b => b.onclick = () => { GV.guideNext(); render(); });
     $app.querySelectorAll('[data-gskip]').forEach(b => b.onclick = () => { GV.guideNext(true); render(); });
+    $app.querySelectorAll('[data-fl]').forEach(b => b.onclick = () => flFlow(b.dataset.fl));
     $app.querySelectorAll('[data-coachack]').forEach(b => b.onclick = () => { S().coachAck = true; render(); });
     $app.querySelectorAll('[data-coachoff]').forEach(b => b.onclick = () => { S().coachOff = true; GV.guideNext(true); render(); });
     $app.querySelectorAll('details[data-more]').forEach(d => d.ontoggle = () => { S().homeMore = d.open; });
@@ -1616,6 +1642,7 @@
     while (s.queue.length) {
       const q = s.queue.shift();
       try {
+        if (q.kind === 'fl') { await flFlow(q.id); continue; }
         if (q.kind === 'postMortem') { if (s.queue.some(z => z.kind === 'results')) { s.queue.push(q); continue; } await info((q.pm.won ? 'Pourquoi vous avez gagné' : 'Pourquoi vous avez perdu') + ' · ' + q.pm.label, postMortemHTML(q.pm), 'Continuer'); continue; }
         if (q.kind === 'bilanMandat') { await info('Bilan de mandat : ' + genderize(q.rv.label, P().g), bilanMandatHTML(q.rv), 'Continuer'); continue; }
         if (q.kind === 'event') { const e = q.custom || E.EVENTS.find(x => x.id === q.ev); const v = await choice(e.t, '<div class="evh"><span class="evi">' + VZ.icon(e.th || 'news', 22) + '</span><span>' + ({ loc: 'Actualité locale', nat: 'Actualité nationale', int: 'Actualité internationale' }[e.scope] || 'Actualité') + ' · ' + esc((D.THEMES[e.th] || { l: '' }).l) + '</span></div><p>' + esc(e.d) + '</p>' + evFiche(e) + '<p class="muted">Les journalistes vous demandent une réaction.</p>', evOpts(e).concat([{ l: 'Ne pas réagir', v: -1 }])); E.resolveEvent(q.ev, v, q.custom); }
@@ -1634,7 +1661,7 @@
         else if (q.kind === 'rival' && hasHQ() && ['attaque', 'rumeur', 'critique'].includes(q.type) && HQ.fromRival(q)) { UI.bTold = (UI.bTold || 0) + 1; }
         else if (q.kind === 'rival') await rivalQ(q);
         else if (q.kind === 'party') await partyQ(q);
-        else if (q.kind === 'situation') { const x = DP.SIT.find(z => z.id === q.id); const before = X.snap(); const gz = t => genderize(t, P().g); const v = await choice(gz(x.t), '<p>' + esc(gz(x.d)) + '</p>', x.o.map((o, i) => ({ l: gz(o[0]), ill: o[2], v: i }))); const msg = DP.situationResolve(q.id, v); E.estimate(); await info(gz(x.t), '<p>' + esc(gz(msg)) + '</p>' + chipsHTML(X.deltas(before, X.snap()))); }
+        else if (q.kind === 'situation') { const x = DP.SIT.find(z => z.id === q.id); const before = X.snap(); const gz = t => genderize(t, P().g); const v = await choice(gz(x.t), '<p>' + esc(gz(x.d)) + '</p>', x.o.map((o, i) => ({ l: gz(o[0]), ill: o[2], v: i }))); const msg = DP.situationResolve(q.id, v); if (x.o[v] && x.o[v][2] && typeof FL !== 'undefined') FL.later(E.rint(4, 14), 'enquete', { t: gz(x.o[v][0]).toLowerCase() }); E.estimate(); await info(gz(x.t), '<p>' + esc(gz(msg)) + '</p>' + chipsHTML(X.deltas(before, X.snap()))); }
         else if (q.kind === 'leakwarn') { const c = P().casseroles.find(z => z.id === q.cas); const j = s.pnj[q.j]; if (!c || c.out) continue; const v = await choice('Un journaliste vous prévient', '<p>' + esc(j.name) + ' (' + esc(D.MEDIAS.find(m => m.id === j.territory).name) + ') vous appelle : un confrère s’apprête à sortir une information sur <b>' + esc(c.label) + '</b>.</p>', [{ l: 'Prendre les devants : tout révéler vous-même', sub: 'Le choc est amorti', v: 'devant' }, { l: 'Tenter d’étouffer l’affaire', sub: 'Ça peut marcher… ou empirer', v: 'etouffer' }, { l: 'Ne rien faire', v: 'rien' }]);
           if (v === 'devant') { c.g = Math.max(1, c.g - 1); P().cred = E.clamp(P().cred + 2, 0, 100); E.surface(c, 'Révélé par ' + P().name + ' lui-même, avant la presse.'); j.rel += 5; }
           else if (v === 'etouffer') { j.rel -= 8; if (E.rnd() < 0.5) { c.risk *= 0.5; toast('L’article est repoussé… pour l’instant.'); } else { c.g = Math.min(5, c.g + 1); E.surface(c, 'Et des pressions pour étouffer l’affaire.'); } }
