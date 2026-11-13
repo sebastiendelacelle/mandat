@@ -367,6 +367,10 @@ window.E = (function () {
   }
   function mandatLabel(m) { return m.label; }
   function hasMandat(t) { return S().p.mandats.find(m => m.type === t); }
+  // Mode village : tant qu'on n'a pas d'ambition ni de mandat au-delà d'une commune de moins de 3 500 habitants, ni partis ni médias nationaux
+  function villageScope() { const s = S(); if (!s || !s.p) return false; const p = s.p; const c = commune(); if (!c || c.pop >= 3500) return false;
+    if (p.mandats.some(m => !['maire', 'adjoint', 'conseiller_municipal', 'interco'].includes(m.type))) return false;
+    if (p.cand) { const e = s.elections.find(x => x.id === p.cand.el); if (e && e.type !== 'mun') return false; } return true; }
   /* ---------- non-cumul des mandats (loi organique de 2014, en vigueur) ---------- */
   const NATM = ['depute', 'senateur', 'meuro'], EXECM = ['maire', 'adjoint'];
   function cumulConflict() {
@@ -723,6 +727,11 @@ window.E = (function () {
     }
     if (el.type === 'leg') { assembly(el); s.national.lastLeg = s.date; }
     // résultats du joueur
+    const ally = (p.rallied || {})[el.id]; // multijoueur : rallié·e au vainqueur de la primaire
+    if (ally && String(ally).startsWith('H_')) { const rk = el.races[electionUnit(el.type)]; if (rk && rk.winner === ally) { const com = commune(); const pn = (rk.cands || []).find(c => c.id === ally) || {};
+      if (el.type === 'mun') { p.mandats = p.mandats.filter(m => !['maire', 'adjoint', 'conseiller_municipal'].includes(m.type)); p.mandats.push({ type: 'adjoint', label: 'Premier·e adjoint·e au maire ' + deN(com.name), since: s.date, ind: D.adjIndemnity(com.pop), majority: true }); log('La liste ' + deN(pn.name || 'votre allié·e') + ' l’emporte : vous devenez premier·e adjoint·e.', 'good'); }
+      else if (el.type === 'dep') { p.mandats = p.mandats.filter(m => m.type !== 'cd'); p.mandats.push({ type: 'cd', label: 'Conseiller·ère départemental·e (' + unit(electionUnit('dep')).name + ')', since: s.date, ind: 2100, majority: true }); log('Votre binôme l’emporte : vous êtes élu·e conseiller·ère départemental·e.', 'good'); }
+      else if (el.type === 'leg') { addStd(5); addNoto('circo', 8); log('Votre allié·e est élu·e député·e : vous êtes son ou sa suppléant·e.', 'good'); } } }
     const inThis = p.cand && (p.cand.el === el.id);
     if (inThis) pjOutcome(el);
     else if (el.type === 'mun' && p.cand && p.cand.mode === 'colistier') pjOutcome(el);
@@ -955,6 +964,7 @@ window.E = (function () {
       const opts = [['meeting', 20 + t.charisme / 3], ['programme', 18], ['attaque', (t.ambition + t.rancune) / 4 + (x.rel < 0 ? 20 : 0) - (x.rel > 30 ? 25 : 0)], ['defi', pet || !p.cand || !['campagne', 'entre2', 'pre'].includes(ph) || s.queue.some(q => q.type === 'defi') ? 0 : t.ambition / 4 + t.charisme / 5], ['alliance', pet ? 0 : x.rel > 5 ? 15 + x.rel / 4 : 4], ['rumeur', t.scrupules < 45 ? 25 - t.scrupules / 3 : 0], ['debauche', p.staff.some(y => y.loy < 50) ? 10 : 0], ['critique', (p.prog || []).some(m => m.status !== 'retiree' && (m.phare || m.visib > 25)) ? 26 : 0]];
       let act = wpick(opts, o => Math.max(0, o[1]))[0];
       if (['attaque', 'defi', 'alliance', 'rumeur', 'critique'].includes(act) && asks >= 2) act = 'meeting';
+      if (villageScope() && ['attaque', 'defi', 'rumeur'].includes(act)) act = 'meeting';
       const nm = x.name; const tag = pet ? '' : ' (' + D.PARTIES[x.party].short + ')';
       if (act === 'meeting') { x.mom += 0.03; x.noto = clamp(x.noto + 2, 0, 100); s.turnRival.push(nm + tag + ' multiplie réunions publiques et porte-à-porte.'); if (rnd() < 0.5) article('dauph', nm + ' fait salle comble', 0.1, 'pnj'); }
       else if (act === 'programme') { x.mom += 0.02; const el2 = s.est ? s.elections.find(e => e.id === s.est.el) : null; const lv = el2 && ['mun', 'dep', 'reg', 'sen'].includes(el2.type) ? 'local' : 'national'; const np = typeof DP !== 'undefined' ? DP.genProp(x, lv) : null; if (np) { (x.prog = x.prog || []).push(np); s.turnRival.push(nm + tag + ' propose « ' + np.label + ' ».'); article('dauph', nm + ' propose : ' + np.label.charAt(0).toLowerCase() + np.label.slice(1), 0, 'pnj'); } else { const pr = PROMESSES[bloc] || PROMESSES.DIV; s.turnRival.push(nm + tag + ' promet ' + pr + '.'); article('dauph', nm + ' promet ' + pr, 0, 'pnj'); } }
@@ -1057,7 +1067,7 @@ window.E = (function () {
     log('Actualité : ' + e.t, 'event');
     article(e.scope === 'loc' ? 'dauph' : e.scope === 'int' ? 'quotlib' : pick(['quotlib', 'info24', 'alpes3']), e.t, 0, 'nat', e.d);
     genPosts(2);
-    if (e.ch) s.queue.push({ kind: 'event', ev: e.id, custom: e.custom ? e : null });
+    if (e.ch && !(villageScope() && e.scope !== 'loc')) s.queue.push({ kind: 'event', ev: e.id, custom: e.custom ? e : null });
   }
   function evById(id, custom) { return custom || EVENTS.find(x => x.id === id); }
   function reactNational(evId, idx, custom, scope) {
@@ -1291,5 +1301,5 @@ window.E = (function () {
     log(q.ctx + ' : vote « ' + choice + ' » sur ' + q.text + '.', 'info');
   }
 
-  return { thArt, de: deN, gtxt, cumulConflict, cumulCheck, resolveCumul, cumulDefault, cumulLabel, invOdds, invBase, sortantPart, petite, village, petiteKey, myPetite, DF, fresh, DIFF, indicators, pjTerms, peekDue, computeShared, pjCand, nextDate, rnd, rint, pick, clamp, gauss, uid, addDays, diffDays, fmtDate, eur, pct, AXI, CLAUSES, EVENTS, unit, vote, mkPnj, pnjList, findPnj, cadre, mayorOf, commune, newGame, phase, turnDays, hoursFor, nextElection, nextDate, electionUnit, TYPE_LABEL, declare, withdrawCand, investiture, endTurn, resolveEvent, applyEvent, statement, addImage, addImageAll, addNoto, popularity, hasStaff, eff, spend, addStd, plafond, log, article, post, genPosts, casserole, surface, lie, proposeAccord, betray, pollLocal, trueIntentions, resolveVote, indemnities, wdist, vecFrom, alignment, slug, rankUpdate, W1, pjCand, buildCandsPreview, runElectionRound, dissolution, estimate, rivalResolve, progEffect, natWindow, MISSIONS, daysLeft, silence, toD, fromD, PIDS, zonesFor, fieldEffect, zoneLean, canvass, reactNational, evById, natTerm, partyResolve, partyFigures, PROLE, LIST_T, LIST_SEATS, listPos };
+  return { villageScope, thArt, de: deN, gtxt, cumulConflict, cumulCheck, resolveCumul, cumulDefault, cumulLabel, invOdds, invBase, sortantPart, petite, village, petiteKey, myPetite, DF, fresh, DIFF, indicators, pjTerms, peekDue, computeShared, pjCand, nextDate, rnd, rint, pick, clamp, gauss, uid, addDays, diffDays, fmtDate, eur, pct, AXI, CLAUSES, EVENTS, unit, vote, mkPnj, pnjList, findPnj, cadre, mayorOf, commune, newGame, phase, turnDays, hoursFor, nextElection, nextDate, electionUnit, TYPE_LABEL, declare, withdrawCand, investiture, endTurn, resolveEvent, applyEvent, statement, addImage, addImageAll, addNoto, popularity, hasStaff, eff, spend, addStd, plafond, log, article, post, genPosts, casserole, surface, lie, proposeAccord, betray, pollLocal, trueIntentions, resolveVote, indemnities, wdist, vecFrom, alignment, slug, rankUpdate, W1, pjCand, buildCandsPreview, runElectionRound, dissolution, estimate, rivalResolve, progEffect, natWindow, MISSIONS, daysLeft, silence, toD, fromD, PIDS, zonesFor, fieldEffect, zoneLean, canvass, reactNational, evById, natTerm, partyResolve, partyFigures, PROLE, LIST_T, LIST_SEATS, listPos };
 })();

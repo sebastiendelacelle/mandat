@@ -124,7 +124,7 @@ const LN = (() => {
   }
 
   /* ---------- changer de parti ---------- */
-  function match(party) { const p = P(); if (p.quiz && p.quiz.qs) return D.quizMatch(p.quiz.qs, p.quiz.ans)[party] ?? null; return Math.max(0, Math.round(100 - E.wdist(p.ax, D.PARTIES[party].ax, E.W1))); }
+  function match(party) { const p = P(); if (p.quiz && p.quiz.qs && p.quiz.qs.length) return D.quizMatch(p.quiz.qs, p.quiz.ans)[party] ?? null; return Math.max(0, Math.round(100 - E.wdist(p.ax, D.PARTIES[party].ax, E.W1))); }
   function canSwitch() { const p = P(), m0 = me(); if (m0.switched && E.diffDays(m0.switched, S().date) < 365) return { ok: false, msg: 'Vous avez changé de parti il y a moins d’un an. Un nouveau départ maintenant vous ferait passer pour une girouette.' }; return { ok: true }; }
   function switchTo(party, movement) {
     const s = S(), p = P(), m0 = me(); const c = canSwitch(); if (!c.ok) return c; const from = p.party; const fromS = from === 'NEW' ? (p.movement || 'votre mouvement') : D.PARTIES[from].short;

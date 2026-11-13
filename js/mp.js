@@ -129,12 +129,29 @@ const MP = (() => {
       const keys = new Set(); Object.values(pubs).forEach(h => { if (h.cand && h.cand.el === el.id && h.cand.mode !== 'colistier') keys.add(h.cand.key); });
       if (p.cand && p.cand.el === el.id && p.cand.mode !== 'colistier') keys.add(p.cand.key);
       for (const key of keys) { const ck = gid + '|' + el.id + '|' + round + '|' + key; if (cache[ck]) continue; try { const v = dget(await db.doc(resPath(gid, el.id, round, key)).get()); if (v) cache[ck] = v; } catch (e) { } }
-      if (!(p.cand && p.cand.el === el.id && p.cand.mode !== 'colistier')) continue;
+      const amCand = p.cand && p.cand.el === el.id && p.cand.mode !== 'colistier';
+      if (!amCand) {
+        // arène : un joueur non candidat (rallié, battu à la primaire, colistier) voit le même scrutin que les candidats humains
+        if (!arena()) continue;
+        for (const key of keys) {
+          const ck = gid + '|' + el.id + '|' + round + '|' + key; if (cache[ck]) continue;
+          const r1 = el.races && el.races[key]; if (round === 2 && (!r1 || r1.done || !r1.shared)) continue;
+          const cs = Object.entries(pubs).filter(([u, h]) => u !== me && h.cand && h.cand.el === el.id && h.cand.key === key && h.cand.mode !== 'colistier' && (round === 1 || (r1.t2 || []).includes(mirrorId(u))));
+          if (!cs.length) continue;
+          const tag = el.id + ':' + round; const d = E.nextDate(el);
+          const late = cs.filter(([, h]) => !(h.date >= d || h.wait === tag));
+          if (late.length) { s.mp.wait = tag; await publish(); return { wait: true, el, round, late: late.map(([, h]) => h.name + ' (au ' + E.fmtDate(h.date, true) + ')') }; }
+          const ref = db.doc(resPath(gid, el.id, round, key));
+          for (let i = 0; i < 8 && !cache[ck]; i++) { const v = dget(await ref.get()); if (v) { cache[ck] = v; break; } await sleep(1500); }
+          if (!cache[ck]) return { wait: true, el, round, busy: true, late: [] };
+        }
+        continue;
+      }
       const key = p.cand.key; const ck = gid + '|' + el.id + '|' + round + '|' + key; if (cache[ck]) continue;
       const r1 = el.races && el.races[key]; if (round === 2 && r1 && r1.done) continue;
       const others = Object.entries(pubs).filter(([u, h]) => u !== me && h.cand && h.cand.el === el.id && h.cand.key === key && h.cand.mode !== 'colistier');
       let mustWait;
-      if (round === 1) { if (!others.length) continue; mustWait = others; }
+      if (round === 1) { if (!others.length && !(arena() && Object.keys(pubs).some(u => u !== me))) continue; mustWait = others; }
       else { if (!r1 || !r1.shared) continue; const t2 = r1.t2 || []; const humT2 = others.filter(([u]) => t2.includes(mirrorId(u))); if (t2.includes('PJ')) mustWait = humT2; else if (humT2.length) continue; else mustWait = []; }
       const tag = el.id + ':' + round; const d = E.nextDate(el);
       const late = mustWait.filter(([, h]) => !(h.date >= d || h.wait === tag));
@@ -168,10 +185,14 @@ const MP = (() => {
       const late = mates.filter(h => !(h.inv && h.inv[el.id] != null));
       if (late.length) { s.mp.wait = 'inv:' + el.id; await publish(); return { wait: true, inv: true, el, round: 0, late: late.map(h => h.name + ' (au ' + E.fmtDate(h.date, true) + ')') }; }
       const ref = db.doc('mpinv/' + gid + '~' + el.id + '~' + p.party); let v = null;
-      for (let i = 0; i < 6 && !v; i++) { v = dget(await ref.get()); if (v) break; const l = await ref.acquire({ holder: me, ttlMs: 15000 }); if (l.acquired) { v = dget(await ref.get()); if (!v) { const sc = [{ uid: me, name: p.name, sc: s.mp.inv[el.id] }].concat(mates.map(h => ({ uid: h.uid, name: h.name, sc: h.inv[el.id] }))).sort((a, b) => (b.sc - a.sc) || (a.uid < b.uid ? -1 : 1)); v = { winner: sc[0].uid, winnerName: sc[0].name, scores: sc, party: p.party, el: el.id }; await ref.set(v); } break; } await sleep(1500); }
+      for (let i = 0; i < 6 && !v; i++) { v = dget(await ref.get()); if (v) break; const l = await ref.acquire({ holder: me, ttlMs: 15000 }); if (l.acquired) { v = dget(await ref.get()); if (!v) { const sc = [{ uid: me, name: p.name, sc: s.mp.inv[el.id] }].concat(mates.map(h => ({ uid: h.uid, name: h.name, sc: h.inv[el.id] }))).sort((a, b) => (b.sc - a.sc) || (a.uid < b.uid ? -1 : 1)); const ex = sc.map(x => Math.exp((x.sc || 0) / 12)); const tx = ex.reduce((a, b) => a + b, 0); sc.forEach((x, i) => x.pct = Math.round(ex[i] / tx * 1000) / 10); // primaire : vote des adhérents
+          v = { winner: sc[0].uid, winnerName: sc[0].name, scores: sc, party: p.party, el: el.id, primaire: true }; await ref.set(v); } break; } await sleep(1500); }
       if (!v) return { wait: true, inv: true, el, round: 0, busy: true, late: [] };
       s.mp.invRes[el.id] = v; const others = v.scores.filter(x => x.uid !== me).map(x => x.name).join(', ');
       const fed = s.pnj[p.fedId];
+      const res = v.scores.map(x => x.name + ' ' + String(x.pct ?? '').replace('.', ',') + ' %').join(' · ');
+      if (v.winner !== me) s.queue.push({ kind: 'mpPrim', el: el.id, label: el.label, type: el.type, winner: v.winner, winnerName: v.winnerName, res });
+      else s.queue.push({ kind: 'info', title: 'Primaire ' + D.PARTIES[p.party].short, text: 'Les adhérents ont voté pour les ' + el.label.toLowerCase() + ' : ' + res + '. Vous portez les couleurs du parti.' });
       if (v.winner === me) { p.preInv = p.preInv || {}; p.preInv[el.id] = true; E.addStd(3); E.log('Investiture interne : la commission vous choisit face à ' + others + '.', 'good'); LF.sms(fed ? fed.id : 'La fédération', 'La commission d’investiture a tranché pour les ' + el.label.toLowerCase() + ' : c’est toi, face à ' + others + '. Prépare-toi, ils ne vont pas te faire de cadeau.', null); E.article('dauph', D.PARTIES[p.party].short + ' : ' + p.name + ' investi·e pour les ' + el.label.toLowerCase() + ', au détriment de ' + others, 0.2, 'pj'); }
       else { p.invLost = p.invLost || {}; p.invLost[el.id] = v.winnerName; E.addStd(-3); E.log('Investiture interne : la commission choisit ' + v.winnerName + '.', 'bad'); LF.sms(fed ? fed.id : 'La fédération', 'La commission a choisi ' + v.winnerName + ' pour les ' + el.label.toLowerCase() + '. Tu seras quand même candidat·e : sans l’étiquette, en dissidence, ou sous une autre bannière si tu changes de parti d’ici là.', null); }
       if (s.mp.wait && s.mp.wait.startsWith('inv:')) s.mp.wait = null; await publish();
@@ -182,7 +203,8 @@ const MP = (() => {
   function force() {
     if (!on() || !rivals().length) return []; const s = S(), p = s.p; const out = [];
     s.elections.filter(e => FORCED.includes(e.type) && e.status === 'futur' && E.diffDays(s.date, e.d1) <= 210 && E.diffDays(s.date, e.d1) > 1).forEach(e => {
-      if (p.cand || (p.inelig && p.inelig > s.date)) return; if (p.rallied && p.rallied[e.id]) delete p.rallied[e.id];
+      if (p.cand || (p.inelig && p.inelig > s.date)) return; if (p.rallied && p.rallied[e.id] && String(p.rallied[e.id]).startsWith('H_')) return; // rallié·e à un·e autre joueur·se après la primaire
+      if (p.rallied && p.rallied[e.id]) delete p.rallied[e.id];
       let r = E.declare(e.id, 'tete'); if (!p.cand) r = E.declare(e.id, 'dissident');
       if (p.cand) { const vs = rivals().map(h => h.name); out.push({ el: e, msg: r.msg, vs }); E.log('Candidature d’office : ' + e.label + '.', 'info'); }
     });

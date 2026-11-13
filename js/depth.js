@@ -235,11 +235,11 @@ window.DP = (function () {
       ['Écouter longuement, promettre de revenir', () => { E.addImage('PERI', 2); E.addImage('RET', 1); return 'La vidéo montre un·e élu·e à l’écoute. Elle tourne bien.'; }],
       ['Répliquer sèchement', () => { if (E.rnd() < 0.5) { E.addImageAll(-2.5); E.article('info24', 'La vidéo ' + E.de(P().name) + ' qui s’emporte au marché', -0.5, 'pj'); return 'La vidéo devient virale, et pas en bien.'; } E.addImage('POP', 1.5); return 'Votre franchise plaît à certains.'; }],
       ['Lui proposer une réunion avec les commerçants', () => { E.addImage('PERI', 1.2); E.addImage('CAD', 1); P().hours = Math.max(0, P().hours - 2); return 'Réunion calée (2 h de votre temps), les commerçants apprécient.'; }]] },
-    { id: 'ag', c: p => p.party !== 'NEW', t: 'Deux rendez-vous le même soir', d: 'L’assemblée générale d’une grosse association de quartier tombe le soir de la réunion de section.', o: [
+    { id: 'ag', vil: false, c: p => p.party !== 'NEW', t: 'Deux rendez-vous le même soir', d: 'L’assemblée générale d’une grosse association de quartier tombe le soir de la réunion de section.', o: [
       ['L’association', () => { E.addImage('POP', 2); E.addImage('RET', 1.5); E.addStd(-2); return 'Les habitants s’en souviendront. Le parti un peu moins bien.'; }],
       ['La section', () => { E.addStd(2.5); P().fedSup = clamp(P().fedSup + 1, 0, 100); return 'Les militants apprécient votre présence.'; }],
       ['Envoyer un collaborateur à l’association', p => { if (!p.staff.length) { E.addImage('POP', -1); return 'Personne à envoyer : l’association remarque votre absence.'; } E.addImage('POP', 1); E.addStd(2); return 'Compromis acceptable des deux côtés.'; }]] },
-    { id: 'exclu', c: () => true, t: 'Un journaliste propose un marché', d: 'Il vous offre un portrait flatteur… contre une information sur les divisions de votre camp.', o: [
+    { id: 'exclu', vil: false, c: () => true, t: 'Un journaliste propose un marché', d: 'Il vous offre un portrait flatteur… contre une information sur les divisions de votre camp.', o: [
       ['Lâcher l’information', p => { const j = E.pick(E.pnjList(x => x.role === 'journaliste')); j.rel += 12; E.addNoto(X.scopeOf(), 5); E.addStd(-5); const a = E.pick(E.pnjList(x => x.party === p.party && x.known && x.role !== 'journaliste')); if (a) { a.rel -= 20; } E.article(j.territory, 'Portrait : ' + p.name + ', l’ambition sans complexe', 0.3, 'pj'); return 'Portrait publié. En interne, on cherche qui a parlé.'; }],
       ['Refuser poliment', () => { P().cred = clamp(P().cred + 1, 0, 100); return 'Le journaliste note votre loyauté. Pas de portrait.'; }]] },
     { id: 'societe', c: p => !!p.cand, t: 'Un chef d’entreprise veut « aider »', d: 'Il propose de financer vos tracts via sa société. Les dons des personnes morales sont interdits.', o: [
@@ -253,28 +253,28 @@ window.DP = (function () {
       ['Publier la vidéo complète', () => { E.addImageAll(0.8); P().cred = clamp(P().cred + 1, 0, 100); return 'La manipulation est démontée, vous en sortez grandi·e.'; }],
       ['Porter plainte', p => { p.cash -= 1500; E.addImageAll(0.3); return 'Plainte déposée. L’affaire suivra son cours.'; }],
       ['Laisser courir', () => { E.addImageAll(-1.8); return 'L’extrait continue de circuler.'; }]] },
-    { id: 'usine', c: () => true, t: 'Rassemblement devant une usine menacée', d: 'Les syndicats appellent à se rassembler devant un site qui pourrait fermer.', o: [
+    { id: 'usine', vil: false, c: () => true, t: 'Rassemblement devant une usine menacée', d: 'Les syndicats appellent à se rassembler devant un site qui pourrait fermer.', o: [
       ['Y aller, au milieu des salariés', () => { E.addImage('POP', 3); E.addImage('CAD', -1); E.addNoto(X.scopeOf(), 2); return 'Images fortes au journal régional.'; }],
       ['Un communiqué de soutien mesuré', () => { E.addImage('POP', 1); return 'Soutien noté, sans plus.'; }],
       ['Rencontrer la direction plutôt que les syndicats', () => { E.addImage('CAD', 2); E.addImage('POP', -1.5); return 'Une démarche jugée sérieuse par les uns, distante par les autres.'; }]] },
-    { id: 'crue', c: () => true, t: 'Orages violents : un quartier sous l’eau', d: 'Caves inondées, routes coupées. Les secours sont sur place.', o: [
+    { id: 'crue', c: () => true, t: 'Orages violents : caves inondées, routes coupées', d: 'Les secours sont sur place. Les habitants attendent les élus.', o: [
       ['Aller sur place, en bottes', () => { E.addImage('RET', 2); E.addImage('POP', 2); E.addNoto(X.scopeOf(), 3); return 'On vous voit aider les sinistrés. Ça compte.'; }],
       ['Dénoncer l’imprévoyance de la majorité', p => { if (p.mairie) { E.addImageAll(-1); return 'Difficile quand on est soi-même maire…'; } E.addImage('PERI', 1.5); E.addImage('RET', -1); return 'Polémique en pleine crise : ça divise.'; }],
       ['Rester discret, laisser travailler les secours', () => { P().cred = clamp(P().cred + 1, 0, 100); return 'Sobriété appréciée par certains, absence remarquée par d’autres.'; }]] },
-    { id: 'influ', c: () => true, t: 'Un influenceur local vous invite en live', d: '45 000 abonnés, ton décontracté, questions imprévisibles.', o: [
+    { id: 'influ', vil: false, c: () => true, t: 'Un influenceur local vous invite en live', d: '45 000 abonnés, ton décontracté, questions imprévisibles.', o: [
       ['Accepter', p => { if (E.rnd() < 0.7) { E.addImage('JUD', 3); p.followers += E.rint(300, 1500); return 'Le live cartonne chez les jeunes.'; } E.addImageAll(-1.5); return 'Une question piège vous déstabilise en direct.'; }],
       ['Refuser', () => { E.addImage('JUD', -0.8); return 'Une occasion manquée auprès des jeunes.'; }]] },
-    { id: 'baron', c: p => p.party !== 'NEW' && p.prole >= 1, t: 'Une proposition venue d’en haut', d: 'Un baron du parti vous propose son soutien au prochain congrès, contre votre loyauté sur un vote interne.', o: [
+    { id: 'baron', vil: false, c: p => p.party !== 'NEW' && p.prole >= 1, t: 'Une proposition venue d’en haut', d: 'Un baron du parti vous propose son soutien au prochain congrès, contre votre loyauté sur un vote interne.', o: [
       ['Accepter le pacte', p => { const b = E.partyFigures().find(x => x.role === 'baron'); if (b) { b.rel += 15; p.accords.push({ id: E.uid('acc'), with: b.id, clauses: ['soutien'], date: S().date, status: 'actif' }); } p.natSup = clamp(p.natSup + 3, 0, 100); return 'Pacte conclu. Vous voilà lié·e.'; }],
       ['Refuser : je reste libre', p => { p.cred = clamp(p.cred + 0.5, 0, 100); const b = E.partyFigures().find(x => x.role === 'baron'); if (b) b.rel -= 6; return 'Indépendance préservée, un baron vexé.'; }]] },
     { id: 'fusion', c: p => !!p.cand && E.phase().id !== 'hors', t: 'Une petite liste propose de fusionner', d: 'Une liste citoyenne à 4 % vous propose de vous rejoindre contre deux places éligibles.', o: [
       ['Accepter', p => { p.mom += 0.03; p.militants += 6; E.addStd(-2); return 'Renfort bienvenu. Deux de vos fidèles reculent sur la liste et grincent.'; }],
       ['Refuser', p => { p.mom -= 0.01; return 'Ils maintiennent leur liste et grignoteront quelques voix.'; }]] },
-    { id: 'classe', c: () => true, t: 'Une fermeture de classe annoncée', d: 'L’école du quartier perd une classe à la rentrée. Les parents se mobilisent.', o: [
+    { id: 'classe', c: () => true, t: 'Une fermeture de classe annoncée', d: 'L’école perd une classe à la rentrée. Les parents se mobilisent.', o: [
       ['Lancer une pétition avec les parents', () => { E.addImage('CAD', 2); E.addImage('JUD', 2); return '1 200 signatures en une semaine.'; }],
       ['Écrire au rectorat, sans bruit', p => { if (p.mandats.length) { P().cred = clamp(P().cred + 1.5, 0, 100); return 'Le rectorat répond : on rouvre le dossier.'; } return 'Sans mandat, la lettre reste sans réponse.'; }],
       ['Ne pas s’en mêler', () => { E.addImage('CAD', -1); return 'Les parents remarquent votre silence.'; }]] },
-    { id: 'sondfuite', c: p => !!p.cand, t: 'Un sondage interne a fuité', d: 'Votre sondage interne, plutôt mauvais, se retrouve dans la presse.', o: [
+    { id: 'sondfuite', vil: false, c: p => !!p.cand, t: 'Un sondage interne a fuité', d: 'Votre sondage interne, plutôt mauvais, se retrouve dans la presse.', o: [
       ['Assumer : « on part de loin, on va remonter »', p => { p.cred = clamp(p.cred + 1, 0, 100); p.mom -= 0.01; return 'Lucidité saluée.'; }],
       ['Démentir son authenticité', p => { if (E.rnd() < 0.4) { p.cred = clamp(p.cred - 3, 0, 100); return 'Le sondeur confirme : vous voilà pris·e en défaut.'; } return 'Le doute s’installe sur le sondage.'; }],
       ['Chercher la fuite dans l’équipe', p => { p.staff.forEach(x => { x.audited = true; x.loy -= 3; }); return 'Ambiance pesante, mais vous savez maintenant qui est loyal.'; }]] },
@@ -284,7 +284,7 @@ window.DP = (function () {
   ];
   function situationTick(days) {
     const s = S(), p = P(); const pr = Math.min(0.85, 0.45 * days / 14 + 0.06); if (E.rnd() > pr) return;
-    s.sitDone = s.sitDone || []; const pool = SIT.filter(x => x.c(p) && !s.sitDone.slice(-8).includes(x.id)); if (!pool.length) return;
+    s.sitDone = s.sitDone || []; const vil = E.villageScope(); const pool = SIT.filter(x => x.c(p) && !(vil && x.vil === false) && !s.sitDone.slice(-8).includes(x.id)); if (!pool.length) return;
     const x = pick(pool); s.sitDone.push(x.id); s.queue.push({ kind: 'situation', id: x.id });
   }
   function situationResolve(id, idx) { const x = SIT.find(z => z.id === id); const msg = x.o[idx][1](P()); E.log(x.t + ' — ' + msg, 'event'); return msg; }

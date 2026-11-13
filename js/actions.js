@@ -13,7 +13,7 @@ window.X = (function () {
   const ACTIONS = [
     // Terrain
     { id: 'porte', cat: 'Terrain', l: 'Porte-à-porte', h: 6, d: 'Le plus efficace : quartier par quartier, couverture et image auprès des habitants.', input: 'zone',
-      run(o) { if (o.zone) { const z = E.canvass(o.zone, 'porte'); E.addNoto(scopeOf(), 2); if (rnd() < 0.35) P().militants++; if (inCampaign()) P().camp.terrain += 6 * E.eff(); return 'Porte-à-porte : ' + z.name + ' (couverture ' + Math.round(z.cover) + ' %).'; } const e = E.eff() * (1 + (trait('terrain') - 50) / 150) * (E.hasStaff('terrain') ? 1.25 : 1); E.addNoto(scopeOf(), 2.4 * e); E.addImage(o.seg, 2.2 * e); if (rnd() < 0.35) P().militants++; if (inCampaign()) P().camp.terrain += 6 * e; return 'Vous frappez à une centaine de portes (' + D.SEGS.find(s => s.id === o.seg).name.toLowerCase() + ').'; } },
+      run(o) { o = o || {}; if (o.zone) { const z = E.canvass(o.zone, 'porte'); E.addNoto(scopeOf(), 2); if (rnd() < 0.35) P().militants++; if (inCampaign()) P().camp.terrain += 6 * E.eff(); return 'Porte-à-porte : ' + z.name + ' (couverture ' + Math.round(z.cover) + ' %).'; } if (!D.SEGS.some(x => x.id === o.seg)) o.seg = D.SEGS[0].id; const e = E.eff() * (1 + (trait('terrain') - 50) / 150) * (E.hasStaff('terrain') ? 1.25 : 1); E.addNoto(scopeOf(), 2.4 * e); E.addImage(o.seg, 2.2 * e); if (rnd() < 0.35) P().militants++; if (inCampaign()) P().camp.terrain += 6 * e; return 'Vous frappez à une centaine de portes (' + D.SEGS.find(s => s.id === o.seg).name.toLowerCase() + ').'; } },
     { id: 'marche', cat: 'Terrain', l: 'Tractage', h: 3, cost: 60, d: 'Visibilité rapide sur un marché, une sortie d’école, une gare.', input: 'zone',
       run(o) { if (o.zone) { const z = E.canvass(o.zone, 'tract'); E.addNoto(scopeOf(), 1.5); if (inCampaign()) P().camp.terrain += 3; return 'Tractage : ' + z.name + '.'; } const e = E.eff(); E.addNoto(scopeOf(), 1.5 * e); E.addImage('RET', 0.8 * e); E.addImage('PERI', 0.8 * e); if (inCampaign()) P().camp.terrain += 3 * e; return 'Tracts distribués, quelques échanges vifs au stand du fromager.'; } },
     { id: 'appart', cat: 'Terrain', l: 'Réunion d’appartement', h: 4, d: 'Convaincre en petit comité ; recrute des militants.', input: 'zone',
@@ -131,8 +131,10 @@ window.X = (function () {
   }
   function curType() { const c = P().cand; return c ? S().elections.find(e => e.id === c.el)?.type : null; }
   function costOf(a) { return typeof a.cost === 'function' ? a.cost() : (a.cost || 0); }
+  const COLI_BLOCK = ['meeting', 'defier', 'accord', 'affiches', 'sondage', 'levee', 'numerique', 'phoning'];
   function avail(a) {
     if (E.silence() && ['Campagne', 'Terrain', 'Médias'].includes(a.cat)) return 'Silence électoral : la campagne est close.';
+    if (P().cand && P().cand.mode === 'colistier' && COLI_BLOCK.includes(a.id)) { const h = S().pnj[P().cand.listOf]; return 'Réservé à la tête de liste' + (h ? ' (' + h.name + ')' : '') + ' : en tant que colistier·ère, vous faites campagne sur le terrain.'; }
     if (a.cond) { const r = a.cond(); if (r !== true) return r; }
     if (a.h > P().hours) return 'Pas assez d’heures disponibles (' + a.h + ' h).';
     const c = costOf(a); if (c && !canPay(c)) return 'Fonds insuffisants (' + eur(c) + ').';
