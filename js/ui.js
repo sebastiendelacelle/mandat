@@ -2182,6 +2182,8 @@
     const dl = E.daysLeft(); const td = E.turnDays();
     if (E.silence()) return '<span class="cd hot" title="' + esc(ph.label) + '">Silence électoral</span>';
     if (ph.id === 'attente') return '<span class="cd">' + (ph.won ? 'Élu·e au 1er tour' : 'Campagne terminée') + '</span>';
+    const own = s.p.cand ? s.elections.find(x => x.id === s.p.cand.el && x.status !== 'fini') : null; // votre propre scrutin d'abord, comme la carte de campagne
+    if (own && own.id !== e.id) { const d2 = E.diffDays(s.date, E.nextDate(own)); return '<span class="cd' + (d2 <= 56 ? ' hot' : '') + '" title="' + esc(own.label) + '"><span class="cdl">' + esc(own.label.replace(/ \d{4}.*/, '')) + ' · </span>' + (own.status === 't1' ? '2nd tour ' : '') + 'J−' + Math.ceil(d2) + '</span>'; }
     if (ph.id === 'campagne' || ph.id === 'entre2' || dl <= 21) return '<span class="cd hot" title="' + esc(ph.label) + '">' + (ph.id === 'entre2' ? '2nd tour ' : '') + 'J−' + Math.ceil(dl) + (td === 0.5 ? (s.half ? ' · après-midi' : ' · matin') : '') + '</span>';
     if (dl < 420) return '<span class="cd" title="' + esc(e.label) + '"><span class="cdl">' + esc(e.label.replace(/ \d{4}.*/, '')) + ' · </span>J−' + Math.ceil(dl) + '</span>';
     return '';
