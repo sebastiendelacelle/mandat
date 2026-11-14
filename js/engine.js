@@ -275,6 +275,7 @@ window.E = (function () {
     const to2 = diffDays(s.date, fromD(new Date(Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + 2, 1, 12))));
     let std = d > 300 && !s.p.cand ? to2 : d > 150 ? toMonth : d > 56 ? 14 : d > 21 ? 7 : d > 7 ? 4 : d > 3 ? 2 : d > 2 ? 1 : d > 1 ? 0.5 : 1;
     if (std > 1 && std > d - 1) std = Math.max(1, Math.floor(d - 1)); if (d > 150 && toMonth > d - 150 && d - 150 >= 7) std = Math.round(d - 150);
+    if (s.p.cand && d > 56 && d <= 150) std = d - 56 > 35 ? 28 : Math.max(7, Math.round(d - 56)); // pré-campagne : on rejoint vite l'ouverture de la campagne
     if (!s.p.cand && d <= 150 && d > 1) std = d > 45 ? Math.min(toMonth, Math.floor(d - 1)) : Math.max(1, Math.floor(d - 1)); // pas candidat·e : pas de tours au jour le jour
     return std;
   }

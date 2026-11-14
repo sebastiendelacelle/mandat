@@ -1767,7 +1767,7 @@
     if (jid === '__no') { toast('Ce média ne vous invitera pas encore. Travaillez votre notoriété ou la relation.'); return; }
     const st = X.startAI('interview'); if (!st.ok) { toast(st.msg); return; }
     const j = S().pnj[jid]; j.known = true; const media = D.MEDIAS.find(m => m.id === j.territory); const before = X.snap();
-    const sum = await debateRun({ interview: true, journalist: { id: j.id }, format: FORMATS[j.territory], host: j.name, tone: toneOf(j), rounds: S().mode === 'simple' ? 4 : 8, opponents: [], natHook: E.rnd() < 0.5 ? ((S().recentEv || [])[0] || null) : null, reach: media.reach, relBonus: Math.round(j.rel / 10) });
+    const sum = await debateRun({ interview: true, journalist: { id: j.id }, format: FORMATS[j.territory], host: j.name, tone: toneOf(j), rounds: S().mode === 'simple' ? 4 : 5, opponents: [], natHook: E.rnd() < 0.5 ? ((S().recentEv || [])[0] || null) : null, reach: media.reach, relBonus: Math.round(j.rel / 10) });
     const msg = X.applyDebate(sum); j.rel += sum.score > 55 ? 4 : -3; E.addNoto(media.lean !== 0 || ['quotlib', 'info24', 'revel'].includes(media.id) ? 'nat' : 'circo', 1.5); E.estimate();
     await info('Après l’interview', '<p>' + esc(msg) + '</p><p class="small muted">Audience touchée surtout : ' + Object.entries(media.reach).sort((x, y) => y[1] - x[1]).slice(0, 2).map(([g]) => D.SEGS.find(s => s.id === g).name.toLowerCase()).join(', ') + '.</p>' + chipsHTML(X.deltas(before, X.snap()))); render();
   }
@@ -2387,7 +2387,7 @@
   /* ---------- soirée électorale ---------- */
   function clockStage(label) {
     return new Promise(res => {
-      const { m, close } = modal('<div class="night"><div class="eyebrow">Soirée électorale · ' + esc(label) + '</div><div class="clock num" id="clk">19:59:52</div><p class="muted">Les derniers bureaux de vote ferment. Les instituts s’apprêtent à donner leurs estimations.</p><p class="muted small">Touchez pour passer.</p></div>', null, 'nightm');
+      const { m, close } = modal('<div class="night"><div class="eyebrow">Soirée électorale · ' + esc(label) + '</div><div class="clock num" id="clk">19:59:52</div><p class="muted">Les derniers bureaux de vote ferment. Les instituts s’apprêtent à donner leurs estimations.</p><button class="btn primary" style="margin-top:10px">Voir les résultats</button></div>', null, 'nightm');
       let t = 52; const fin = () => { clearInterval(iv); const c = m.querySelector('#clk'); c.textContent = '20:00:00'; c.classList.add('go'); setTimeout(() => { close(); res(); }, 650); };
       const iv = setInterval(() => { t++; if (t >= 60) fin(); else m.querySelector('#clk').textContent = '19:59:' + t; }, 170);
       m.onclick = () => { if (t < 60) { t = 60; fin(); } };
