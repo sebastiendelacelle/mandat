@@ -274,6 +274,45 @@ const PW = (() => {
     m.plan.items.forEach((it, i) => { const st = t.st[i]; if (typeof GV !== 'undefined') GV.addBilan((st === 'done' || st === 'ok' ? 'Engagement tenu : ' : 'Engagement non tenu : ') + it.l, st === 'done' || st === 'ok' ? 5 : -4, 'mandat'); });
     p.cred = clamp(p.cred + (t.ratio - 0.5) * 8, 0, 100); E.article('dauph', 'Fin de mandat : ' + p.name + ' a tenu ' + t.done + ' de ses ' + t.n + ' engagements', t.ratio >= 0.5 ? 0.3 : -0.3, 'pj'); }
 
+  /* =================== campagne : une décision à chaque tour =================== */
+  function campItem() {
+    const p = P(), s = S(); const com = E.commune().name; const L = known() || enjeux() || []; const th = L[0] ? L[0].t : 'securite'; const thl = D.THEMES[th] ? D.THEMES[th].l.toLowerCase() : 'la sécurité';
+    const rv = (s.rivals || []).map(id => s.pnj[id]).filter(x => x && !x.human)[0]; const rn = rv ? rv.name : 'Un adversaire';
+    const C = [
+      ['marche', () => FL.mkItem('pwcamp', { from: 'Votre équipe de campagne', t: 'Jour de marché à ' + com, body: 'Le marché du samedi est bondé. C’est là que se font les campagnes de terrain : poignées de main, tracts, discussions.', opts: [
+        { l: 'Y aller vous-même', sub: '3 h', h: 3, fx: { noto: 0.8, img: { RET: 0.6, PERI: 0.5 } }, res: 'Deux heures de poignées de main et quelques conversations vraies. On vous a vu·e.' },
+        { l: 'Y envoyer vos militants', pw: { mil: 0 }, fx: { img: { RET: 0.3 } }, res: 'Vos militants tractent. Moins d’effet que vous, mais vous gardez votre temps.' },
+        { l: 'Faire l’impasse', res: 'Vous laissez le marché à vos adversaires.' }], dflt: { res: 'Le marché s’est tenu sans vous.' } })],
+      ['attaque', () => rv && FL.mkItem('pwcamp', { from: rn, t: rn + ' vous attaque', body: rn + ' affirme sur les réseaux que vous « n’avez aucun projet pour ' + com + ' ». Le message circule.', opts: [
+        { l: 'Répondre point par point', sub: '1 h', h: 1, fx: { cred: 0.6, rmom: -0.01 }, res: 'Votre réponse, sobre et chiffrée, est bien reprise.' },
+        { l: 'Contre-attaquer', fx: { noto: 0.5, rmom: -0.02, rrel: -10, all: -0.2 }, res: 'L’échange se durcit. On parle de vous, pas toujours en bien.' },
+        { l: 'Ne pas répondre', fx: { cred: 0.2, rmom: 0.01 }, res: 'Vous ne relevez pas. Certains y voient de la hauteur, d’autres un aveu.' }], dflt: { fx: { rmom: 0.01 }, res: 'L’attaque reste sans réponse.' } })],
+      ['enjeu', () => FL.mkItem('pwcamp', { from: 'Des habitants', t: 'On vous interpelle sur ' + thl, body: 'Lors d’une réunion d’appartement, la question revient sans cesse : ' + thl + '. Les électeurs attendent une réponse claire.', opts: [
+        { l: 'Prendre un engagement précis', sub: '1 h', h: 1, pw: { talk: [th, 2] }, fx: { cred: 0.5 }, res: 'Votre engagement est noté, et il sera rappelé.' },
+        { l: 'Promettre d’y travailler', pw: { talk: [th, 1] }, fx: { cred: -0.2 }, res: 'Une réponse prudente. Pas de quoi convaincre.' },
+        { l: 'Ramener la discussion à votre programme', res: 'Vous déroulez votre programme. La salle reste sur sa faim.' }], dflt: { res: 'La question reste sans réponse de votre part.' } })],
+      ['tract', () => FL.mkItem('pwcamp', { from: 'Vos militants', t: 'Un tract anonyme circule', body: 'Un tract non signé vous accuse d’avoir « menti sur votre parcours ». Il a été glissé dans les boîtes aux lettres d’un quartier entier.', opts: [
+        { l: 'Porter plainte pour diffamation', sub: '1 h', h: 1, fx: { cred: 0.5 }, res: 'La plainte est déposée. La presse le mentionne : vous apparaissez comme la victime.' },
+        { l: 'Démentir publiquement', fx: { noto: 0.3, cred: 0.2 }, res: 'Votre démenti circule autant que le tract.' },
+        { l: 'Ignorer', res: 'Le tract fait son chemin dans le quartier.' }], dflt: { fx: { all: -0.2 }, res: 'Le tract a fait son effet.' } })],
+      ['debat', () => FL.mkItem('pwcamp', { from: 'Une association de quartier', t: 'Un débat entre candidats', body: 'Une association organise un débat public entre têtes de liste, jeudi soir, salle des fêtes.', opts: [
+        { l: 'Accepter', sub: '3 h', h: 3, fx: { cred: 1, noto: 0.8 }, res: 'Vous tenez la distance. Les présents retiennent vos réponses.' },
+        { l: 'Décliner', fx: { cred: -0.5 }, res: 'Votre chaise vide est remarquée.' }], dflt: { fx: { cred: -0.5 }, res: 'Le débat s’est tenu sans vous.' } })],
+      ['benevoles', () => FL.mkItem('pwcamp', { from: 'Votre équipe de campagne', t: 'Vos bénévoles fatiguent', body: 'Après des semaines de tractage, vos bénévoles s’essoufflent. Certains ne viennent plus.', opts: [
+        { l: 'Organiser un repas d’équipe', sub: '300 €', cash: 300, pw: { mil: 3 }, res: 'Une soirée réussie : l’équipe repart, et deux amis s’y joignent.' },
+        { l: 'Alléger le programme de terrain', pw: { mil: -1 }, res: 'L’équipe souffle, la campagne ralentit un peu.' }], dflt: { pw: { mil: -2 }, res: 'Deux bénévoles ont décroché.' } })],
+      ['sondage', () => { const es = E.estimate(); const pc = es ? Math.round(es.pct) : 20; return FL.mkItem('pwcamp', { from: 'Le Dauphinois', t: 'Un sondage local vous donne ' + pc + ' %', body: 'Le Dauphinois publie un sondage sur les municipales. Vous y êtes crédité·e de ' + pc + ' %. La presse vous demande une réaction.', opts: [
+        { l: pc >= 30 ? 'Se dire confiant·e sans triompher' : 'Dire que la campagne commence à peine', fx: { cred: 0.4 }, res: 'Une réaction mesurée, bien reçue.' },
+        { l: pc >= 30 ? 'Annoncer la victoire' : 'Contester le sondage', fx: pc >= 30 ? { noto: 0.4, cred: -0.4 } : { cred: -0.3, noto: 0.2 }, res: 'Votre réaction fait réagir. Pas forcément dans le bon sens.' }], dflt: { res: 'Vous ne commentez pas.' } }); }],
+      ['ralliement', () => FL.mkItem('pwcamp', { from: 'Un conseiller municipal sortant', t: 'Un sortant hésite à vous rejoindre', body: 'Un conseiller municipal sortant, apprécié dans son quartier, se dit prêt à rejoindre votre liste. Il demande une place en position éligible.', opts: [
+        { l: 'Lui promettre une place éligible', fx: { img: { RET: 0.6, PERI: 0.3 }, noto: 0.4 }, res: 'Il annonce son ralliement. Ses soutiens suivent.' },
+        { l: 'L’accueillir sans rien promettre', fx: { img: { RET: 0.2 } }, res: 'Il vous rejoint du bout des lèvres.' },
+        { l: 'Refuser', fx: { cred: 0.2 }, res: 'Vous préférez une liste renouvelée.' }], dflt: { res: 'Faute de réponse, il est allé voir ailleurs.' } })]
+    ];
+    const ok = C.filter(([k]) => due('camp_' + k, 21)); if (!ok.length) return null; const c = pick(ok); seen('camp_' + c[0]); return c[1]() || null;
+  }
+  function campTick(tryAdd) { const p = P(); if (!p.cand || p.cand.mode === 'colistier' || !['campagne', 'entre2', 'pre'].includes(E.phase().id)) return; const pend = FL.pending(); if (pend.length) return; tryAdd(true, campItem); }
+
   /* =================== résolution des options =================== */
   function res(e, it) { let out = '';
     if (e.hook) addHook(e.hook[0], e.hook[1], e.hook[2], e.hook[3]);
@@ -282,6 +321,8 @@ const PW = (() => {
     if (e.denonce && typeof MP !== 'undefined') { MP.send(e.denonce, 'attaque', 'Il y a une chose qu’on ne fait pas en politique : renier sa parole. Je ne l’oublierai pas.'); E.addNoto(FL.nscope(), 0.5); }
     if (e.bud === 'recond') { const b = P().mairie && P().mairie.bud && P().mairie.bud[String(+yr() - 1)]; out = voteBudget({ forced: true, dtf: 0, f: 0, emp: b ? b.emp : 1, prio: b ? b.prio : [] }); }
     if (e.plan) out = planRes(e.plan) || '';
+    if (e.talk) talk(e.talk[0], e.talk[1]);
+    if (e.mil != null) P().militants = Math.max(0, (P().militants || 0) + e.mil);
     return out; }
 
   /* =================== tour =================== */
@@ -297,6 +338,7 @@ const PW = (() => {
       if (m.plan && !m.plan.end) { const mun = s.elections.find(e => e.type === 'mun' && e.status === 'futur' && dd(s.date, e.d1) <= 60 && dd(s.date, e.d1) > 0); if (mun) planEnd(); }
       if (mo === 12) prioEval(); }
     pactTick(tryAdd);
+    campTick(tryAdd);
   }
   return { W, HK, addHook, liveHooks, hookUses, useHook, enquete, canEnq, ENQ_H, ENQ_C, secUses, useSecret, enjeux, known, enjW, talk, talks, talkAlign, baro, proposePact, pactWith, inbound, ASK, budCalc, budVoted, voteBudget, PRIO, EMP, planCands, setPlan, itemSt, tally, res, tick, LATER };
 })();

@@ -38,7 +38,7 @@ const GV = (() => {
   }
 
   /* ===== guide du premier mois ===== */
-  const START_L = { habitant: 'habitant·e engagé·e', militant: 'simple militant·e', adjoint: 'adjoint·e au maire', notable: 'personnalité locale' };
+  const START_L = { habitant: 'habitant·e engagé·e', militant: 'simple militant·e', adjoint: 'adjoint·e au maire', notable: 'personnalité locale', opposition: 'élu·e d’opposition' };
   const GUIDE = [
     { t: 'Le but du jeu', x: () => { const p = S().p; const c = E.commune(); const vil = c.pop < 3500; return 'Conquérir puis exercer le pouvoir, de la mairie jusqu’à l’Élysée. Vous démarrez comme ' + (START_L[vil && S().start === 'militant' ? 'habitant' : S().start] || 'militant·e') + ' à ' + c.name + (vil ? ' (' + c.pop.toLocaleString('fr-FR') + ' habitants). Première étape : devenir maire. Ici, règles simplifiées : pas d’investiture, pas d’étiquette, une liste d’habitants. Ensuite viendront le parti, les médias et les grandes élections.' : '.') + ' Le jeu alterne deux temps : la conquête (une campagne : équipe, programme, terrain, débats) et l’exercice (un mandat : dossiers, budget, votes).'; }, next: 'Compris' },
     { t: 'Votre prochain rendez-vous', x: () => { const e = E.nextElection(); if (!e) return 'Aucune élection en vue : construisez votre réseau et votre notoriété.'; const d = E.diffDays(S().date, e.d1); if (e.type === 'mun' && E.myPetite()) return e.label + ', dans ' + d + ' jours. D’ici là : faites-vous connaître des habitants (porte-à-porte, fêtes, marché), écrivez un projet simple pour le village, et préparez votre liste : ' + Math.max(5, D.councilSize(E.commune().pop) - (E.commune().pop < 1000 ? 2 : 0)) + ' noms au minimum, en alternant femmes et hommes. La candidature s’ouvre sept mois avant le scrutin, dans le deuxième onglet (🗳).'; return e.label + ', dans ' + d + ' jours. D’ici là : faites-vous connaître (terrain, presse, réseaux), gagnez du poids dans votre parti pour être investi·e, et préparez un programme. La candidature s’ouvre sept mois avant le scrutin, dans le deuxième onglet (🗳).'; }, next: 'Compris' },
@@ -59,11 +59,29 @@ const GV = (() => {
       else { p.mandats.push({ type: 'adjoint', label: 'Adjoint·e au maire ' + E.de(com.name), since: s.date, ind: D.adjIndemnity(com.pop), majority: true }); p.prole = Math.max(p.prole || 0, 1); }
       p.noto.commune = Math.max(p.noto.commune, 34); p.noto.circo = Math.max(p.noto.circo, 12); p.cred = clamp(p.cred + 6, 0, 100); E.addStd(6); D.SEG_IDS.forEach(g => E.addImage(g, 3));
       addBilan('Six ans d’adjoint·e : bilan contrasté', 2, 'mandat');
+    } else if (start === 'opposition') {
+      p.mandats.push({ type: 'conseiller_municipal', label: 'Conseiller·ère municipal·e d’opposition (' + com.name + '), chef·fe de file', since: s.date, ind: 0, majority: false }); p.oppLeader = true;
+      p.noto.commune = Math.max(p.noto.commune, 30); p.noto.circo = Math.max(p.noto.circo, 8); p.cred = clamp(p.cred + 4, 0, 100); E.addStd(4); ['POP', 'PERI', 'JUD'].forEach(g => E.addImage(g, 2)); p.militants += 4;
+      addBilan('Six ans d’opposition : des combats menés', 1, 'mandat');
     } else if (start === 'notable') {
       p.noto.commune = Math.max(p.noto.commune, 38); p.noto.circo = Math.max(p.noto.circo, 14); p.cash += 15000; p.cred = clamp(p.cred + 8, 0, 100); p.militants += 8;
       ['POP', 'RET', 'CAD'].forEach(g => E.addImage(g, 6)); p.notable = true;
     }
   }
+
+  // La partie commence par la campagne : mode débutant (simplifié) ou expérimenté (complet)
+  function startCampaign(mode) {
+    const s = S(), p = P(); s.mode = mode === 'complet' ? 'complet' : 'simple'; E.fastForward();
+    const el = E.nextElection(e => e.type === 'mun') || E.nextElection();
+    if (s.mode === 'simple') {
+      p.noto.commune = Math.max(p.noto.commune, 26); p.noto.circo = Math.max(p.noto.circo, 6); p.militants += 6; p.cred = clamp(p.cred + 4, 0, 100);
+      if (el) { p.preInv = Object.assign({}, p.preInv, { [el.id]: true }); const r = E.declare(el.id, 'tete'); if (!p.cand) E.declare(el.id, 'dissident'); if (p.cand) p.cand.invested = true; }
+      if (!p.staff.some(x => x.role === 'mandataire') && !E.myPetite()) { const g = E.rnd() < 0.5 ? 'F' : 'M'; p.staff.push({ id: E.uid('st'), role: 'mandataire', g, name: (g === 'F' ? E.pick(D.FIRST_F) : E.pick(D.FIRST_M)) + ' ' + E.pick(D.LAST), comp: 60, loy: 80, amb: 20, disc: 80, sal: 0, date: s.date, mission: 'veille' }); }
+      if (typeof HQ !== 'undefined' && HQ.needDC && HQ.needDC()) { const L = HQ.dcCandidates(); const c = L.find(x => x.src === 'militant') || L[0]; if (c) HQ.setDC(c); }
+    }
+    p.hoursMax = p.hours = E.hoursFor(E.turnDays()); E.estimate(); return el;
+  }
+  const simple = () => (S() || {}).mode === 'simple';
 
   /* ===== mémoire et arcs ===== */
   function remember(id, t, d) { const x = S().pnj[id]; if (!x || x.human) return; x.mem = (x.mem || []).concat([{ date: S().date, t, d: d || 0 }]).slice(-8); }
@@ -144,6 +162,6 @@ const GV = (() => {
   }
   function opposant() { const s = S(), p = P(); const com = p.communeId; const el = s.elections.filter(e => e.type === 'mun' && e.races).slice(-1)[0]; const r = el && el.races['mun:' + com]; const row = r && (r.r2 || r).rows.find(x => !x.pj && s.pnj[x.id]); return row ? s.pnj[row.id] : E.findPnj(x => x.territory === com && x.role !== 'journaliste'); }
   function interpOutcome(sum) { const sc = sum.score; addBilan('Conseil municipal : ' + (sc >= 55 ? 'vous dominez l’opposition' : sc < 45 ? 'l’opposition marque des points' : 'échange équilibré'), sc >= 55 ? 3 : sc < 45 ? -3 : 0, 'conseil'); }
-  return { MS, msList, nextMs, check, guide, guideNext, GUIDE, applyStart, remember, lastMem, arcs, setupArcs, arcTick, mentorFx, keepPromise, addBilan, bilanScore, bilanTerm, incumbentFor, govTick, PRIOS, budgetSession, plfVote, opposant, interpOutcome };
+  return { startCampaign, simple, MS, msList, nextMs, check, guide, guideNext, GUIDE, applyStart, remember, lastMem, arcs, setupArcs, arcTick, mentorFx, keepPromise, addBilan, bilanScore, bilanTerm, incumbentFor, govTick, PRIOS, budgetSession, plfVote, opposant, interpOutcome };
 })();
 if (typeof window !== 'undefined') window.GV = GV;

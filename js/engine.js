@@ -273,10 +273,18 @@ window.E = (function () {
     const d = daysLeft(); if (d >= 999) return toMonth;
     const ph = phase(); if (ph.id === 'attente' && ph.won && ph.el && ph.el.status === 't1') { const to2 = diffDays(s.date, ph.el.d2); if (to2 >= 0) return to2 + 1; } // élu·e au 1er tour : on saute au lendemain du second tour
     const to2 = diffDays(s.date, fromD(new Date(Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + 2, 1, 12))));
-    let std = d > 300 && !s.p.cand ? to2 : d > 150 ? toMonth : d > 56 ? 14 : d > 21 ? 7 : d > 7 ? 3 : d > 3 ? 2 : d > 2 ? 1 : d > 1 ? 0.5 : 1;
+    let std = d > 300 && !s.p.cand ? to2 : d > 150 ? toMonth : d > 56 ? 14 : d > 21 ? 7 : d > 7 ? 4 : d > 3 ? 2 : d > 2 ? 1 : d > 1 ? 0.5 : 1;
     if (std > 1 && std > d - 1) std = Math.max(1, Math.floor(d - 1)); if (d > 150 && toMonth > d - 150 && d - 150 >= 7) std = Math.round(d - 150);
     if (!s.p.cand && d <= 150 && d > 1) std = d > 45 ? Math.min(toMonth, Math.floor(d - 1)) : Math.max(1, Math.floor(d - 1)); // pas candidat·e : pas de tours au jour le jour
     return std;
+  }
+  // Début de partie en campagne : le monde tourne seul jusqu'à la date de départ
+  const CAMP_START = '2026-12-07';
+  function fastForward(to) {
+    const s = S(); to = to || CAMP_START; let n = 0; const keepLog = s.log.length;
+    while (s.date < to && n++ < 24) { const nd = addDays(s.date, turnDays()); if (nd > to) break; endTurn(); s.queue = []; }
+    s.queue = []; s.sms = (s.sms || []).filter(m => m.human); if (typeof FL !== 'undefined') { const f = FL.F(); f.inbox = []; f.later = (f.later || []).filter(x => x.date > s.date); f.echo = []; }
+    s.turns = 0; s.ffDone = s.date; s.p.hoursMax = s.p.hours = hoursFor(turnDays()); return n;
   }
   function silence() { const d = daysLeft(); return d <= 1 && d > 0; }
   function hoursFor(days) {
@@ -515,7 +523,7 @@ window.E = (function () {
       const wv = clamp((share - 15) / 20, 0, 1); if (!rival.notable && wv > 0.2) { rival.notable = true; rival.std = Math.max(rival.std, Math.round(45 + 35 * wv)); rival.noto = Math.max(rival.noto, Math.round(25 + 35 * wv)); if (!rival.mandat && wv > 0.5) rival.mandat = rnd() < 0.5 ? 'Conseiller·ère départemental·e' : 'Conseiller·ère régional·e'; } }
     const fed = s.pnj[p.fedId]; const scope = el.type === 'mun' ? 'commune' : el.type === 'pres' ? 'nat' : 'circo';
     const locM = p.mandats.filter(m => ['maire', 'adjoint', 'cd', 'cr', 'senateur', 'depute', 'meuro', 'conseiller_municipal'].includes(m.type)); const strong = locM.some(m => ['maire', 'cd', 'cr', 'depute', 'senateur'].includes(m.type));
-    const seniority = diffDays('2026-06-15', s.date) / 365 + ({ militant: 3, adjoint: 6, habitant: 0 }[s.start] ?? 2) - ((p.exParties || []).length ? 2 : 0);
+    const seniority = diffDays('2026-06-15', s.date) / 365 + ({ militant: 3, adjoint: 6, opposition: 6, habitant: 0 }[s.start] ?? 2) - ((p.exParties || []).length ? 2 : 0);
     const uW = (el.type === 'leg' || el.type === 'dep') ? unit(el.type === 'leg' ? 'c' + p.circo : 'can:' + p.communeId) : null; const blocW = uW ? PIDS.filter(k => (D.PARTIES[k] || {}).bloc === (D.PARTIES[p.party] || {}).bloc).reduce((t, k) => t + (uW.base[k] || 0), 0) : 0; const safe = clamp((blocW - 20) / 20, 0, 1);
     const anc = el.type === 'leg' ? (strong ? 12 : locM.length ? -4 : -20) - safe * (strong ? 0 : 14) + Math.min(6, seniority * 1.2) - 6 : el.type === 'dep' ? (locM.length ? 6 : -10) + Math.min(5, seniority) - 4 : el.type === 'pres' ? (p.chef ? 0 : (p.prole || 0) >= 4 ? -10 : -45) : 0;
     const parts = { poids: p.std * 0.55, noto: (p.noto[scope] || 0) * 0.35, fed: ((fed ? fed.rel : 0) + 100) / 10, role: (p.prole || 0) * 5 + (p.fedRole && el.type !== 'pres' ? 30 : 0) + (p.chef ? 80 : 0), ancrage: anc }; if ((p.invHook || {})[el.id]) parts.obliges = p.invHook[el.id];
@@ -1351,9 +1359,10 @@ window.E = (function () {
     const s = S(), p = s.p; s.estPrevBase = s.estBase || null; s.turnCnt = {}; s.prevDid = s.turnDid || []; s.turnDid = []; const days = turnDays(); let newDate; if (days === 0.5) { if (s.half) { newDate = addDays(s.date, 1); } else newDate = s.date; } else newDate = addDays(s.date, days); const f = days / 30;
     // finances
     const met = D.METIERS.find(m => m.id === p.metier);
-    p.cash += (p.fullTime ? 0 : met.income) * f + indemnities() * 0.2 * f;
+    const spentT = s.cashT0 != null ? Math.max(0, s.cashT0 - p.cash) : 0; const incM = (p.fullTime ? 0 : met.income) * f, incI = indemnities() * 0.2 * f; const ledger = { inc: [{ l: 'Épargne de votre métier', v: Math.round(incM) }, { l: 'Indemnités d’élu·e', v: Math.round(incI) }], out: [{ l: 'Actions et imprévus', v: Math.round(spentT) }] };
+    p.cash += incM + incI;
     const sal = p.staff.reduce((a, x) => a + x.sal, 0) * f;
-    if (sal > 0) { if (p.cand && p.cand.compte && phase().id !== 'hors') { if (!spend(sal, 'Salaires de l’équipe')) { p.staff.forEach(x => x.loy -= 6); log('Vous ne pouvez pas payer votre équipe : la loyauté chute.', 'bad'); } } else if (p.cash >= sal) p.cash -= sal; else { p.staff.forEach(x => x.loy -= 6); log('Salaires impayés : votre équipe gronde.', 'bad'); } }
+    if (sal > 0) { if (p.cand && p.cand.compte && phase().id !== 'hors') { if (!spend(sal, 'Salaires de l’équipe')) { p.staff.forEach(x => x.loy -= 6); log('Vous ne pouvez pas payer votre équipe : la loyauté chute.', 'bad'); } } else if (p.cash >= sal) { p.cash -= sal; ledger.out.push({ l: 'Salaires de l’équipe', v: Math.round(sal) }); } else { p.staff.forEach(x => x.loy -= 6); log('Salaires impayés : votre équipe gronde.', 'bad'); } }
     // érosion notoriété, image
     const floor = p.mandats.some(m => m.type === 'maire') ? 45 : p.mandats.length ? 25 : 0;
     ['commune', 'circo', 'dept', 'nat'].forEach(k => { p.noto[k] = Math.max(Math.min(p.noto[k], k === 'commune' ? floor : floor / 2), p.noto[k] * Math.pow(0.975, f)); });
@@ -1372,7 +1381,7 @@ window.E = (function () {
     for (const k in (s.zones || {})) (s.zones[k] || []).forEach(z => z.cover *= Math.pow(0.9, f));
     if (p.cand && p.focusZone && typeof TM === 'undefined') { const z = (s.zones || {})[p.cand.key]; const x = z && z.find(y => y.id === p.focusZone); if (x) x.cover = clamp(x.cover + p.militants * 0.35 * f / Math.sqrt(Math.max(0.15, x.w) * 4), 0, 100); } casseroleTick(days); staffTick(days);
     if (days === 0.5) s.half = s.half ? 0 : 1; else s.half = 0;
-    s.date = newDate; s.turn++;
+    s.date = newDate; s.turn++; s.ledger = ledger; s.cashT0 = p.cash;
     // élections arrivées à échéance
     s.elections.slice().sort((a, b) => nextDate(a) < nextDate(b) ? -1 : 1).forEach(e => { if (e.status !== 'fini' && nextDate(e) <= s.date) runElectionRound(e); });
     // mandats : séances
@@ -1460,5 +1469,5 @@ window.E = (function () {
     log(q.ctx + ' : vote « ' + choice + ' » sur ' + q.text + '.', 'info');
   }
 
-  return { parrAction, parrRate, mandateReview, villageScope, thArt, de: deN, gtxt, cumulConflict, cumulCheck, resolveCumul, cumulDefault, cumulLabel, invOdds, invBase, sortantPart, petite, village, petiteKey, myPetite, DF, fresh, DIFF, indicators, pjTerms, peekDue, computeShared, pjCand, nextDate, rnd, rint, pick, clamp, gauss, uid, addDays, diffDays, fmtDate, eur, pct, AXI, CLAUSES, EVENTS, unit, vote, mkPnj, pnjList, findPnj, cadre, mayorOf, commune, newGame, phase, turnDays, hoursFor, nextElection, nextDate, electionUnit, TYPE_LABEL, declare, withdrawCand, investiture, endTurn, resolveEvent, applyEvent, statement, addImage, addImageAll, addNoto, popularity, hasStaff, eff, spend, addStd, plafond, log, article, post, genPosts, casserole, surface, lie, proposeAccord, betray, pollLocal, trueIntentions, resolveVote, indemnities, wdist, vecFrom, alignment, slug, rankUpdate, W1, pjCand, buildCandsPreview, runElectionRound, dissolution, estimate, rivalResolve, progEffect, natWindow, MISSIONS, daysLeft, silence, toD, fromD, PIDS, zonesFor, fieldEffect, zoneLean, canvass, reactNational, evById, natTerm, partyResolve, partyFigures, PROLE, LIST_T, LIST_SEATS, listPos };
+  return { fastForward, CAMP_START, parrAction, parrRate, mandateReview, villageScope, thArt, de: deN, gtxt, cumulConflict, cumulCheck, resolveCumul, cumulDefault, cumulLabel, invOdds, invBase, sortantPart, petite, village, petiteKey, myPetite, DF, fresh, DIFF, indicators, pjTerms, peekDue, computeShared, pjCand, nextDate, rnd, rint, pick, clamp, gauss, uid, addDays, diffDays, fmtDate, eur, pct, AXI, CLAUSES, EVENTS, unit, vote, mkPnj, pnjList, findPnj, cadre, mayorOf, commune, newGame, phase, turnDays, hoursFor, nextElection, nextDate, electionUnit, TYPE_LABEL, declare, withdrawCand, investiture, endTurn, resolveEvent, applyEvent, statement, addImage, addImageAll, addNoto, popularity, hasStaff, eff, spend, addStd, plafond, log, article, post, genPosts, casserole, surface, lie, proposeAccord, betray, pollLocal, trueIntentions, resolveVote, indemnities, wdist, vecFrom, alignment, slug, rankUpdate, W1, pjCand, buildCandsPreview, runElectionRound, dissolution, estimate, rivalResolve, progEffect, natWindow, MISSIONS, daysLeft, silence, toD, fromD, PIDS, zonesFor, fieldEffect, zoneLean, canvass, reactNational, evById, natTerm, partyResolve, partyFigures, PROLE, LIST_T, LIST_SEATS, listPos };
 })();
